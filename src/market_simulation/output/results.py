@@ -1,0 +1,139 @@
+"""Results saving and export functionality."""
+
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+import yaml
+
+from ..graph.state import MarketState
+from ..config.schema import SimulationConfig
+
+
+class ResultsSaver:
+    """Manages saving simulation results to disk."""
+
+    def __init__(self, output_dir: Path, experiment_name: str, config: SimulationConfig):
+        """Initialize results saver.
+
+        Args:
+            output_dir: Base output directory.
+            experiment_name: Name of the experiment.
+            config: Simulation configuration.
+        """
+        self.experiment_name = experiment_name
+        self.config = config
+
+        # Create timestamped output directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.output_dir = output_dir / f"{experiment_name}_{timestamp}"
+        self.data_dir = self.output_dir / "data"
+        self.logs_dir = self.output_dir / "logs"
+
+        # Create directories
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.data_dir.mkdir(exist_ok=True)
+        self.logs_dir.mkdir(exist_ok=True)
+
+        # Save config
+        self._save_config()
+
+    def _save_config(self) -> None:
+        """Save the configuration used for this experiment."""
+        config_path = self.output_dir / "config_used.yaml"
+        with open(config_path, "w") as f:
+            yaml.dump(self.config.model_dump(), f, default_flow_style=False)
+
+    def save_simulation(self, state: MarketState, simulation_id: int) -> None:
+        """Save results from a single simulation.
+
+        Args:
+            state: Final state from the simulation.
+            simulation_id: Identifier for this simulation.
+        """
+        # Save iteration history
+        if state["iteration_records"]:
+            df_iterations = pd.DataFrame(state["iteration_records"])
+            df_iterations.to_csv(
+                self.data_dir / f"iteration_history_{simulation_id}.csv",
+                index=False,
+            )
+
+        # Save transactions
+        if state["transactions"]:
+            df_transactions = pd.DataFrame(state["transactions"])
+            df_transactions.to_csv(
+                self.data_dir / f"transactions_{simulation_id}.csv",
+                index=False,
+            )
+
+        # Save agent histories
+        agent_records = []
+        for agent in state["agents"]:
+            for record in agent["own_history_data"]:
+                agent_records.append({
+                    "agent_id": agent["id"],
+                    "agent_type": agent["type"],
+                    "reservation_price": agent["reservation_price"],
+                    **record,
+                })
+
+        if agent_records:
+            df_agents = pd.DataFrame(agent_records)
+            df_agents.to_csv(
+                self.data_dir / f"agent_histories_{simulation_id}.csv",
+                index=False,
+            )
+
+    def get_summary(self) -> dict[str, Any]:
+        """Get summary of saved results.
+
+        Returns:
+            Dictionary with summary statistics.
+        """
+        return {
+            "output_dir": str(self.output_dir),
+            "experiment_name": self.experiment_name,
+            "data_files": list(self.data_dir.glob("*.csv")),
+        }
+
+
+def save_simulation_results(
+    state: MarketState,
+    output_dir: Path,
+    simulation_id: int,
+    config: SimulationConfig | None = None,
+) -> Path:
+    """Convenience function to save simulation results.
+
+    Args:
+        state: Final simulation state.
+        output_dir: Output directory path.
+        simulation_id: Simulation identifier.
+        config: Optional configuration to save.
+
+    Returns:
+        Path to the data directory.
+    """
+    output_dir = Path(output_dir)
+    data_dir = output_dir / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save iteration history
+    if state["iteration_records"]:
+        df_iterations = pd.DataFrame(state["iteration_records"])
+        df_iterations.to_csv(
+            data_dir / f"iteration_history_{simulation_id}.csv",
+            index=False,
+        )
+
+    # Save transactions
+    if state["transactions"]:
+        df_transactions = pd.DataFrame(state["transactions"])
+        df_transactions.to_csv(
+            data_dir / f"transactions_{simulation_id}.csv",
+            index=False,
+        )
+
+    return data_dir
