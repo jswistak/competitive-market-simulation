@@ -1,5 +1,6 @@
 """Results saving and export functionality."""
 
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -14,7 +15,9 @@ from ..config.schema import SimulationConfig
 class ResultsSaver:
     """Manages saving simulation results to disk."""
 
-    def __init__(self, output_dir: Path, experiment_name: str, config: SimulationConfig):
+    def __init__(
+        self, output_dir: Path, experiment_name: str, config: SimulationConfig
+    ):
         """Initialize results saver.
 
         Args:
@@ -24,6 +27,7 @@ class ResultsSaver:
         """
         self.experiment_name = experiment_name
         self.config = config
+        self._file_handlers: dict[int, logging.FileHandler] = {}
 
         # Create timestamped output directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -44,6 +48,38 @@ class ResultsSaver:
         config_path = self.output_dir / "config_used.yaml"
         with open(config_path, "w") as f:
             yaml.dump(self.config.model_dump(), f, default_flow_style=False)
+
+    def start_simulation_logging(self, simulation_id: int) -> None:
+        """Start logging to a file for this simulation.
+
+        Args:
+            simulation_id: Identifier for this simulation.
+        """
+        log_path = self.logs_dir / f"sim_{simulation_id}.log"
+        handler = logging.FileHandler(log_path, mode="w")
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
+
+        # Add handler to root logger
+        root_logger = logging.getLogger()
+        root_logger.addHandler(handler)
+        self._file_handlers[simulation_id] = handler
+
+    def stop_simulation_logging(self, simulation_id: int) -> None:
+        """Stop logging to file for this simulation.
+
+        Args:
+            simulation_id: Identifier for this simulation.
+        """
+        if simulation_id in self._file_handlers:
+            handler: logging.FileHandler = self._file_handlers.pop(simulation_id)
+            handler.close()
+            logging.getLogger().removeHandler(handler)
 
     def save_simulation(self, state: MarketState, simulation_id: int) -> None:
         """Save results from a single simulation.
@@ -72,12 +108,14 @@ class ResultsSaver:
         agent_records = []
         for agent in state["agents"]:
             for record in agent["own_history_data"]:
-                agent_records.append({
-                    "agent_id": agent["id"],
-                    "agent_type": agent["type"],
-                    "reservation_price": agent["reservation_price"],
-                    **record,
-                })
+                agent_records.append(
+                    {
+                        "agent_id": agent["id"],
+                        "agent_type": agent["type"],
+                        "reservation_price": agent["reservation_price"],
+                        **record,
+                    }
+                )
 
         if agent_records:
             df_agents = pd.DataFrame(agent_records)

@@ -120,14 +120,8 @@ def run(
         for sim_id in range(1, n_sims + 1):
             progress.update(task, description=f"Simulation {sim_id}/{n_sims}")
 
-            # Create callbacks factory for this simulation
-            callbacks_factory = tracing.create_callbacks_factory(
-                simulation_id=sim_id,
-                experiment_name=config,
-            )
-
-            # Build graph with tracing
-            graph = build_market_graph(llm, cfg.prompts, callbacks_factory)
+            # Start file logging for this simulation
+            results_saver.start_simulation_logging(sim_id)
 
             # Create initial state
             initial_state = create_initial_state(cfg.experiment, simulation_id=sim_id)
@@ -146,6 +140,10 @@ def run(
                 logger.error(f"Simulation {sim_id} failed: {e}")
                 if verbose:
                     console.print_exception()
+
+            finally:
+                # Stop file logging for this simulation
+                results_saver.stop_simulation_logging(sim_id)
 
             progress.advance(task)
 
