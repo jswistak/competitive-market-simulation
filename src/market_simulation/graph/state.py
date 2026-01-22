@@ -56,6 +56,7 @@ class MarketState(TypedDict):
     active_agent_ids: list[int]  # IDs of agents still in round
     potential_responder_ids: list[int]  # IDs of agents who can respond
     current_responder_index: int  # Index in potential_responder_ids
+    announced_this_iteration: list[int]  # IDs of agents who already announced this iteration
 
     # Current turn state
     announcing_agent_id: int | None

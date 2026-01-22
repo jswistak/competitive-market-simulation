@@ -2,7 +2,9 @@
 
 import random
 import logging
-from typing import Callable
+from typing import Callable, Any
+
+from langchain_core.runnables import RunnableConfig
 
 from ..state import MarketState
 from ...llm.providers.base import LLMProvider
@@ -19,26 +21,28 @@ def make_select_announcer_node() -> Callable[[MarketState], dict]:
     """
 
     def select_announcer(state: MarketState) -> dict:
-        """Select a random active agent to announce."""
+        """Select a random active agent to announce (who hasn't announced yet this iteration)."""
         active_ids = state["active_agent_ids"]
+        already_announced = state.get("announced_this_iteration", [])
 
-        if not active_ids:
-            logger.info("No active agents remaining for announcements")
+        # Filter out agents who already announced this iteration
+        eligible_ids = [aid for aid in active_ids if aid not in already_announced]
+
+        if not eligible_ids:
+            logger.info("No eligible agents remaining for announcements this iteration")
             return {
                 "announcing_agent_id": None,
                 "announcement_made": False,
-                "iteration_complete": True,
             }
 
         # Shuffle and pick first
-        shuffled = active_ids.copy()
+        shuffled = eligible_ids.copy()
         random.shuffle(shuffled)
         announcer_id = shuffled[0]
 
         logger.info(f"Selected agent {announcer_id} to announce")
         return {
             "announcing_agent_id": announcer_id,
-            "active_agent_ids": shuffled,  # Keep shuffled order
         }
 
     return select_announcer
@@ -48,19 +52,20 @@ def make_announce_node(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
-) -> Callable[[MarketState], dict]:
+) -> Callable[[MarketState, RunnableConfig], dict]:
     """Create node that handles agent price announcements.
 
     Args:
         llm: LLM provider for generating announcements.
         prompts: Prompt configuration.
-        callbacks_factory: Optional factory for tracing callbacks.
+        callbacks_factory: Optional factory for tracing callbacks (deprecated,
+            prefer passing callbacks via graph config).
 
     Returns:
         Node function that generates price announcement.
     """
 
-    def announce(state: MarketState) -> dict:
+    def announce(state: MarketState, config: RunnableConfig) -> dict:
         """Agent announces a price via LLM call."""
         agent_id = state["announcing_agent_id"]
 
@@ -97,8 +102,12 @@ def make_announce_node(
             agent_prompts=agent_prompts,
         )
 
-        # Call LLM
-        callbacks = callbacks_factory() if callbacks_factory else []
+        # Get callbacks from config (propagated from graph.invoke)
+        # Falls back to callbacks_factory for backwards compatibility
+        callbacks = config.get("callbacks", []) if config else []
+        if not callbacks and callbacks_factory:
+            callbacks = callbacks_factory()
+
         try:
             response = llm.invoke(prompt, callbacks=callbacks)
             price = _extract_price(response)
@@ -114,10 +123,14 @@ def make_announce_node(
             announcement_type = "buy" if agent_type == "buyer" else "sell"
             logger.info(f"Agent {agent_id} ({agent_type}) announced {announcement_type} at ${price:.2f}")
 
+            # Track that this agent has announced this iteration
+            announced_this_iteration = state.get("announced_this_iteration", []) + [agent_id]
+
             return {
                 "announced_price": price,
                 "announcement_type": announcement_type,
                 "announcement_made": True,
+                "announced_this_iteration": announced_this_iteration,
             }
 
         except Exception as e:

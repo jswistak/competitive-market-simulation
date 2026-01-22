@@ -2,7 +2,9 @@
 
 import random
 import logging
-from typing import Callable
+from typing import Callable, Any
+
+from langchain_core.runnables import RunnableConfig
 
 from ..state import MarketState
 from ...llm.providers.base import LLMProvider
@@ -55,19 +57,20 @@ def make_respond_node(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
-) -> Callable[[MarketState], dict]:
+) -> Callable[[MarketState, RunnableConfig], dict]:
     """Create node that handles agent responses to announcements.
 
     Args:
         llm: LLM provider for generating responses.
         prompts: Prompt configuration.
-        callbacks_factory: Optional factory for tracing callbacks.
+        callbacks_factory: Optional factory for tracing callbacks (deprecated,
+            prefer passing callbacks via graph config).
 
     Returns:
         Node function that generates response.
     """
 
-    def respond(state: MarketState) -> dict:
+    def respond(state: MarketState, config: RunnableConfig) -> dict:
         """Agent responds to an announcement via LLM call."""
         responder_ids = state["potential_responder_ids"]
         current_idx = state["current_responder_index"]
@@ -119,8 +122,12 @@ def make_respond_node(
             agent_prompts=agent_prompts,
         )
 
-        # Call LLM
-        callbacks = callbacks_factory() if callbacks_factory else []
+        # Get callbacks from config (propagated from graph.invoke)
+        # Falls back to callbacks_factory for backwards compatibility
+        callbacks = config.get("callbacks", []) if config else []
+        if not callbacks and callbacks_factory:
+            callbacks = callbacks_factory()
+
         try:
             response = llm.invoke(prompt, callbacks=callbacks)
             accepted = _extract_response(response)

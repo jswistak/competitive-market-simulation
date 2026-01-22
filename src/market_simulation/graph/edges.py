@@ -39,11 +39,20 @@ def route_after_response(state: MarketState) -> Literal["record_transaction", "r
 def route_after_update_history(state: MarketState) -> Literal["check_round", "select_announcer"]:
     """Route after history update.
 
-    If iteration complete (transaction made or no announcement), check round.
-    Otherwise, try another announcer.
+    If transaction was made, check if round should continue (advances iteration).
+    If no transaction, try another announcer within the same iteration.
+    If no announcement could be made (all tried), check round.
     """
-    if state["transaction_made"] or not state["announcement_made"]:
+    # Transaction made - iteration complete, check round status
+    if state["transaction_made"]:
         return "check_round"
+
+    # No announcement made (no agent could announce) - check round status
+    if not state["announcement_made"]:
+        return "check_round"
+
+    # Announcement was made but rejected - try another announcer
+    # (this keeps us in the same iteration)
     return "select_announcer"
 
 

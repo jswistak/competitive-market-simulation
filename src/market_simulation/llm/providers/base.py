@@ -5,6 +5,8 @@ from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnableConfig
+from langchain_core.callbacks import CallbackManager
 
 from ...config.schema import LLMConfig
 
@@ -45,14 +47,20 @@ class LLMProvider(ABC):
 
         Args:
             prompt: The prompt text.
-            callbacks: Optional list of callbacks for tracing.
+            callbacks: Optional list of callbacks for tracing. If None, inherits
+                from the current LangGraph/LangChain context automatically.
 
         Returns:
             str: The model's response text.
         """
         model = self.get_model()
         message = HumanMessage(content=prompt)
-        config = {"callbacks": callbacks} if callbacks else {}
+
+        # Build config - if explicit callbacks provided, use them
+        # Otherwise, don't set callbacks to allow inheritance from parent context
+        config: dict[str, Any] = {}
+        if callbacks:
+            config["callbacks"] = callbacks
 
         response = model.invoke([message], config=config, max_tokens=self.config.max_tokens)
         return response.content

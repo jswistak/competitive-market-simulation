@@ -214,6 +214,7 @@ def make_next_iteration_node() -> Callable[[MarketState], dict]:
             "response_accepted": None,
             "potential_responder_ids": [],
             "current_responder_index": 0,
+            "announced_this_iteration": [],  # Reset for new iteration
         }
 
     return next_iteration
@@ -260,6 +261,7 @@ def make_next_round_node() -> Callable[[MarketState], dict]:
             "response_accepted": None,
             "potential_responder_ids": [],
             "current_responder_index": 0,
+            "announced_this_iteration": [],  # Reset for new round
         }
 
     return next_round

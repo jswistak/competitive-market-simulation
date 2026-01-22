@@ -105,6 +105,26 @@ def run(
     console.print(f"Results will be saved to: [cyan]{results_saver.output_dir}[/]")
     console.print()
 
+    # Extract experiment_id from output folder name for Langfuse tracking
+    experiment_id = results_saver.output_dir.name
+    tracing.set_experiment_context(
+        experiment_id=experiment_id,
+        experiment_name=config,
+    )
+
+    # Build graph (callbacks passed via config at invoke time)
+    graph = build_market_graph(llm, cfg.prompts)
+
+    # Calculate recursion limit based on experiment size
+    max_nodes_per_iteration = 10  # approximate
+    recursion_limit = (
+        cfg.experiment.n_rounds
+        * cfg.experiment.n_iterations
+        * max_nodes_per_iteration
+        * (cfg.experiment.buyers.num + cfg.experiment.sellers.num)
+    )
+    recursion_limit = max(100, min(recursion_limit, 10000))  # Clamp between 100-10000
+
     # Run simulations
     n_sims = cfg.experiment.n_simulations
 
@@ -126,14 +146,26 @@ def run(
             # Create initial state
             initial_state = create_initial_state(cfg.experiment, simulation_id=sim_id)
 
-            # Run simulation
             try:
-                final_state = graph.invoke(initial_state)
+                # Use trace_simulation context manager for proper Langfuse tracing
+                # This creates a new trace with name, tags, session_id, user_id, and input
+                with tracing.trace_simulation(
+                    simulation_id=sim_id,
+                    recursion_limit=recursion_limit,
+                    initial_state=initial_state,
+                ) as graph_config:
+                    final_state = graph.invoke(initial_state, config=graph_config)
+
+                    # Update trace output with results (inside context to capture in trace)
+                    n_transactions = len(final_state["transactions"])
+                    tracing.update_trace_output(
+                        transactions=final_state["transactions"],
+                        n_transactions=n_transactions,
+                    )
 
                 # Save results
                 results_saver.save_simulation(final_state, sim_id)
 
-                n_transactions = len(final_state["transactions"])
                 logger.info(f"Simulation {sim_id} complete: {n_transactions} transactions")
 
             except Exception as e:
