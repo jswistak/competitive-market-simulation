@@ -5,23 +5,23 @@ from typing import Literal
 from .state import MarketState
 
 
-def route_after_announcement(state: MarketState) -> Literal["select_responders", "update_history"]:
+def route_after_announcement(state: MarketState) -> Literal["select_responders", "check_iteration"]:
     """Route after announcement node.
 
     If announcement was made, proceed to collect responses.
-    Otherwise, update history and continue.
+    Otherwise, check iteration and continue.
     """
     if state["announcement_made"] and state["announced_price"] is not None:
         return "select_responders"
-    return "update_history"
+    return "check_iteration"
 
 
-def route_after_response(state: MarketState) -> Literal["record_transaction", "respond", "update_history"]:
+def route_after_response(state: MarketState) -> Literal["record_transaction", "respond", "check_iteration"]:
     """Route after response node.
 
     If transaction made, record it.
     If more responders available, try next one.
-    Otherwise, update history.
+    Otherwise, check iteration.
     """
     if state["transaction_made"]:
         return "record_transaction"
@@ -33,7 +33,7 @@ def route_after_response(state: MarketState) -> Literal["record_transaction", "r
     if responder_idx < total_responders:
         return "respond"
 
-    return "update_history"
+    return "check_iteration"
 
 
 def route_after_update_history(state: MarketState) -> Literal["check_round", "select_announcer"]:

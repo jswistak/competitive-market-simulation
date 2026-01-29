@@ -12,6 +12,7 @@ from .nodes import (
     make_record_transaction_node,
     make_update_history_node,
     make_check_round_node,
+    make_check_iteration_node,
     make_next_iteration_node,
     make_next_round_node,
 )
@@ -49,6 +50,7 @@ def build_market_graph(
     builder.add_node("select_responders", make_select_responders_node())
     builder.add_node("respond", make_respond_node(llm, prompts, callbacks_factory))
     builder.add_node("record_transaction", make_record_transaction_node())
+    builder.add_node("check_iteration", make_check_iteration_node())
     builder.add_node("update_history", make_update_history_node())
     builder.add_node("check_round", make_check_round_node())
     builder.add_node("next_iteration", make_next_iteration_node())
@@ -61,17 +63,20 @@ def build_market_graph(
     # Select announcer -> announce
     builder.add_edge("select_announcer", "announce")
 
-    # Announce -> (select_responders | update_history)
+    # Announce -> (select_responders | check_iteration)
     builder.add_conditional_edges("announce", route_after_announcement)
 
     # Select responders -> respond
     builder.add_edge("select_responders", "respond")
 
-    # Respond -> (record_transaction | respond again | update_history)
+    # Respond -> (record_transaction | respond again | check_iteration)
     builder.add_conditional_edges("respond", route_after_response)
 
-    # Record transaction -> update_history
-    builder.add_edge("record_transaction", "update_history")
+    # Record transaction -> check_iteration
+    builder.add_edge("record_transaction", "check_iteration")
+
+    # Check iteration -> update history
+    builder.add_edge("check_iteration", "update_history")
 
     # Update history -> (check_round | select_announcer)
     builder.add_conditional_edges("update_history", route_after_update_history)
