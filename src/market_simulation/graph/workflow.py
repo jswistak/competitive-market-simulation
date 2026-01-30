@@ -69,7 +69,7 @@ def build_market_graph(
     # Select responders -> respond
     builder.add_edge("select_responders", "respond")
 
-    # Respond -> (record_transaction | respond again | check_iteration)
+    # Respond -> (record_transaction | check_iteration)
     builder.add_conditional_edges("respond", route_after_response)
 
     # Record transaction -> check_iteration
@@ -78,7 +78,7 @@ def build_market_graph(
     # Check iteration -> update history
     builder.add_edge("check_iteration", "update_history")
 
-    # Update history -> (check_round | select_announcer)
+    # Update history -> (check_round | select_announcer | respond)
     builder.add_conditional_edges("update_history", route_after_update_history)
 
     # Check round -> (next_round | next_iteration)
