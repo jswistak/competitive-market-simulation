@@ -1,5 +1,7 @@
 """Google Gemini LLM provider."""
 
+from typing import Any
+
 from langchain_core.language_models import BaseChatModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -19,3 +21,7 @@ class GeminiProvider(LLMProvider):
             model=self.config.model,
             temperature=self.config.temperature,
         )
+
+    def _max_tokens_kwargs(self, max_tokens: int) -> dict[str, Any]:
+        """Gemini uses max_output_tokens instead of max_tokens."""
+        return {"max_output_tokens": max_tokens}

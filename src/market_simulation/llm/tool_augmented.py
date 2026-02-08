@@ -64,7 +64,7 @@ class ToolAugmentedProvider:
             response = model.invoke(
                 messages,
                 config=config,
-                max_tokens=self.base_provider.config.max_tokens_with_tools,
+                **self.base_provider._max_tokens_kwargs(self.base_provider.config.max_tokens_with_tools),
             )
 
             # If no tool calls, we have our final answer

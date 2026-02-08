@@ -42,6 +42,13 @@ class LLMProvider(ABC):
             self._model = self._create_model()
         return self._model
 
+    def _max_tokens_kwargs(self, max_tokens: int) -> dict[str, Any]:
+        """Get provider-specific kwargs for max tokens.
+
+        Override in subclasses if the underlying API uses a different parameter name.
+        """
+        return {"max_tokens": max_tokens}
+
     def invoke(self, prompt: str, callbacks: list[Any] | None = None) -> str:
         """Invoke the model with a prompt.
 
@@ -62,7 +69,7 @@ class LLMProvider(ABC):
         if callbacks:
             config["callbacks"] = callbacks
 
-        response = model.invoke([message], config=config, max_tokens=self.config.max_tokens)
+        response = model.invoke([message], config=config, **self._max_tokens_kwargs(self.config.max_tokens))
         return response.content
 
     @property
