@@ -207,7 +207,12 @@ def _extract_price(response: str) -> float | None:
     if matches:
         # Take the last number as the final answer
         try:
-            return float(matches[-1])
+            extracted = float(matches[-1])
+            logger.critical(
+                f"Price extracted via regex fallback (not plain parse). "
+                f"Response: '{response}', extracted: {extracted}, all matches: {matches}"
+            )
+            return extracted
         except ValueError:
             pass
 
