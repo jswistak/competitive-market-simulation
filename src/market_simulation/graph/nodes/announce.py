@@ -1,5 +1,6 @@
 """Announcement-related graph nodes."""
 
+import re
 import random
 import logging
 from typing import Callable, Any
@@ -112,12 +113,28 @@ def make_announce_node(
             response = llm.invoke(prompt, callbacks=callbacks)
             price = _extract_price(response)
 
+            # Capture tool usage log if available
+            tool_log_entries = getattr(llm, "last_tool_log", [])
+            tool_usage_log = [
+                {
+                    **entry,
+                    "agent_id": agent_id,
+                    "agent_type": agent_type,
+                    "action": "announce",
+                    "round": state["round"],
+                    "iteration": state["iteration"],
+                    "simulation_id": state["simulation_id"],
+                }
+                for entry in tool_log_entries
+            ]
+
             if price is None:
                 logger.warning(f"Could not parse price from response: {response}")
                 return {
                     "announcement_made": False,
                     "announced_price": None,
                     "last_error": f"Could not parse price: {response}",
+                    "tool_usage_log": tool_usage_log,
                 }
 
             announcement_type = "buy" if agent_type == "buyer" else "sell"
@@ -131,6 +148,7 @@ def make_announce_node(
                 "announcement_type": announcement_type,
                 "announcement_made": True,
                 "announced_this_iteration": announced_this_iteration,
+                "tool_usage_log": tool_usage_log,
             }
 
         except Exception as e:
@@ -172,10 +190,25 @@ def _render_announcement_prompt(
 
 
 def _extract_price(response: str) -> float | None:
-    """Extract price from LLM response."""
+    """Extract price from LLM response.
+
+    Handles both plain numbers and longer tool-augmented responses
+    where the number may be embedded in reasoning text.
+    """
+    # Try plain parse first (most common case without tools)
     try:
-        # Clean and parse
         clean = response.strip().replace("$", "").replace(",", "")
         return float(clean)
     except ValueError:
-        return None
+        pass
+
+    # Fallback: find numbers in the response (for tool-augmented responses)
+    matches = re.findall(r"\$?([\d]+\.?\d*)", response)
+    if matches:
+        # Take the last number as the final answer
+        try:
+            return float(matches[-1])
+        except ValueError:
+            pass
+
+    return None

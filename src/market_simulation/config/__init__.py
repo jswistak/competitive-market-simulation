@@ -5,6 +5,7 @@ from .schema import (
     ExperimentConfig,
     AgentPricesConfig,
     TracingConfig,
+    ToolConfig,
     PromptConfig,
     SimulationConfig,
 )
@@ -15,6 +16,7 @@ __all__ = [
     "ExperimentConfig",
     "AgentPricesConfig",
     "TracingConfig",
+    "ToolConfig",
     "PromptConfig",
     "SimulationConfig",
     "load_config",

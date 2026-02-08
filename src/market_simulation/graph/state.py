@@ -77,5 +77,8 @@ class MarketState(TypedDict):
     round_complete: bool
     simulation_complete: bool
 
+    # Tool usage tracking
+    tool_usage_log: Annotated[list[dict], add]
+
     # Error handling
     last_error: str | None

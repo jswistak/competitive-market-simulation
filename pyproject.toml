@@ -25,6 +25,8 @@ dependencies = [
     # Data
     "pandas>=2.0",
     "numpy>=1.26",
+    # Sandboxed code execution
+    "e2b-code-interpreter>=1.0.0",
     # CLI
     "typer>=0.12",
     "rich>=13.0",

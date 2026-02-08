@@ -110,6 +110,8 @@ def create_initial_state(
         iteration_complete=False,
         round_complete=False,
         simulation_complete=False,
+        # Tool usage tracking
+        tool_usage_log=[],
         # Error handling
         last_error=None,
     )

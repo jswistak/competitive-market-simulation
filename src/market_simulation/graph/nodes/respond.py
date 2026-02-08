@@ -132,6 +132,21 @@ def make_respond_node(
             response = llm.invoke(prompt, callbacks=callbacks)
             accepted = _extract_response(response)
 
+            # Capture tool usage log if available
+            tool_log_entries = getattr(llm, "last_tool_log", [])
+            tool_usage_log = [
+                {
+                    **entry,
+                    "agent_id": responder_id,
+                    "agent_type": agent_type,
+                    "action": "respond",
+                    "round": state["round"],
+                    "iteration": state["iteration"],
+                    "simulation_id": state["simulation_id"],
+                }
+                for entry in tool_log_entries
+            ]
+
             logger.info(
                 f"Agent {responder_id} ({agent_type}) {'accepted' if accepted else 'rejected'} "
                 f"offer at ${state['announced_price']:.2f}"
@@ -142,6 +157,7 @@ def make_respond_node(
                 "response_accepted": accepted,
                 "transaction_made": accepted,
                 "current_responder_index": current_idx + 1,
+                "tool_usage_log": tool_usage_log,
             }
 
         except Exception as e:
