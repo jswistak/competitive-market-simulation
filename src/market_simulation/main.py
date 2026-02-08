@@ -74,7 +74,7 @@ def run(
     setup_logging(verbose)
     logger = logging.getLogger(__name__)
 
-    console.print(f"[bold green]Market Simulation[/]")
+    console.print("[bold green]Market Simulation[/]")
     console.print(f"Loading config: {config}")
 
     # Load configuration
@@ -105,7 +105,7 @@ def run(
             tool_types.append("E2B code interpreter")
         console.print(f"Tools: [cyan]{', '.join(tool_types)}[/]")
     else:
-        console.print(f"Tools: [cyan]disabled[/]")
+        console.print("Tools: [cyan]disabled[/]")
     console.print()
 
     # Create sandbox manager if E2B is enabled

@@ -1,0 +1,123 @@
+experiment:
+  n_rounds: 5
+  n_iterations: 10
+  n_simulations: 10
+  buyers:
+    min: 0.8
+    max: 3.2
+    num: 11
+  sellers:
+    min: 0.8
+    max: 3.2
+    num: 11
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  temperature: 0.0
+  max_tokens: 10
+  max_tokens_with_tools: 1024
+  max_retries: 5
+
+tools:
+  enabled: true
+  enable_simple_tools: true
+  enable_code_interpreter: true
+  e2b_timeout: 300
+  max_tool_iterations: 5
+
+tracing:
+  enabled: true
+
+prompts:
+  tools_preamble: |
+    You have access to tools including a Python code interpreter for sophisticated market analysis.
+    Available tools:
+    - evaluate_trade: Calculate profit/loss for a potential trade.
+    - compute_market_stats: Get market statistics (average prices, bid-ask spread, trends).
+    - classify_trader: Determine if you are inframarginal or extramarginal.
+    - code_interpreter: Execute Python code for advanced analysis (Bayesian belief updating, expected value computation, counterfactual reasoning). Has numpy, pandas, scipy available.
+
+    Before making decisions, you may:
+    1. Use tools to evaluate the current market state
+    2. Use the code interpreter to maintain probability distributions over other agents' valuations
+    3. Update beliefs based on observed market actions (e.g., bids reveal valuation lower bounds)
+    4. Compute expected profit for candidate prices
+    5. Choose the price that maximizes expected profit
+
+    Your final answer must still be just a number (for price announcements) or yes/no (for responses).
+
+  general:
+    main_template: |
+      You are a {role} participating in a market for a good you need to {verb}. Your task is to {verb} a unit of the good at the {preference} possible price but not {condition} your reservation price.
+      Your reservation price is known to you and only you.
+      Under no condition can you {verb} {condition} your reservation price.
+      However, {verb}ing at a price equal to your reservation price is acceptable and preferred than not {verb}ing at all.
+
+      There are 11 buyers and 11 sellers in the room (including you).
+      Any buyer or seller is free at any time to raise his hand and make a verbal offer to buy/sell.
+      Any buyer or seller is free to accept an offer, in which case a binding contract has been formed, the transaction occurs and the buyer and seller drop out of the market (no longer permitted to do anything for the remainder of that round).
+
+      There will be {N_ROUNDS} rounds.
+      Each round, you want to {verb} an additional unit of the good and are able to transact irrespective of whether you transacted in the previous round.
+      Each round, a maximum of {N_ITER} transactions can be made. You can only make one transaction per round.
+
+      Your reservation price is {reservation_price}.
+
+      You have access to tools including a Python code interpreter for sophisticated market analysis.
+      Available tools:
+      - evaluate_trade: Calculate profit/loss for a potential trade.
+      - compute_market_stats: Get market statistics (average prices, bid-ask spread, trends).
+      - classify_trader: Determine if you are inframarginal or extramarginal.
+      - code_interpreter: Execute Python code for advanced analysis (Bayesian belief updating, expected value computation, counterfactual reasoning). Has numpy, pandas, scipy available.
+
+      Before making decisions, you may:
+      1. Use tools to evaluate the current market state
+      2. Use the code interpreter to maintain probability distributions over other agents' valuations
+      3. Update beliefs based on observed market actions (e.g., bids reveal valuation lower bounds)
+      4. Compute expected profit for candidate prices
+      5. Choose the price that maximizes expected profit
+
+      Your final answer must still be just a number (for price announcements) or yes/no (for responses).
+
+      Market history:
+      {market_history}
+
+      History of your actions:
+      {own_history}
+
+      This is round {round}/{N_ROUNDS} iteration {iteration}/{N_ITER}.
+
+      {action_prompt}
+
+    announcement_history_template: |
+      In round {round} at iteration {iteration}, your offer to {announcement_type} for ${price:.2f} was {outcome}.
+
+    response_history_template: |
+      In round {round} at iteration {iteration}, you {outcome} an offer to {opposite_announcement_type} for ${price:.2f}.
+
+  seller:
+    main_keywords:
+      role: seller
+      verb: sell
+      preference: highest
+      condition: below
+
+    response_prompt: |
+      Someone is offering to buy at ${price:.2f}. Do you sell? Only answer with a yes or no.
+
+    announcement_prompt: |
+      Do you want to announce an offer to sell? If so, what is your asking price? Answer only with a number.
+
+  buyer:
+    main_keywords:
+      role: buyer
+      verb: buy
+      preference: lowest
+      condition: above
+
+    response_prompt: |
+      Someone is offering to sell at ${price:.2f}. Do you buy? Only answer with a yes or no.
+
+    announcement_prompt: |
+      Do you want to announce a bid to buy? If so, what is your bid price? Answer only with a number.
