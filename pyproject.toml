@@ -32,6 +32,9 @@ dependencies = [
     "rich>=13.0",
     "mypy>=1.19.1",
     "ruff>=0.14.13",
+    "ipykernel>=7.2.0",
+    "matplotlib>=3.10.8",
+    "seaborn>=0.13.2",
 ]
 
 [project.scripts]
