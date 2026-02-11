@@ -24,8 +24,11 @@ class EvaluateTradeInput(BaseModel):
     agent_type: str = Field(description="Your role: 'buyer' or 'seller'")
 
 
+# TODO: test calculator tool (less suggestive)
 @tool("evaluate_trade", args_schema=EvaluateTradeInput)
-def evaluate_trade(reservation_price: float, trade_price: float, agent_type: str) -> str:
+def evaluate_trade(
+    reservation_price: float, trade_price: float, agent_type: str
+) -> str:
     """Evaluate whether a trade is profitable given your reservation price and the proposed price."""
     if agent_type == "buyer":
         surplus = reservation_price - trade_price
@@ -122,6 +125,7 @@ def compute_market_stats(history_text: str) -> str:
         parts.append(f"Average transaction price: ${avg_transaction:.2f}")
         if len(accepted_prices) >= 2:
             import statistics
+
             std_dev = statistics.stdev(accepted_prices)
             parts.append(f"Price std dev: ${std_dev:.2f}")
             # Trend: compare first half to second half
@@ -149,7 +153,9 @@ def compute_market_stats(history_text: str) -> str:
     # Acceptance rate
     if total_announcements > 0:
         acceptance_rate = len(accepted_prices) / total_announcements
-        parts.append(f"Acceptance rate: {acceptance_rate:.0%} ({len(accepted_prices)}/{total_announcements})")
+        parts.append(
+            f"Acceptance rate: {acceptance_rate:.0%} ({len(accepted_prices)}/{total_announcements})"
+        )
 
     if no_announcement_count > 0:
         parts.append(f"Iterations with no announcement: {no_announcement_count}")
@@ -160,11 +166,15 @@ def compute_market_stats(history_text: str) -> str:
 class ClassifyTraderInput(BaseModel):
     reservation_price: float = Field(description="Your reservation price (valuation)")
     agent_type: str = Field(description="Your role: 'buyer' or 'seller'")
-    estimated_market_price: float = Field(description="Estimated market clearing price (e.g. average transaction price)")
+    estimated_market_price: float = Field(
+        description="Estimated market clearing price (e.g. average transaction price)"
+    )
 
 
 @tool("classify_trader", args_schema=ClassifyTraderInput)
-def classify_trader(reservation_price: float, agent_type: str, estimated_market_price: float) -> str:
+def classify_trader(
+    reservation_price: float, agent_type: str, estimated_market_price: float
+) -> str:
     """Classify whether you are an inframarginal or extramarginal trader and suggest a price range."""
     if agent_type == "buyer":
         if reservation_price > estimated_market_price:
@@ -208,7 +218,9 @@ def classify_trader(reservation_price: float, agent_type: str, estimated_market_
 
 
 class CodeInterpreterInput(BaseModel):
-    code: str = Field(description="Python code to execute for market analysis, price calculations, or statistical reasoning")
+    code: str = Field(
+        description="Python code to execute for market analysis, price calculations, or statistical reasoning"
+    )
 
 
 def get_e2b_tool(sandbox_manager: SandboxManager) -> Tool:
@@ -247,7 +259,11 @@ def get_e2b_tool(sandbox_manager: SandboxManager) -> Tool:
                 if hasattr(r, "text") and r.text:
                     output_parts.append(f"result: {r.text}")
 
-        return "\n".join(output_parts) if output_parts else "Code executed successfully with no output."
+        return (
+            "\n".join(output_parts)
+            if output_parts
+            else "Code executed successfully with no output."
+        )
 
     t = Tool(
         name="code_interpreter",

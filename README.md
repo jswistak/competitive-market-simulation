@@ -7,7 +7,8 @@ LangGraph-based market equilibrium simulation for LLM agents. This project studi
 - **Multi-Provider LLM Support**: OpenAI, Anthropic (Claude), Google Gemini, DeepSeek
 - **LangGraph Workflow**: Visualizable, editable execution flow with nodes and conditional edges
 - **Langfuse Tracing**: Full observability of LLM calls with cost tracking
-- **Configurable Experiments**: YAML-based configuration for different scenarios
+- **Tool-Augmented Agents**: Optional tools for trade evaluation, market statistics, trader classification, and sandboxed code execution (E2B)
+- **Configurable Experiments**: YAML-based configuration for different scenarios and providers
 - **CLI Interface**: Easy-to-use commands for running experiments
 
 ## Installation
@@ -66,6 +67,12 @@ uv run market-simulation run anthropic --sims 5 --no-trace
 
 # Run with verbose output
 uv run market-simulation run gemini -v
+
+# Run with tool-augmented agents (simple tools)
+uv run market-simulation run openai_simple_tools
+
+# Run with simple tools + E2B code interpreter
+uv run market-simulation run openai_full_tools
 ```
 
 ### Validate Configuration
@@ -84,13 +91,22 @@ uv run market-simulation visualize [--output graph.png]
 
 Configuration files are located in `configs/`. Available configs:
 
-| Config           | Provider  | Model                   |
-| ---------------- | --------- | ----------------------- |
-| `openai.yaml`    | OpenAI    | gpt-4o-mini             |
-| `anthropic.yaml` | Anthropic | claude-3-5-haiku-latest |
-| `gemini.yaml`    | Google    | gemini-2.0-flash        |
-| `deepseek.yaml`  | DeepSeek  | deepseek-chat           |
-| `test.yaml`      | OpenAI    | gpt-4o-mini (minimal)   |
+| Config                        | Provider  | Model                   | Tools        |
+| ----------------------------- | --------- | ----------------------- | ------------ |
+| `openai.yaml`                 | OpenAI    | gpt-4o-mini             | No           |
+| `anthropic.yaml`              | Anthropic | claude-3-5-haiku-latest | No           |
+| `gemini.yaml`                 | Google    | gemini-2.0-flash        | No           |
+| `deepseek.yaml`               | DeepSeek  | deepseek-chat           | No           |
+| `test.yaml`                   | OpenAI    | gpt-4o-mini (minimal)   | No           |
+| `openai_simple_tools.yaml`    | OpenAI    | gpt-4o-mini             | Simple       |
+| `openai_full_tools.yaml`      | OpenAI    | gpt-4o-mini             | Simple + E2B |
+| `anthropic_simple_tools.yaml` | Anthropic | claude-3-5-haiku-latest | Simple       |
+| `anthropic_full_tools.yaml`   | Anthropic | claude-3-5-haiku-latest | Simple + E2B |
+| `gemini_simple_tools.yaml`    | Google    | gemini-2.0-flash        | Simple       |
+| `gemini_full_tools.yaml`      | Google    | gemini-2.0-flash        | Simple + E2B |
+| `deepseek_simple_tools.yaml`  | DeepSeek  | deepseek-chat           | Simple       |
+| `deepseek_full_tools.yaml`    | DeepSeek  | deepseek-chat           | Simple + E2B |
+| `test_tools.yaml`             | OpenAI    | gpt-4o-mini (minimal)   | Simple       |
 
 ### Configuration Structure
 
@@ -113,6 +129,14 @@ llm:
   model: gpt-4o-mini
   temperature: 0.0
   max_tokens: 10
+  max_retries: 5
+
+tools:
+  enabled: false # Enable tool-augmented agents
+  enable_simple_tools: true # evaluate_trade, compute_market_stats, classify_trader
+  enable_code_interpreter: false # E2B sandboxed Python execution
+  e2b_timeout: 300
+  max_tool_iterations: 5
 
 tracing:
   enabled: true
@@ -165,6 +189,7 @@ master-thesis/
 │   │   └── settings.py      # Config loader
 │   ├── llm/
 │   │   ├── factory.py       # LLM provider factory
+│   │   ├── tool_augmented.py # Tool-calling agent loop wrapper
 │   │   └── providers/       # OpenAI, Anthropic, Gemini, DeepSeek
 │   ├── agents/
 │   │   └── factory.py       # Agent creation
@@ -177,6 +202,10 @@ master-thesis/
 │   │   │   └── control.py   # Flow control
 │   │   ├── edges.py         # Conditional routing
 │   │   └── workflow.py      # Graph builder
+│   ├── tools/
+│   │   ├── definitions.py   # Tool definitions (evaluate_trade, etc.)
+│   │   ├── registry.py      # Tool registry
+│   │   └── sandbox.py       # E2B sandbox manager
 │   ├── tracing/
 │   │   └── langfuse.py      # Langfuse integration
 │   └── output/
