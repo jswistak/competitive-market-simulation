@@ -124,6 +124,15 @@ class ResultsSaver:
                 index=False,
             )
 
+        # Save tool usage log
+        tool_log = state.get("tool_usage_log", [])
+        if tool_log:
+            df_tools = pd.DataFrame(tool_log)
+            df_tools.to_csv(
+                self.data_dir / f"tool_usage_{simulation_id}.csv",
+                index=False,
+            )
+
     def get_summary(self) -> dict[str, Any]:
         """Get summary of saved results.
 

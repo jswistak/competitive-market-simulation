@@ -48,19 +48,25 @@ def make_update_history_node() -> Callable[[MarketState], dict]:
             responding_agent_reservation_price=responding_rp,
         )
 
-        # Update market history text
+        # Check if all responders for the current announcement have been queried
+        all_responders_queried = (
+            state["current_responder_index"] >= len(state["potential_responder_ids"])
+        )
+
+        # Update market history text when announcement outcome is known
+        # (not only at iteration end, so subsequent announcers see prior rejections)
         history_update = ""
         if announcement_made and transaction_made:
             history_update = (
                 f"In round {round_num} at iteration {iteration}, "
                 f"an announcement to {announcement_type} for ${price:.2f} was accepted.\n"
             )
-        elif announcement_made:
+        elif announcement_made and all_responders_queried:
             history_update = (
                 f"In round {round_num} at iteration {iteration}, "
                 f"an announcement to {announcement_type} for ${price:.2f} was made but no one responded.\n"
             )
-        else:
+        elif not announcement_made and state["iteration_complete"]:
             history_update = (
                 f"In round {round_num} at iteration {iteration}, no announcement was made.\n"
             )
@@ -87,27 +93,32 @@ def _update_agent_histories(state: MarketState) -> list[dict]:
     for agent in agents:
         agent_copy = {**agent}
 
-        # Update announcing agent's history
+        # Update announcing agent's history (only when announcement outcome is resolved)
         if agent["id"] == state["announcing_agent_id"] and state["announcement_made"]:
-            outcome = "accepted" if state["transaction_made"] else "rejected"
-            history_entry = {
-                "round": state["round"],
-                "iteration": state["iteration"],
-                "action": "announce",
-                "price": state["announced_price"],
-                "outcome": outcome,
-            }
-            agent_copy["own_history_data"] = agent["own_history_data"] + [history_entry]
-
-            # Update prompt history
-            ann_type = "buy" if agent["type"] == "buyer" else "sell"
-            agent_copy["own_history_prompt"] = (
-                agent["own_history_prompt"]
-                + f"In round {state['round']} at iteration {state['iteration']}, "
-                f"your offer to {ann_type} for ${state['announced_price']:.2f} was {outcome}.\n"
+            all_responders_queried = (
+                state["current_responder_index"] >= len(state["potential_responder_ids"])
             )
+            announcement_resolved = state["transaction_made"] or all_responders_queried
 
-        # Update responding agent's history
+            if announcement_resolved:
+                outcome = "accepted" if state["transaction_made"] else "rejected"
+                history_entry = {
+                    "round": state["round"],
+                    "iteration": state["iteration"],
+                    "action": "announce",
+                    "price": state["announced_price"],
+                    "outcome": outcome,
+                }
+                agent_copy["own_history_data"] = agent["own_history_data"] + [history_entry]
+
+                ann_type = "buy" if agent["type"] == "buyer" else "sell"
+                agent_copy["own_history_prompt"] = (
+                    agent["own_history_prompt"]
+                    + f"In round {state['round']} at iteration {state['iteration']}, "
+                    f"your offer to {ann_type} for ${state['announced_price']:.2f} was {outcome}.\n"
+                )
+
+        # Update responding agent's history (always, so every responder sees their action)
         if agent["id"] == state["responding_agent_id"] and state["announcement_made"]:
             outcome = "accepted" if state["response_accepted"] else "rejected"
             history_entry = {
@@ -119,7 +130,6 @@ def _update_agent_histories(state: MarketState) -> list[dict]:
             }
             agent_copy["own_history_data"] = agent["own_history_data"] + [history_entry]
 
-            # Update prompt history
             opp_type = state["announcement_type"]
             agent_copy["own_history_prompt"] = (
                 agent["own_history_prompt"]

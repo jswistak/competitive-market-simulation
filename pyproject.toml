@@ -25,15 +25,17 @@ dependencies = [
     # Data
     "pandas>=2.0",
     "numpy>=1.26",
+    # Sandboxed code execution
+    "e2b-code-interpreter>=1.0.0",
     # CLI
     "typer>=0.12",
     "rich>=13.0",
     "mypy>=1.19.1",
     "ruff>=0.14.13",
-    # Analysis
-    "jupyter>=1.0",
-    "matplotlib>=3.8",
-    "seaborn>=0.13",
+    "ipykernel>=7.2.0",
+    "matplotlib>=3.10.8",
+    "seaborn>=0.13.2",
+    "pytest>=9.0.2",
 ]
 
 [project.scripts]

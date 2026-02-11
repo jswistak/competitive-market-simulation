@@ -5,15 +5,23 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    TaskProgressColumn,
+)
 from rich.logging import RichHandler
 
 from .config import load_config, SimulationConfig
 from .llm import create_llm
+from .llm.factory import create_tool_augmented_llm
 from .graph import build_market_graph
 from .agents import create_initial_state
 from .tracing import create_tracing_manager
 from .output import ResultsSaver
+from .tools.sandbox import SandboxManager
 
 app = typer.Typer(
     name="market-simulation",
@@ -40,22 +48,25 @@ def run(
     ),
     sims: int | None = typer.Option(
         None,
-        "--sims", "-s",
+        "--sims",
+        "-s",
         help="Override number of simulations",
     ),
     output_dir: Path = typer.Option(
         Path("./results"),
-        "--output", "-o",
+        "--output",
+        "-o",
         help="Output directory for results",
     ),
-    trace: bool = typer.Option(
-        True,
+    trace: bool | None = typer.Option(
+        None,
         "--trace/--no-trace",
         help="Enable/disable Langfuse tracing",
     ),
     verbose: bool = typer.Option(
         False,
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         help="Enable verbose logging",
     ),
 ) -> None:
@@ -63,7 +74,7 @@ def run(
     setup_logging(verbose)
     logger = logging.getLogger(__name__)
 
-    console.print(f"[bold green]Market Simulation[/]")
+    console.print("[bold green]Market Simulation[/]")
     console.print(f"Loading config: {config}")
 
     # Load configuration
@@ -76,7 +87,8 @@ def run(
     # Override settings from CLI
     if sims is not None:
         cfg.experiment.n_simulations = sims
-    cfg.tracing.enabled = trace
+    if trace is not None:
+        cfg.tracing.enabled = trace
 
     # Display configuration
     console.print(f"Provider: [cyan]{cfg.llm.provider}[/]")
@@ -85,10 +97,27 @@ def run(
     console.print(f"Rounds: [cyan]{cfg.experiment.n_rounds}[/]")
     console.print(f"Iterations: [cyan]{cfg.experiment.n_iterations}[/]")
     console.print(f"Tracing: [cyan]{'enabled' if trace else 'disabled'}[/]")
+    if cfg.tools.enabled:
+        tool_types = []
+        if cfg.tools.enable_simple_tools:
+            tool_types.append("simple")
+        if cfg.tools.enable_code_interpreter:
+            tool_types.append("E2B code interpreter")
+        console.print(f"Tools: [cyan]{', '.join(tool_types)}[/]")
+    else:
+        console.print("Tools: [cyan]disabled[/]")
     console.print()
 
-    # Create LLM provider
-    llm = create_llm(cfg.llm)
+    # Create sandbox manager if E2B is enabled
+    sandbox_manager: SandboxManager | None = None
+    if cfg.tools.enabled and cfg.tools.enable_code_interpreter:
+        sandbox_manager = SandboxManager(
+            enabled=True,
+            timeout=cfg.tools.e2b_timeout,
+        )
+
+    # Create LLM provider (with optional tool augmentation)
+    llm = create_tool_augmented_llm(cfg.llm, cfg.tools, sandbox_manager)
     logger.info(f"Created {llm.provider_name} provider with model {llm.model_name}")
 
     # Create tracing manager
@@ -166,7 +195,9 @@ def run(
                 # Save results
                 results_saver.save_simulation(final_state, sim_id)
 
-                logger.info(f"Simulation {sim_id} complete: {n_transactions} transactions")
+                logger.info(
+                    f"Simulation {sim_id} complete: {n_transactions} transactions"
+                )
 
             except Exception as e:
                 logger.error(f"Simulation {sim_id} failed: {e}")
@@ -177,9 +208,15 @@ def run(
                 # Stop file logging for this simulation
                 results_saver.stop_simulation_logging(sim_id)
 
+                # Close sandbox between simulations (fresh sandbox per sim)
+                if sandbox_manager is not None:
+                    sandbox_manager.close()
+
             progress.advance(task)
 
-    # Flush tracing
+    # Cleanup
+    if sandbox_manager is not None:
+        sandbox_manager.close()
     tracing.flush()
 
     console.print()
@@ -191,7 +228,8 @@ def run(
 def visualize(
     output: Path = typer.Option(
         Path("graph.png"),
-        "--output", "-o",
+        "--output",
+        "-o",
         help="Output file for graph visualization",
     ),
 ) -> None:
@@ -224,7 +262,9 @@ def visualize(
                 f.write(png_data)
             console.print(f"[green]Graph saved to:[/] {output}")
         except Exception as e:
-            console.print(f"[yellow]Could not save PNG (graphviz may not be installed):[/] {e}")
+            console.print(
+                f"[yellow]Could not save PNG (graphviz may not be installed):[/] {e}"
+            )
 
     except Exception as e:
         console.print(f"[red]Error generating visualization:[/] {e}")

@@ -11,9 +11,20 @@ class LLMConfig(BaseModel):
     model: str = "gpt-4o-mini"
     temperature: float = 0.0
     max_tokens: int = 10
+    max_tokens_with_tools: int = 1024
     max_retries: int = 5
     retry_base_delay: float = 1.0
     retry_backoff_factor: float = 2.0
+
+
+class ToolConfig(BaseModel):
+    """Tool availability configuration for agents."""
+
+    enabled: bool = False
+    enable_simple_tools: bool = True
+    enable_code_interpreter: bool = False
+    e2b_timeout: int = 300
+    max_tool_iterations: int = 5
 
 
 class AgentPricesConfig(BaseModel):
@@ -72,6 +83,7 @@ class PromptConfig(BaseModel):
     """Complete prompt configuration."""
 
     general: PromptTemplates = Field(default_factory=PromptTemplates)
+    tools_preamble: str = ""
     buyer: AgentPromptConfig | None = None
     seller: AgentPromptConfig | None = None
 
@@ -83,3 +95,4 @@ class SimulationConfig(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     tracing: TracingConfig = Field(default_factory=TracingConfig)
     prompts: PromptConfig = Field(default_factory=PromptConfig)
+    tools: ToolConfig = Field(default_factory=ToolConfig)
