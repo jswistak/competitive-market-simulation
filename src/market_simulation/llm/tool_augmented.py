@@ -5,6 +5,7 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, ToolMessage
 
+from .providers.base import _normalize_content
 from ..tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -69,10 +70,7 @@ class ToolAugmentedProvider:
 
             # If no tool calls, we have our final answer
             if not hasattr(response, "tool_calls") or not response.tool_calls:
-                content = response.content
-                if isinstance(content, str):
-                    return content
-                return str(content)
+                return _normalize_content(response.content)
 
             messages.append(response)
 
@@ -106,8 +104,8 @@ class ToolAugmentedProvider:
         # Exhausted iterations — extract whatever text we can from the last message
         logger.warning(f"Tool loop reached max iterations ({self.max_iterations})")
         last_msg = messages[-1]
-        if hasattr(last_msg, "content") and isinstance(last_msg.content, str):
-            return last_msg.content
+        if hasattr(last_msg, "content"):
+            return _normalize_content(last_msg.content)
         return ""
 
     def get_model(self) -> Any:

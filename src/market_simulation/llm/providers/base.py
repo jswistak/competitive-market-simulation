@@ -11,6 +11,25 @@ from langchain_core.callbacks import CallbackManager
 from ...config.schema import LLMConfig
 
 
+def _normalize_content(content: Any) -> str:
+    """Normalize LLM response content to a plain string.
+
+    Newer Gemini models return content as a list of parts
+    instead of a plain string.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, str):
+                text_parts.append(part)
+            elif isinstance(part, dict) and "text" in part:
+                text_parts.append(part["text"])
+        return "".join(text_parts)
+    return str(content)
+
+
 class LLMProvider(ABC):
     """Abstract base class for LLM providers."""
 
@@ -72,7 +91,7 @@ class LLMProvider(ABC):
         response = model.invoke(
             [message], config=config, **self._max_tokens_kwargs(self.config.max_tokens)
         )
-        return response.content
+        return _normalize_content(response.content)
 
     @property
     def model_name(self) -> str:
