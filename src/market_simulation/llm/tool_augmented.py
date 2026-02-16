@@ -61,6 +61,8 @@ class ToolAugmentedProvider:
         if callbacks:
             config["callbacks"] = callbacks
 
+        logger.info(f"Entering tool-calling loop (max {self.max_iterations} iterations)")
+
         for iteration in range(self.max_iterations):
             response = model.invoke(
                 messages,
@@ -70,6 +72,7 @@ class ToolAugmentedProvider:
 
             # If no tool calls, we have our final answer
             if not hasattr(response, "tool_calls") or not response.tool_calls:
+                logger.info(f"Tool loop resolved after {iteration + 1} iteration(s)")
                 return _normalize_content(response.content)
 
             messages.append(response)
@@ -102,7 +105,11 @@ class ToolAugmentedProvider:
                 messages.append(ToolMessage(content=str(result), tool_call_id=tool_id))
 
         # Exhausted iterations — extract whatever text we can from the last message
-        logger.warning(f"Tool loop reached max iterations ({self.max_iterations})")
+        tool_names_called = [entry["tool_name"] for entry in self.last_tool_log]
+        logger.warning(
+            f"Tool loop reached max iterations ({self.max_iterations}). "
+            f"Tools called: {tool_names_called}"
+        )
         last_msg = messages[-1]
         if hasattr(last_msg, "content"):
             return _normalize_content(last_msg.content)

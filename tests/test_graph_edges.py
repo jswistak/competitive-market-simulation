@@ -79,6 +79,17 @@ class TestRouteAfterUpdateHistory:
         }
         assert route_after_update_history(state) == "select_announcer"
 
+    def test_routes_to_select_announcer_with_empty_responder_list(self, base_market_state):
+        """Edge case: announcement made, no transaction, empty responder list -> select_announcer."""
+        state = {
+            **base_market_state,
+            "transaction_made": False,
+            "announcement_made": True,
+            "potential_responder_ids": [],
+            "current_responder_index": 0,
+        }
+        assert route_after_update_history(state) == "select_announcer"
+
 
 class TestRouteAfterCheckRound:
     """Tests for the check_round -> (next_round | next_iteration) router."""

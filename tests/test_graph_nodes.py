@@ -132,6 +132,32 @@ class TestExtractPrice:
     def test_multiple_sentences_with_dollar(self):
         assert _extract_price("Last round was $1.00. I now offer $1.25") == 1.25
 
+    # --- Corner case tests for price validation ---
+
+    def test_zero_price(self):
+        assert _extract_price("0") == 0.0
+
+    def test_zero_decimal_price(self):
+        assert _extract_price("0.00") == 0.0
+
+    def test_negative_dollar_price(self):
+        assert _extract_price("$-1.50") is None
+
+    def test_scientific_notation_rejected(self):
+        # Scientific notation should not be accepted as a valid price
+        assert _extract_price("1e2") is None
+
+    def test_dollar_sign_only(self):
+        assert _extract_price("$") is None
+
+    def test_dollar_dot_fifty(self):
+        # $.50 lacks digit before decimal in $-prefix regex
+        assert _extract_price("$.50") is None
+
+    def test_dollar_zero_no_decimal_in_narrative(self):
+        # $0 without decimal should be extracted via Stage 2
+        assert _extract_price("I think $0 is a good price") == 0.0
+
 
 # ===========================================================================
 # TestExtractResponse
@@ -194,6 +220,10 @@ class TestExtractResponse:
 
     def test_none_input(self):
         assert _extract_response(None) is False
+
+    def test_yes_multiline(self):
+        # Multiline LLM output with yes on first line
+        assert _extract_response("Yes\nI accept the offer") is True
 
 
 # ===========================================================================
@@ -371,6 +401,27 @@ class TestAnnounceNode:
         assert result["announcement_made"] is False
         assert result["parse_failures"] == 1
 
+    def test_parse_failure_adds_to_announced_this_iteration(self, base_market_state, mock_llm, prompt_config):
+        """Parse failure should still mark agent as having announced to prevent infinite loops."""
+        mock_llm.invoke.return_value = "I don't want to announce"
+        state = {**base_market_state, "announcing_agent_id": 0, "announced_this_iteration": []}
+        node = make_announce_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["announcement_made"] is False
+        assert 0 in result["announced_this_iteration"]
+
+    def test_exception_adds_to_announced_this_iteration(self, base_market_state, mock_llm, prompt_config):
+        """LLM exception should still mark agent as having announced to prevent infinite loops."""
+        mock_llm.invoke.side_effect = RuntimeError("API error")
+        state = {**base_market_state, "announcing_agent_id": 0, "announced_this_iteration": [1]}
+        node = make_announce_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["announcement_made"] is False
+        assert 0 in result["announced_this_iteration"]
+        assert 1 in result["announced_this_iteration"]
+
 
 # ===========================================================================
 # TestSelectRespondersNode
@@ -435,6 +486,19 @@ class TestSelectRespondersNode:
 
     def test_none_announcement_type(self, base_market_state):
         state = {**base_market_state, "announcement_type": None}
+        node = make_select_responders_node()
+        result = node(state)
+
+        assert result["potential_responder_ids"] == []
+        assert result["current_responder_index"] == 0
+
+    def test_announcer_not_found_returns_empty(self, base_market_state):
+        """When announcing agent ID doesn't match any agent, return empty responders."""
+        state = {
+            **base_market_state,
+            "announcing_agent_id": 999,  # nonexistent
+            "announcement_type": "buy",
+        }
         node = make_select_responders_node()
         result = node(state)
 
@@ -893,6 +957,27 @@ class TestUpdateHistoryNode:
         assert record["announcing_agent_id"] == 0
         assert record["responding_agent_id"] == 3
 
+    def test_no_market_history_update_when_more_responders_pending(self, base_market_state):
+        """Market history should not be updated until announcement outcome is fully resolved."""
+        state = {
+            **base_market_state,
+            "announcement_made": True,
+            "transaction_made": False,
+            "announced_price": 1.50,
+            "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            "responding_agent_id": 3,
+            "response_accepted": False,
+            "current_responder_index": 1,
+            "potential_responder_ids": [3, 4, 5],  # more responders remain
+            "iteration_complete": False,
+        }
+        node = make_update_history_node()
+        result = node(state)
+
+        # Market history text should NOT be updated (no history_update appended)
+        assert result["market_history_text"] == ""
+
 
 # ===========================================================================
 # TestCheckIterationNode
@@ -1065,3 +1150,12 @@ class TestNextRoundNode:
         assert result["announcement_made"] is False
         assert result["round_complete"] is False
         assert result["announced_this_iteration"] == []
+
+    def test_boundary_new_round_equals_max_rounds_not_complete(self, base_market_state):
+        """When round 1 -> 2 and max_rounds=2, simulation is NOT complete (round 2 still runs)."""
+        state = {**base_market_state, "round": 1, "max_rounds": 2}
+        node = make_next_round_node()
+        result = node(state)
+
+        assert result["round"] == 2
+        assert result.get("simulation_complete", False) is False

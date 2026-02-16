@@ -59,7 +59,8 @@ def make_record_transaction_node() -> Callable[[MarketState], dict]:
                 updated_agents.append(agent)
 
         logger.info(
-            f"Transaction recorded: buyer {buyer_id} <- seller {seller_id} @ ${price:.2f}"
+            f"R{state['round']}/I{state['iteration']}: Transaction recorded: "
+            f"buyer {buyer_id} <- seller {seller_id} @ ${price:.2f} ({announcement_type})"
         )
 
         return {

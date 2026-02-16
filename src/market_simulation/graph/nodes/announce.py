@@ -103,6 +103,8 @@ def make_announce_node(
             agent_prompts=agent_prompts,
         )
 
+        logger.debug(f"Announcement prompt for agent {agent_id} (truncated): '{prompt[:200]}...'")
+
         # Get callbacks from config (propagated from graph.invoke)
         # Falls back to callbacks_factory for backwards compatibility
         callbacks = config.get("callbacks", []) if config else []
@@ -111,6 +113,7 @@ def make_announce_node(
 
         try:
             response = llm.invoke(prompt, callbacks=callbacks)
+            logger.debug(f"Raw LLM announcement response for agent {agent_id}: '{response}'")
             price = _extract_price(response)
 
             # Capture tool usage log if available
@@ -129,13 +132,17 @@ def make_announce_node(
             ]
 
             if price is None:
-                logger.warning(f"Could not parse price from response: {response}")
+                logger.warning(
+                    f"Could not parse price from agent {agent_id} "
+                    f"(R{state['round']}/I{state['iteration']}): '{response}'"
+                )
                 return {
                     "announcement_made": False,
                     "announced_price": None,
                     "last_error": f"Could not parse price: {response}",
                     "tool_usage_log": tool_usage_log,
                     "parse_failures": state.get("parse_failures", 0) + 1,
+                    "announced_this_iteration": state.get("announced_this_iteration", []) + [agent_id],
                 }
 
             # Check for reservation price constraint violation (log only)
@@ -155,7 +162,10 @@ def make_announce_node(
                 violation = True
 
             announcement_type = "buy" if agent_type == "buyer" else "sell"
-            logger.info(f"Agent {agent_id} ({agent_type}) announced {announcement_type} at ${price:.2f}")
+            logger.info(
+                f"Agent {agent_id} ({agent_type}, reservation=${reservation:.2f}) "
+                f"announced {announcement_type} at ${price:.2f}"
+            )
 
             # Track that this agent has announced this iteration
             announced_this_iteration = state.get("announced_this_iteration", []) + [agent_id]
@@ -172,11 +182,12 @@ def make_announce_node(
             return result
 
         except Exception as e:
-            logger.error(f"LLM call failed: {e}")
+            logger.error(f"LLM call failed for agent {agent_id} (R{state['round']}/I{state['iteration']}): {e}")
             return {
                 "announcement_made": False,
                 "announced_price": None,
                 "last_error": str(e),
+                "announced_this_iteration": state.get("announced_this_iteration", []) + [agent_id],
             }
 
     return announce
@@ -225,14 +236,10 @@ def _extract_price(response: str) -> float | None:
         return None
 
     # Stage 1: plain parse (most common case without tools)
-    try:
-        clean = response.strip().replace("$", "").replace(",", "")
-        value = float(clean)
-        if value < 0:
-            return None
-        return value
-    except ValueError:
-        pass
+    # Validate format to reject negative numbers and scientific notation
+    clean = response.strip().replace("$", "").replace(",", "")
+    if re.fullmatch(r"\d+\.?\d*", clean):
+        return float(clean)
 
     # Stage 2: prefer $-prefixed numbers (most reliable signal)
     dollar_matches = re.findall(r"\$([\d]+\.?\d*)", response)
@@ -249,7 +256,7 @@ def _extract_price(response: str) -> float | None:
 
     # Stage 3: bare decimal numbers only (require decimal point to avoid
     # extracting round/iteration numbers like "round 1")
-    bare_matches = re.findall(r"(?<!\w)(\d+\.\d+)(?!\w)", response)
+    bare_matches = re.findall(r"(?<![\w\-])(\d+\.\d+)(?!\w)", response)
     if bare_matches:
         try:
             extracted = float(bare_matches[-1])

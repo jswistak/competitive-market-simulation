@@ -157,9 +157,11 @@ def make_check_iteration_node() -> Callable[[MarketState], dict]:
         # 3. No announcement was made
 
         if state["transaction_made"]:
+            logger.info(f"R{state['round']}/I{state['iteration']}: Iteration complete (transaction made)")
             return {"iteration_complete": True}
 
         if not state["announcement_made"]:
+            logger.info(f"R{state['round']}/I{state['iteration']}: Iteration complete (no announcement)")
             return {"iteration_complete": True}
 
         # Check if more responders to query
@@ -167,6 +169,10 @@ def make_check_iteration_node() -> Callable[[MarketState], dict]:
         total_responders = len(state["potential_responder_ids"])
 
         if responder_idx >= total_responders:
+            logger.info(
+                f"R{state['round']}/I{state['iteration']}: Iteration complete "
+                f"(all {total_responders} responders queried)"
+            )
             return {"iteration_complete": True}
 
         return {"iteration_complete": False}
@@ -210,7 +216,7 @@ def make_next_iteration_node() -> Callable[[MarketState], dict]:
     def next_iteration(state: MarketState) -> dict:
         """Advance to the next iteration."""
         new_iteration = state["iteration"] + 1
-        logger.info(f"Advancing to iteration {new_iteration}")
+        logger.info(f"R{state['round']}: Advancing to iteration {new_iteration}")
 
         return {
             "iteration": new_iteration,
@@ -243,10 +249,12 @@ def make_next_round_node() -> Callable[[MarketState], dict]:
         max_rounds = state["max_rounds"]
 
         if new_round > max_rounds:
-            logger.info("Simulation complete: all rounds finished")
+            tx_count = len(state.get("transactions", []))
+            logger.info(f"Simulation complete: all {max_rounds} rounds finished ({tx_count} total transactions)")
             return {"simulation_complete": True}
 
-        logger.info(f"Advancing to round {new_round}")
+        tx_in_round = sum(1 for t in state.get("transactions", []) if t["round"] == state["round"])
+        logger.info(f"Round {state['round']} completed with {tx_in_round} transaction(s). Advancing to round {new_round}")
 
         # Reactivate all agents for new round
         updated_agents = []

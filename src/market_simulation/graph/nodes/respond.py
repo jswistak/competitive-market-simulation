@@ -36,6 +36,13 @@ def make_select_responders_node() -> Callable[[MarketState], dict]:
                 announcer_type = agent["type"]
                 break
 
+        if announcer_type is None:
+            logger.error(
+                f"Announcing agent {announcing_id} not found in agents list. "
+                f"Returning empty responders."
+            )
+            return {"potential_responder_ids": [], "current_responder_index": 0}
+
         # Get opposite type agents who are still active
         target_type = "seller" if announcer_type == "buyer" else "buyer"
 
@@ -131,6 +138,7 @@ def make_respond_node(
 
         try:
             response = llm.invoke(prompt, callbacks=callbacks)
+            logger.debug(f"Raw LLM response for agent {responder_id}: '{response}'")
             accepted = _extract_response(response)
 
             # Detect ambiguous responses (no clear yes/no signal)
@@ -178,8 +186,8 @@ def make_respond_node(
                     violation = True
 
             logger.info(
-                f"Agent {responder_id} ({agent_type}) {'accepted' if accepted else 'rejected'} "
-                f"offer at ${state['announced_price']:.2f}"
+                f"R{state['round']}/I{state['iteration']}: Agent {responder_id} ({agent_type}) "
+                f"{'accepted' if accepted else 'rejected'} offer at ${state['announced_price']:.2f}"
             )
 
             result = {
