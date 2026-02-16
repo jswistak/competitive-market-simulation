@@ -64,15 +64,48 @@ class TestExtractPrice:
     def test_empty_string_returns_none(self):
         assert _extract_price("") is None
 
-    def test_regex_fallback_extracts_last_number(self):
+    def test_dollar_prefix_fallback(self):
         assert _extract_price("I think $1.50 is fair") == 1.50
 
-    def test_regex_fallback_multiple_numbers(self):
+    def test_bare_decimal_takes_last(self):
         result = _extract_price("Between 1.0 and 2.0, I choose 1.75")
         assert result == 1.75
 
     def test_dollar_sign_with_text(self):
         assert _extract_price("My price is $2.50.") == 2.50
+
+    # --- New tests for bug fixes (from real log failures) ---
+
+    def test_round_number_not_extracted(self):
+        # BUG: "round 1" was being extracted as price 1.0
+        assert _extract_price("Since I already sold in round 1, I") is None
+
+    def test_round_number_bought_not_extracted(self):
+        assert _extract_price("Given that I already bought in round 1,") is None
+
+    def test_no_response(self):
+        assert _extract_price("No") is None
+
+    def test_no_dot_response(self):
+        assert _extract_price("No.") is None
+
+    def test_narrative_no_number(self):
+        assert _extract_price("Given the recent history, prices seem to be fluctuating") is None
+
+    def test_dollar_prefix_in_narrative(self):
+        assert _extract_price("Since a seller accepted $3.27 in") == 3.27
+
+    def test_multiple_dollar_takes_last(self):
+        assert _extract_price("I think $1.5 or maybe $1.6") == 1.6
+
+    def test_dollar_prefix_preferred_over_bare(self):
+        assert _extract_price("2.0): $2.7") == 2.7
+
+    def test_no_announcement(self):
+        assert _extract_price("No announcement.") is None
+
+    def test_no_bid(self):
+        assert _extract_price("No bid.") is None
 
 
 # ===========================================================================
@@ -107,9 +140,21 @@ class TestExtractResponse:
     def test_empty_string(self):
         assert _extract_response("") is False
 
-    def test_yesterday_contains_yes(self):
-        # "yesterday" contains "yes" — this is the expected behavior
-        assert _extract_response("yesterday") is True
+    def test_yesterday_no_false_positive(self):
+        # "yesterday" should NOT match as "yes" (word boundary check)
+        assert _extract_response("yesterday") is False
+
+    def test_yes_with_period(self):
+        assert _extract_response("Yes.") is True
+
+    def test_no_with_explanation(self):
+        assert _extract_response("No, the price is too high") is False
+
+    def test_yes_with_explanation(self):
+        assert _extract_response("Yes, I accept") is True
+
+    def test_whitespace_only(self):
+        assert _extract_response("   ") is False
 
 
 # ===========================================================================

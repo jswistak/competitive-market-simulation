@@ -195,8 +195,12 @@ def run(
                 # Save results
                 results_saver.save_simulation(final_state, sim_id)
 
+                n_parse_failures = final_state.get("parse_failures", 0)
+                n_violations = final_state.get("constraint_violations", 0)
                 logger.info(
-                    f"Simulation {sim_id} complete: {n_transactions} transactions"
+                    f"Simulation {sim_id} complete: {n_transactions} transactions, "
+                    f"{n_parse_failures} parse failures, "
+                    f"{n_violations} constraint violations"
                 )
 
             except Exception as e:

@@ -1,5 +1,6 @@
 """Response-related graph nodes."""
 
+import re
 import random
 import logging
 from typing import Callable, Any
@@ -147,18 +148,39 @@ def make_respond_node(
                 for entry in tool_log_entries
             ]
 
+            # Check for reservation price constraint violation (log only)
+            violation = False
+            if accepted:
+                reservation = responder["reservation_price"]
+                announced_price = state["announced_price"]
+                if agent_type == "buyer" and announced_price > reservation:
+                    logger.warning(
+                        f"CONSTRAINT VIOLATION: Buyer {responder_id} accepted buy at "
+                        f"${announced_price:.2f} above reservation ${reservation:.2f}"
+                    )
+                    violation = True
+                elif agent_type == "seller" and announced_price < reservation:
+                    logger.warning(
+                        f"CONSTRAINT VIOLATION: Seller {responder_id} accepted sell at "
+                        f"${announced_price:.2f} below reservation ${reservation:.2f}"
+                    )
+                    violation = True
+
             logger.info(
                 f"Agent {responder_id} ({agent_type}) {'accepted' if accepted else 'rejected'} "
                 f"offer at ${state['announced_price']:.2f}"
             )
 
-            return {
+            result = {
                 "responding_agent_id": responder_id,
                 "response_accepted": accepted,
                 "transaction_made": accepted,
                 "current_responder_index": current_idx + 1,
                 "tool_usage_log": tool_usage_log,
             }
+            if violation:
+                result["constraint_violations"] = state.get("constraint_violations", 0) + 1
+            return result
 
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
@@ -203,5 +225,14 @@ def _render_response_prompt(
 
 
 def _extract_response(response: str) -> bool:
-    """Extract yes/no response from LLM output."""
-    return "yes" in response.lower()
+    """Extract yes/no response from LLM output.
+
+    Uses word boundary matching to avoid false positives
+    (e.g. "yesterday" should not match as "yes").
+    """
+    text = response.strip().lower()
+    if not text:
+        return False
+    if text in ("yes", "yes."):
+        return True
+    return bool(re.search(r"\byes\b", text))

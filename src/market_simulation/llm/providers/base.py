@@ -1,5 +1,6 @@
 """Base LLM provider interface."""
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -9,6 +10,8 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.callbacks import CallbackManager
 
 from ...config.schema import LLMConfig
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_content(content: Any) -> str:
@@ -91,7 +94,17 @@ class LLMProvider(ABC):
         response = model.invoke(
             [message], config=config, **self._max_tokens_kwargs(self.config.max_tokens)
         )
-        return _normalize_content(response.content)
+        content = _normalize_content(response.content)
+
+        if not content.strip():
+            metadata = getattr(response, "response_metadata", {}) or {}
+            finish_reason = metadata.get("finish_reason", "unknown")
+            logger.warning(
+                f"Empty response from LLM (finish_reason: {finish_reason}, "
+                f"model: {self.config.model})"
+            )
+
+        return content
 
     @property
     def model_name(self) -> str:

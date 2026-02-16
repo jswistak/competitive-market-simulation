@@ -114,4 +114,7 @@ def create_initial_state(
         tool_usage_log=[],
         # Error handling
         last_error=None,
+        # Diagnostic counters
+        parse_failures=0,
+        constraint_violations=0,
     )

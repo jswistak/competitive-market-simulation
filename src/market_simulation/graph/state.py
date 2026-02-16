@@ -82,3 +82,7 @@ class MarketState(TypedDict):
 
     # Error handling
     last_error: str | None
+
+    # Diagnostic counters
+    parse_failures: int
+    constraint_violations: int

@@ -135,7 +135,24 @@ def make_announce_node(
                     "announced_price": None,
                     "last_error": f"Could not parse price: {response}",
                     "tool_usage_log": tool_usage_log,
+                    "parse_failures": state.get("parse_failures", 0) + 1,
                 }
+
+            # Check for reservation price constraint violation (log only)
+            reservation = agent["reservation_price"]
+            violation = False
+            if agent_type == "buyer" and price > reservation:
+                logger.warning(
+                    f"CONSTRAINT VIOLATION: Buyer {agent_id} announced ${price:.2f} "
+                    f"above reservation ${reservation:.2f}"
+                )
+                violation = True
+            elif agent_type == "seller" and price < reservation:
+                logger.warning(
+                    f"CONSTRAINT VIOLATION: Seller {agent_id} announced ${price:.2f} "
+                    f"below reservation ${reservation:.2f}"
+                )
+                violation = True
 
             announcement_type = "buy" if agent_type == "buyer" else "sell"
             logger.info(f"Agent {agent_id} ({agent_type}) announced {announcement_type} at ${price:.2f}")
@@ -143,13 +160,16 @@ def make_announce_node(
             # Track that this agent has announced this iteration
             announced_this_iteration = state.get("announced_this_iteration", []) + [agent_id]
 
-            return {
+            result = {
                 "announced_price": price,
                 "announcement_type": announcement_type,
                 "announcement_made": True,
                 "announced_this_iteration": announced_this_iteration,
                 "tool_usage_log": tool_usage_log,
             }
+            if violation:
+                result["constraint_violations"] = state.get("constraint_violations", 0) + 1
+            return result
 
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
@@ -194,23 +214,45 @@ def _extract_price(response: str) -> float | None:
 
     Handles both plain numbers and longer tool-augmented responses
     where the number may be embedded in reasoning text.
+
+    Extraction priority:
+      1. Plain float parse (after stripping $ and ,)
+      2. Last $-prefixed number (e.g. "$3.27")
+      3. First bare decimal number (e.g. "1.50") — requires decimal point
+         to avoid extracting round/iteration numbers like "round 1"
     """
-    # Try plain parse first (most common case without tools)
+    if not response or not response.strip():
+        return None
+
+    # Stage 1: plain parse (most common case without tools)
     try:
         clean = response.strip().replace("$", "").replace(",", "")
         return float(clean)
     except ValueError:
         pass
 
-    # Fallback: find numbers in the response (for tool-augmented responses)
-    matches = re.findall(r"\$?([\d]+\.?\d*)", response)
-    if matches:
-        # Take the last number as the final answer
+    # Stage 2: prefer $-prefixed numbers (most reliable signal)
+    dollar_matches = re.findall(r"\$([\d]+\.?\d*)", response)
+    if dollar_matches:
         try:
-            extracted = float(matches[-1])
-            logger.critical(
-                f"Price extracted via regex fallback (not plain parse). "
-                f"Response: '{response}', extracted: {extracted}, all matches: {matches}"
+            extracted = float(dollar_matches[-1])
+            logger.warning(
+                f"Price extracted via $-prefix fallback. "
+                f"Response: '{response}', extracted: {extracted}"
+            )
+            return extracted
+        except ValueError:
+            pass
+
+    # Stage 3: bare decimal numbers only (require decimal point to avoid
+    # extracting round/iteration numbers like "round 1")
+    bare_matches = re.findall(r"(?<!\w)(\d+\.\d+)(?!\w)", response)
+    if bare_matches:
+        try:
+            extracted = float(bare_matches[-1])
+            logger.warning(
+                f"Price extracted via bare-decimal fallback. "
+                f"Response: '{response}', extracted: {extracted}"
             )
             return extracted
         except ValueError:
