@@ -69,7 +69,9 @@ class LLMProvider(ABC):
         if callbacks:
             config["callbacks"] = callbacks
 
-        response = model.invoke([message], config=config, **self._max_tokens_kwargs(self.config.max_tokens))
+        response = model.invoke(
+            [message], config=config, **self._max_tokens_kwargs(self.config.max_tokens)
+        )
         return response.content
 
     @property
