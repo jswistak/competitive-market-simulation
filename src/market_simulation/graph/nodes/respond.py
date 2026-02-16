@@ -243,6 +243,8 @@ def _extract_response(response: str) -> bool:
     Uses word boundary matching to avoid false positives
     (e.g. "yesterday" should not match as "yes").
     """
+    if not response:
+        return False
     text = response.strip().lower()
     if not text:
         return False

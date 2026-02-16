@@ -227,7 +227,10 @@ def _extract_price(response: str) -> float | None:
     # Stage 1: plain parse (most common case without tools)
     try:
         clean = response.strip().replace("$", "").replace(",", "")
-        return float(clean)
+        value = float(clean)
+        if value < 0:
+            return None
+        return value
     except ValueError:
         pass
 

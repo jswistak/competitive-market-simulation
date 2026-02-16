@@ -113,9 +113,9 @@ class TestExtractPrice:
     def test_whitespace_only_returns_none(self):
         assert _extract_price("   ") is None
 
-    def test_negative_price_via_plain_parse(self):
-        # Stage 1 accepts negative numbers — could indicate LLM confusion
-        assert _extract_price("-1.5") == -1.5
+    def test_negative_price_returns_none(self):
+        # Negative prices are invalid in a market context
+        assert _extract_price("-1.5") is None
 
     def test_dollar_integer_in_narrative(self):
         # "$2" without decimal should still be extracted via Stage 2
@@ -193,7 +193,7 @@ class TestExtractResponse:
         assert _extract_response("No, actually yes") is True
 
     def test_none_input(self):
-        assert _extract_response("") is False
+        assert _extract_response(None) is False
 
 
 # ===========================================================================
