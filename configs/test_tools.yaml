@@ -27,7 +27,7 @@ tools:
   max_tool_iterations: 5
 
 tracing:
-  enabled: false
+  enabled: true
 
 prompts:
   tools_preamble: |

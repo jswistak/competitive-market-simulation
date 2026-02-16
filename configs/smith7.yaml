@@ -20,7 +20,7 @@ llm:
   max_retries: 3
 
 tracing:
-  enabled: false
+  enabled: true
 
 prompts:
   general:
