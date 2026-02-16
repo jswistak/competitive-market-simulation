@@ -133,6 +133,17 @@ def make_respond_node(
             response = llm.invoke(prompt, callbacks=callbacks)
             accepted = _extract_response(response)
 
+            # Detect ambiguous responses (no clear yes/no signal)
+            response_text = response.strip().lower()
+            ambiguous = bool(
+                response_text and not re.search(r"\b(yes|no)\b", response_text)
+            ) or not response_text
+            if ambiguous:
+                logger.warning(
+                    f"Ambiguous response from {responder_id} "
+                    f"(defaulting to reject): '{response}'"
+                )
+
             # Capture tool usage log if available
             tool_log_entries = getattr(llm, "last_tool_log", [])
             tool_usage_log = [
@@ -180,6 +191,8 @@ def make_respond_node(
             }
             if violation:
                 result["constraint_violations"] = state.get("constraint_violations", 0) + 1
+            if ambiguous:
+                result["parse_failures"] = state.get("parse_failures", 0) + 1
             return result
 
         except Exception as e:

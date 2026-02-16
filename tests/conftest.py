@@ -80,7 +80,7 @@ def llm_config():
         provider="openai",
         model="gpt-4o-mini",
         temperature=0.0,
-        max_tokens=10,
+        max_tokens=50,
         max_retries=3,
     )
 

@@ -218,7 +218,7 @@ def _extract_price(response: str) -> float | None:
     Extraction priority:
       1. Plain float parse (after stripping $ and ,)
       2. Last $-prefixed number (e.g. "$3.27")
-      3. First bare decimal number (e.g. "1.50") — requires decimal point
+      3. Last bare decimal number (e.g. "1.50") — requires decimal point
          to avoid extracting round/iteration numbers like "round 1"
     """
     if not response or not response.strip():
@@ -237,8 +237,8 @@ def _extract_price(response: str) -> float | None:
         try:
             extracted = float(dollar_matches[-1])
             logger.warning(
-                f"Price extracted via $-prefix fallback. "
-                f"Response: '{response}', extracted: {extracted}"
+                f"Price extracted via Stage 2 ($-prefix fallback). "
+                f"Response ({len(response)} chars): '{response}', extracted: {extracted}"
             )
             return extracted
         except ValueError:
@@ -251,8 +251,8 @@ def _extract_price(response: str) -> float | None:
         try:
             extracted = float(bare_matches[-1])
             logger.warning(
-                f"Price extracted via bare-decimal fallback. "
-                f"Response: '{response}', extracted: {extracted}"
+                f"Price extracted via Stage 3 (bare-decimal fallback). "
+                f"Response ({len(response)} chars): '{response}', extracted: {extracted}"
             )
             return extracted
         except ValueError:

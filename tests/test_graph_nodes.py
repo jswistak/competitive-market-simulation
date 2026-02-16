@@ -107,6 +107,31 @@ class TestExtractPrice:
     def test_no_bid(self):
         assert _extract_price("No bid.") is None
 
+    def test_none_input(self):
+        assert _extract_price(None) is None
+
+    def test_whitespace_only_returns_none(self):
+        assert _extract_price("   ") is None
+
+    def test_negative_price_via_plain_parse(self):
+        # Stage 1 accepts negative numbers — could indicate LLM confusion
+        assert _extract_price("-1.5") == -1.5
+
+    def test_dollar_integer_in_narrative(self):
+        # "$2" without decimal should still be extracted via Stage 2
+        assert _extract_price("I bid $2") == 2.0
+
+    def test_bare_integer_in_narrative_returns_none(self):
+        # "I bid 2" without $ or decimal → Stage 3 requires decimal point
+        assert _extract_price("I bid 2") is None
+
+    def test_iteration_number_not_extracted(self):
+        # Similar to "round 1" — iteration numbers should not match
+        assert _extract_price("In iteration 3, I will not bid") is None
+
+    def test_multiple_sentences_with_dollar(self):
+        assert _extract_price("Last round was $1.00. I now offer $1.25") == 1.25
+
 
 # ===========================================================================
 # TestExtractResponse
@@ -155,6 +180,20 @@ class TestExtractResponse:
 
     def test_whitespace_only(self):
         assert _extract_response("   ") is False
+
+    def test_yes_with_exclamation(self):
+        assert _extract_response("Yes!") is True
+
+    def test_shorthand_y_not_matched(self):
+        # Single "y" is not treated as "yes"
+        assert _extract_response("y") is False
+
+    def test_no_followed_by_yes_matches_yes(self):
+        # Contradictory response — current behavior: matches "yes" via regex
+        assert _extract_response("No, actually yes") is True
+
+    def test_none_input(self):
+        assert _extract_response("") is False
 
 
 # ===========================================================================
@@ -237,6 +276,7 @@ class TestAnnounceNode:
         result = node(state, _make_config())
 
         assert result["announcement_made"] is False
+        assert result["parse_failures"] == 1
 
     def test_tracks_announced_this_iteration(self, base_market_state, mock_llm, prompt_config):
         state = {**base_market_state, "announcing_agent_id": 0, "announced_this_iteration": []}
@@ -271,6 +311,65 @@ class TestAnnounceNode:
         assert len(result["tool_usage_log"]) == 1
         assert result["tool_usage_log"][0]["agent_id"] == 0
         assert result["tool_usage_log"][0]["action"] == "announce"
+
+    def test_buyer_above_reservation_increments_violations(self, base_market_state, mock_llm, prompt_config):
+        # Buyer 0 has reservation_price=2.0, announcing $3.00 is a violation
+        mock_llm.invoke.return_value = "3.00"
+        state = {**base_market_state, "announcing_agent_id": 0}
+        node = make_announce_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["announcement_made"] is True
+        assert result["announced_price"] == 3.00
+        assert result["constraint_violations"] == 1
+
+    def test_seller_below_reservation_increments_violations(self, base_market_state, mock_llm, prompt_config):
+        # Seller 3 has reservation_price=1.0, announcing $0.50 is a violation
+        mock_llm.invoke.return_value = "0.50"
+        state = {**base_market_state, "announcing_agent_id": 3}
+        node = make_announce_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["announcement_made"] is True
+        assert result["announced_price"] == 0.50
+        assert result["constraint_violations"] == 1
+
+    def test_no_violation_when_within_bounds(self, base_market_state, mock_llm, prompt_config):
+        # Buyer 0 has reservation_price=2.0, announcing $1.50 is fine
+        mock_llm.invoke.return_value = "1.50"
+        state = {**base_market_state, "announcing_agent_id": 0}
+        node = make_announce_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["announcement_made"] is True
+        assert "constraint_violations" not in result
+
+    def test_violation_counter_accumulates(self, base_market_state, mock_llm, prompt_config):
+        # Start with 2 existing violations
+        mock_llm.invoke.return_value = "3.00"
+        state = {**base_market_state, "announcing_agent_id": 0, "constraint_violations": 2}
+        node = make_announce_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["constraint_violations"] == 3
+
+    def test_parse_failure_counter_accumulates(self, base_market_state, mock_llm, prompt_config):
+        # Start with 3 existing parse failures
+        mock_llm.invoke.return_value = "I refuse to bid"
+        state = {**base_market_state, "announcing_agent_id": 0, "parse_failures": 3}
+        node = make_announce_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["parse_failures"] == 4
+
+    def test_empty_llm_response_increments_parse_failures(self, base_market_state, mock_llm, prompt_config):
+        mock_llm.invoke.return_value = ""
+        state = {**base_market_state, "announcing_agent_id": 0}
+        node = make_announce_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["announcement_made"] is False
+        assert result["parse_failures"] == 1
 
 
 # ===========================================================================
@@ -429,6 +528,133 @@ class TestRespondNode:
 
         assert result["response_accepted"] is False
         assert result["current_responder_index"] == 1
+
+    def test_seller_accepting_below_reservation_increments_violations(
+        self, base_market_state, mock_llm, prompt_config
+    ):
+        # Seller 3 has reservation_price=1.0, accepting buy at $0.50 is a violation
+        mock_llm.invoke.return_value = "Yes"
+        state = {
+            **base_market_state,
+            "potential_responder_ids": [3],
+            "current_responder_index": 0,
+            "announcing_agent_id": 0,
+            "announced_price": 0.50,
+            "announcement_type": "buy",
+        }
+        node = make_respond_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["response_accepted"] is True
+        assert result["constraint_violations"] == 1
+
+    def test_buyer_accepting_above_reservation_increments_violations(
+        self, base_market_state, mock_llm, prompt_config
+    ):
+        # Buyer 0 has reservation_price=2.0, accepting sell at $3.00 is a violation
+        mock_llm.invoke.return_value = "Yes"
+        state = {
+            **base_market_state,
+            "potential_responder_ids": [0],
+            "current_responder_index": 0,
+            "announcing_agent_id": 3,
+            "announced_price": 3.00,
+            "announcement_type": "sell",
+        }
+        node = make_respond_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["response_accepted"] is True
+        assert result["constraint_violations"] == 1
+
+    def test_no_violation_on_reject(self, base_market_state, mock_llm, prompt_config):
+        # Rejecting a bad price is not a violation
+        mock_llm.invoke.return_value = "No"
+        state = {
+            **base_market_state,
+            "potential_responder_ids": [3],
+            "current_responder_index": 0,
+            "announcing_agent_id": 0,
+            "announced_price": 0.50,
+            "announcement_type": "buy",
+        }
+        node = make_respond_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["response_accepted"] is False
+        assert "constraint_violations" not in result
+
+    def test_no_violation_when_accept_within_bounds(self, base_market_state, mock_llm, prompt_config):
+        # Seller 3 (reservation=1.0) accepting $1.50 is fine
+        mock_llm.invoke.return_value = "Yes"
+        state = {
+            **base_market_state,
+            "potential_responder_ids": [3],
+            "current_responder_index": 0,
+            "announcing_agent_id": 0,
+            "announced_price": 1.50,
+            "announcement_type": "buy",
+        }
+        node = make_respond_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["response_accepted"] is True
+        assert "constraint_violations" not in result
+
+    def test_garbage_response_increments_parse_failures(
+        self, base_market_state, mock_llm, prompt_config
+    ):
+        # Garbage that contains neither "yes" nor "no" should track as parse failure
+        mock_llm.invoke.return_value = "I'm not sure what to do here"
+        state = {
+            **base_market_state,
+            "potential_responder_ids": [3],
+            "current_responder_index": 0,
+            "announcing_agent_id": 0,
+            "announced_price": 1.50,
+            "announcement_type": "buy",
+        }
+        node = make_respond_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["response_accepted"] is False
+        assert result["parse_failures"] == 1
+
+    def test_empty_response_increments_parse_failures(
+        self, base_market_state, mock_llm, prompt_config
+    ):
+        mock_llm.invoke.return_value = ""
+        state = {
+            **base_market_state,
+            "potential_responder_ids": [3],
+            "current_responder_index": 0,
+            "announcing_agent_id": 0,
+            "announced_price": 1.50,
+            "announcement_type": "buy",
+        }
+        node = make_respond_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["response_accepted"] is False
+        assert result["parse_failures"] == 1
+
+    def test_clear_no_does_not_increment_parse_failures(
+        self, base_market_state, mock_llm, prompt_config
+    ):
+        mock_llm.invoke.return_value = "No"
+        state = {
+            **base_market_state,
+            "potential_responder_ids": [3],
+            "current_responder_index": 0,
+            "announcing_agent_id": 0,
+            "announced_price": 1.50,
+            "announcement_type": "buy",
+        }
+        node = make_respond_node(mock_llm, prompt_config)
+        result = node(state, _make_config())
+
+        assert result["response_accepted"] is False
+        assert "parse_failures" not in result
 
 
 # ===========================================================================

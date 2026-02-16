@@ -99,10 +99,17 @@ class LLMProvider(ABC):
         if not content.strip():
             metadata = getattr(response, "response_metadata", {}) or {}
             finish_reason = metadata.get("finish_reason", "unknown")
-            logger.warning(
+            log_msg = (
                 f"Empty response from LLM (finish_reason: {finish_reason}, "
-                f"model: {self.config.model})"
+                f"model: {self.config.model}, max_tokens: {self.config.max_tokens})"
             )
+            if finish_reason in ("length", "max_tokens"):
+                logger.error(
+                    f"TRUNCATED: {log_msg} — response was cut off by token limit, "
+                    f"consider increasing max_tokens"
+                )
+            else:
+                logger.warning(log_msg)
 
         return content
 
