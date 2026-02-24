@@ -134,7 +134,7 @@ def _update_agent_histories(state: MarketState) -> list[dict]:
             agent_copy["own_history_prompt"] = (
                 agent["own_history_prompt"]
                 + f"In round {state['round']} at iteration {state['iteration']}, "
-                f"you {outcome} an offer to {opp_type} for ${state['announced_price']:.2f}.\n"
+                f"you {outcome} a {opp_type} offer for ${state['announced_price']:.2f}.\n"
             )
 
         updated.append(agent_copy)

@@ -23,6 +23,7 @@ MAIN_TEMPLATE = (
     "You are a {role}. Verb: {verb}. Preference: {preference}. "
     "Condition: {condition}. Reservation: {reservation_price}. "
     "Rounds: {N_ROUNDS}. Iters: {N_ITER}. "
+    "Buyers: {N_BUYERS}. Sellers: {N_SELLERS}. "
     "Market: {market_history}. Own: {own_history}. "
     "Round {round}/{N_ROUNDS} Iter {iteration}/{N_ITER}. {action_prompt}"
 )

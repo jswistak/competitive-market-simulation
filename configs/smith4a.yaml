@@ -54,7 +54,7 @@ prompts:
       In round {round} at iteration {iteration}, your offer to {announcement_type} for ${price:.2f} was {outcome}.
 
     response_history_template: |
-      In round {round} at iteration {iteration}, you {outcome} an offer to {opposite_announcement_type} for ${price:.2f}.
+      In round {round} at iteration {iteration}, you {outcome} a {opposite_announcement_type} offer for ${price:.2f}.
 
   seller:
     main_keywords:
