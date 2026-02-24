@@ -235,6 +235,8 @@ def _render_response_prompt(
         "reservation_price": agent["reservation_price"],
         "N_ROUNDS": state["max_rounds"],
         "N_ITER": state["max_iterations"],
+        "N_BUYERS": sum(1 for a in state["agents"] if a["type"] == "buyer"),
+        "N_SELLERS": sum(1 for a in state["agents"] if a["type"] == "seller"),
         "market_history": state["market_history_text"],
         "own_history": agent["own_history_prompt"],
         "round": state["round"],
