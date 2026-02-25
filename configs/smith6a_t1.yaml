@@ -1,21 +1,21 @@
-# Configuration for Test 3 from Smith (1962)
+# Configuration for Test 6A from Smith (1962)
 experiment:
   n_rounds: 4
-  n_iterations: 21
+  n_iterations: 12
   n_simulations: 10
   buyers:
-    min: 1.6
-    max: 9.6
-    num: 21
+    min: 8.5
+    max: 16.5
+    num: 17
   sellers:
-    min: 0.4
-    max: 4.6
-    num: 22
+    min: 1.5
+    max: 4.0
+    num: 12
 
 llm:
   provider: gemini
   model: gemini-3-flash-preview
-  temperature: 0.0
+  temperature: 1.0
   max_tokens: 150
   max_retries: 3
 

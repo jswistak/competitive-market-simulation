@@ -1,21 +1,21 @@
-# Configuration for Test 3 from Smith (1962)
+# Configuration from Smith (1962)
 experiment:
-  n_rounds: 4
-  n_iterations: 21
+  n_rounds: 5
+  n_iterations: 11
   n_simulations: 10
   buyers:
-    min: 1.6
-    max: 9.6
-    num: 21
+    min: 0.8
+    max: 3.2
+    num: 11
   sellers:
-    min: 0.4
-    max: 4.6
-    num: 22
+    min: 0.8
+    max: 3.2
+    num: 11
 
 llm:
   provider: gemini
   model: gemini-3-flash-preview
-  temperature: 0.0
+  temperature: 1.0
   max_tokens: 150
   max_retries: 3
 
