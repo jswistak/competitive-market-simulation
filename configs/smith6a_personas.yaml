@@ -1,0 +1,93 @@
+# Smith 6A with agent personas (test)
+experiment:
+  n_rounds: 4
+  n_iterations: 12
+  n_simulations: 2
+  buyers:
+    min: 8.5
+    max: 16.5
+    num: 17
+  sellers:
+    min: 1.5
+    max: 4.0
+    num: 12
+
+llm:
+  provider: gemini
+  model: gemini-3-flash-preview
+  temperature: 0.0
+  max_tokens: 150
+  max_retries: 3
+
+tracing:
+  enabled: true
+
+personas:
+  buyer_default: "You are a cautious buyer who carefully evaluates prices before acting."
+  seller_default: "You are an assertive seller who aims to maximize profit."
+
+prompts:
+  general:
+    main_template: |
+      You are a {role} participating in a market for a good you need to {verb}. Your task is to {verb} a unit of the good at the {preference} possible price but not {condition} your reservation price.
+      Your reservation price is known to you and only you.
+      Under no condition can you {verb} {condition} your reservation price.
+      However, {verb}ing at a price equal to your reservation price is acceptable and preferred than not {verb}ing at all.
+
+      {persona}
+
+      There are {N_BUYERS} buyers and {N_SELLERS} sellers in the room (including you).
+      Any buyer or seller is free at any time to raise his hand and make a verbal offer to buy/sell.
+      Any buyer or seller is free to accept an offer, in which case a binding contract has been formed, the transaction occurs and the buyer and seller drop out of the market (no longer permitted to do anything for the remainder of that round).
+
+      There will be {N_ROUNDS} rounds.
+      Each round, you want to {verb} an additional unit of the good and are able to transact irrespective of whether you transacted in the previous round.
+      Each round, a maximum of {N_ITER} transactions can be made. You can only make one transaction per round.
+
+      Your reservation price is {reservation_price}.
+
+      Market history:
+      {market_history}
+
+      History of your actions:
+      {own_history}
+
+      This is round {round}/{N_ROUNDS} iteration {iteration}/{N_ITER}.
+
+      {action_prompt}
+
+    announcement_history_template: |
+      In round {round} at iteration {iteration}, your offer to {announcement_type} for ${price:.2f} was {outcome}.
+
+    response_history_template: |
+      In round {round} at iteration {iteration}, you {outcome} a {opposite_announcement_type} offer for ${price:.2f}.
+
+  seller:
+    main_keywords:
+      role: seller
+      verb: sell
+      preference: highest
+      condition: below
+
+    response_prompt: |
+      Someone is offering to buy at ${price:.2f}. Do you accept this offer and sell at this price?
+      You MUST answer with exactly one word: "yes" or "no". Do not include prices, reasoning, or any other text.
+
+    announcement_prompt: |
+      Do you want to announce an offer to sell? If so, what is your asking price?
+      You MUST answer with ONLY a single number (e.g. 2.50). No dollar signs, no words, no explanation. Just the number.
+
+  buyer:
+    main_keywords:
+      role: buyer
+      verb: buy
+      preference: lowest
+      condition: above
+
+    response_prompt: |
+      Someone is offering to sell at ${price:.2f}. Do you accept this offer and buy at this price?
+      You MUST answer with exactly one word: "yes" or "no". Do not include prices, reasoning, or any other text.
+
+    announcement_prompt: |
+      Do you want to announce a bid to buy? If so, what is your bid price?
+      You MUST answer with ONLY a single number (e.g. 1.50). No dollar signs, no words, no explanation. Just the number.

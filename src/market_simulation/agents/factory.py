@@ -85,6 +85,7 @@ def create_initial_state(
     Args:
         config: Experiment configuration.
         simulation_id: Identifier for this simulation run.
+        personas: Optional persona configuration for per-agent persona text.
 
     Returns:
         Initial MarketState dictionary.
