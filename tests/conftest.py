@@ -176,6 +176,9 @@ def base_market_state(sample_agents):
         last_error=None,
         parse_failures=0,
         constraint_violations=0,
+        history_mode="full",
+        history_summary_last_n=3,
+        own_history_mode="full",
     )
 
 

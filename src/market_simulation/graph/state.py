@@ -86,3 +86,8 @@ class MarketState(TypedDict):
     # Diagnostic counters
     parse_failures: int
     constraint_violations: int
+
+    # History display configuration
+    history_mode: str  # "full" or "summary"
+    history_summary_last_n: int
+    own_history_mode: str  # "full" or "summary"

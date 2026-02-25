@@ -117,4 +117,8 @@ def create_initial_state(
         # Diagnostic counters
         parse_failures=0,
         constraint_violations=0,
+        # History display configuration
+        history_mode=config.history.mode,
+        history_summary_last_n=config.history.summary_last_n_events,
+        own_history_mode=config.history.own_history_mode,
     )
