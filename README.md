@@ -160,6 +160,39 @@ prompts:
     # ... similar structure
 ```
 
+### Chain-of-Thought (CoT) Configuration
+
+Enable chain-of-thought reasoning to let agents think step-by-step before providing their final answer. The agent's reasoning is captured and stored in `IterationRecord` for analysis.
+
+```yaml
+chain_of_thought:
+  enabled: true       # Enable CoT extraction
+  answer_tag: "ANSWER:"  # Tag that separates reasoning from the final answer
+
+llm:
+  max_tokens: 500     # Must be increased for CoT (default 10 is too low)
+```
+
+**Fields:**
+- `enabled` (bool, default `false`): When `true`, the system looks for `answer_tag` in LLM responses to split reasoning from the answer.
+- `answer_tag` (str, default `"ANSWER:"`): The delimiter tag. Text before the tag is captured as reasoning; text after is parsed as the price or yes/no decision.
+
+**Important:** When CoT is enabled, set `llm.max_tokens` to a sufficiently high value (e.g., 500+) so the model has room for reasoning before the answer tag. The default `max_tokens: 10` will truncate CoT responses.
+
+**Prompt design:** Your prompts should instruct the model to use the answer tag. For example:
+
+```yaml
+announcement_prompt: |
+  Think step by step about your strategy.
+  Then provide your final price as: ANSWER: <number> (e.g. ANSWER: 2.50)
+
+response_prompt: |
+  Think step by step about whether this price is acceptable.
+  Then provide your answer as: ANSWER: yes or ANSWER: no
+```
+
+See `configs/smith6a_cot.yaml` for a complete working example.
+
 ## Environment Variables
 
 Create a `.env` file or export these variables:

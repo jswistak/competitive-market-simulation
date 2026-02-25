@@ -142,8 +142,17 @@ def make_respond_node(
             logger.debug(f"Raw LLM response for agent {responder_id}: '{response}'")
             accepted, reasoning = _extract_response(response, answer_tag=answer_tag)
 
-            # Detect ambiguous responses (no clear yes/no signal)
-            response_text = response.strip().lower()
+            # Detect ambiguous responses (no clear yes/no signal).
+            # When CoT is enabled, check only the answer portion (after the tag)
+            # because reasoning almost certainly contains "yes"/"no" words.
+            if answer_tag:
+                tag_idx = response.upper().rfind(answer_tag.upper())
+                if tag_idx != -1:
+                    response_text = response[tag_idx + len(answer_tag) :].strip().lower()
+                else:
+                    response_text = response.strip().lower()
+            else:
+                response_text = response.strip().lower()
             ambiguous = bool(
                 response_text and not re.search(r"\b(yes|no)\b", response_text)
             ) or not response_text
@@ -279,6 +288,14 @@ def _extract_response(
                 return True, reasoning
             elif answer_part.startswith("no"):
                 return False, reasoning
+            # Tag was found but answer_part didn't contain yes/no.
+            # Do NOT fall through to search the full response (which includes
+            # reasoning) -- yes/no words in reasoning could be misinterpreted.
+            logger.warning(
+                f"Answer tag found but could not parse yes/no from answer portion: "
+                f"'{answer_part}'"
+            )
+            return False, reasoning
 
     text = response.strip().lower()
     if not text:

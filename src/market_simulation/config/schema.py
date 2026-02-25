@@ -89,11 +89,15 @@ class PromptConfig(BaseModel):
 
 
 class ChainOfThoughtConfig(BaseModel):
-    """Chain-of-thought reasoning configuration for agents."""
+    """Chain-of-thought reasoning configuration for agents.
+
+    Note: When CoT is enabled, set ``llm.max_tokens`` to an appropriately
+    high value (e.g. 500+) in the YAML config so the model has room for
+    reasoning before the answer tag.
+    """
 
     enabled: bool = False
     answer_tag: str = "ANSWER:"
-    max_tokens_override: int | None = None
 
 
 class SimulationConfig(BaseModel):

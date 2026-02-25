@@ -278,6 +278,15 @@ def _extract_price(
             clean = answer_part.replace("$", "").replace(",", "").split()[0] if answer_part else ""
             if re.fullmatch(r"\d+\.?\d*", clean):
                 return float(clean), reasoning
+            # Tag was found but answer_part didn't parse as a valid number.
+            # Do NOT fall through to search the full response (which includes
+            # reasoning) -- prices mentioned in reasoning could be extracted
+            # as the announced price.
+            logger.warning(
+                f"Answer tag found but could not parse price from answer portion: "
+                f"'{answer_part}'"
+            )
+            return None, reasoning
 
     # Stage 1: plain parse (most common case without tools)
     # Validate format to reject negative numbers and scientific notation
