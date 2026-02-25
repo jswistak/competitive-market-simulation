@@ -193,7 +193,15 @@ def run(
         )
         n_sims = cfg.experiment.n_simulations
 
-    recursion_limit = max(100, min(recursion_limit, 10000))  # Clamp between 100-10000
+    # Calculate recursion limit based on experiment size
+    max_nodes_per_iteration = 10  # approximate
+    recursion_limit = (
+        cfg.experiment.n_rounds
+        * cfg.experiment.n_iterations
+        * max_nodes_per_iteration
+        * (cfg.experiment.buyers.num + cfg.experiment.sellers.num)
+    )
+    recursion_limit = max(100, min(recursion_limit, 15000))  # Clamp between 100-15000
 
     # Run simulations
     with Progress(

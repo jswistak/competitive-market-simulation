@@ -82,7 +82,11 @@ def make_announce_node(
 
         if agent is None:
             logger.error(f"Agent {agent_id} not found")
-            return {"announcement_made": False, "announced_price": None, "last_error": f"Agent {agent_id} not found"}
+            return {
+                "announcement_made": False,
+                "announced_price": None,
+                "last_error": f"Agent {agent_id} not found",
+            }
 
         # Determine agent type and get appropriate config
         agent_type = agent["type"]
@@ -103,7 +107,9 @@ def make_announce_node(
             agent_prompts=agent_prompts,
         )
 
-        logger.debug(f"Announcement prompt for agent {agent_id} (truncated): '{prompt[:200]}...'")
+        logger.debug(
+            f"Announcement prompt for agent {agent_id} (truncated): '{prompt[:200]}...'"
+        )
 
         # Get callbacks from config (propagated from graph.invoke)
         # Falls back to callbacks_factory for backwards compatibility
@@ -113,7 +119,9 @@ def make_announce_node(
 
         try:
             response = llm.invoke(prompt, callbacks=callbacks)
-            logger.debug(f"Raw LLM announcement response for agent {agent_id}: '{response}'")
+            logger.debug(
+                f"Raw LLM announcement response for agent {agent_id}: '{response}'"
+            )
             price = _extract_price(response)
 
             # Capture tool usage log if available
@@ -142,7 +150,10 @@ def make_announce_node(
                     "last_error": f"Could not parse price: {response}",
                     "tool_usage_log": tool_usage_log,
                     "parse_failures": state.get("parse_failures", 0) + 1,
-                    "announced_this_iteration": state.get("announced_this_iteration", []) + [agent_id],
+                    "announced_this_iteration": state.get(
+                        "announced_this_iteration", []
+                    )
+                    + [agent_id],
                 }
 
             # Check for reservation price constraint violation (log only)
@@ -168,7 +179,9 @@ def make_announce_node(
             )
 
             # Track that this agent has announced this iteration
-            announced_this_iteration = state.get("announced_this_iteration", []) + [agent_id]
+            announced_this_iteration = state.get("announced_this_iteration", []) + [
+                agent_id
+            ]
 
             result = {
                 "announced_price": price,
@@ -178,16 +191,21 @@ def make_announce_node(
                 "tool_usage_log": tool_usage_log,
             }
             if violation:
-                result["constraint_violations"] = state.get("constraint_violations", 0) + 1
+                result["constraint_violations"] = (
+                    state.get("constraint_violations", 0) + 1
+                )
             return result
 
         except Exception as e:
-            logger.error(f"LLM call failed for agent {agent_id} (R{state['round']}/I{state['iteration']}): {e}")
+            logger.error(
+                f"LLM call failed for agent {agent_id} (R{state['round']}/I{state['iteration']}): {e}"
+            )
             return {
                 "announcement_made": False,
                 "announced_price": None,
                 "last_error": str(e),
-                "announced_this_iteration": state.get("announced_this_iteration", []) + [agent_id],
+                "announced_this_iteration": state.get("announced_this_iteration", [])
+                + [agent_id],
             }
 
     return announce
@@ -210,6 +228,8 @@ def _render_announcement_prompt(
         "reservation_price": agent["reservation_price"],
         "N_ROUNDS": state["max_rounds"],
         "N_ITER": state["max_iterations"],
+        "N_BUYERS": sum(1 for a in state["agents"] if a["type"] == "buyer"),
+        "N_SELLERS": sum(1 for a in state["agents"] if a["type"] == "seller"),
         "market_history": state["market_history_text"],
         "own_history": agent["own_history_prompt"],
         "round": state["round"],
