@@ -146,8 +146,9 @@ def create_bidders(config: AuctionConfig) -> list[BidderState]:
     if bc.distribution == "linspace":
         values = np.round(np.linspace(bc.value_min, bc.value_max, bc.num), 2)
     else:  # uniform
+        rng = np.random.default_rng(config.random_seed)
         values = np.round(
-            np.random.uniform(bc.value_min, bc.value_max, bc.num), 2
+            rng.uniform(bc.value_min, bc.value_max, bc.num), 2
         )
 
     bidders: list[BidderState] = []

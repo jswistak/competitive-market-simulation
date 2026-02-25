@@ -171,7 +171,9 @@ def make_determine_winner_node() -> Callable[[SealedBidState], dict]:
             )
             return {"auction_results": [result], "all_bid_records": list(bids)}
 
-        # Sort by bid amount descending
+        # Sort by bid amount descending.  Python's sort is stable, so
+        # tied bids are resolved by their original collection order
+        # (i.e. the bidder who was queried first wins the tie).
         sorted_bids = sorted(bids, key=lambda b: b["bid_amount"], reverse=True)
         winner = sorted_bids[0]
         second_bid = sorted_bids[1]["bid_amount"] if len(sorted_bids) > 1 else None
@@ -269,6 +271,9 @@ def make_update_sealed_history_node() -> Callable[[SealedBidState], dict]:
                 )
                 if won and latest["payment"] is not None:
                     entry_text += f" Payment: ${latest['payment']:.2f}."
+                elif not won and auction_type == "all_pay":
+                    # In all-pay auctions, losers also pay their bid.
+                    entry_text += f" You paid your bid of ${my_bid:.2f}."
                 entry_text += "\n"
                 bidder_copy["own_history_prompt"] = bidder["own_history_prompt"] + entry_text
                 bidder_copy["own_history_data"] = bidder["own_history_data"] + [

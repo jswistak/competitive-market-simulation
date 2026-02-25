@@ -36,6 +36,7 @@ def build_dutch_graph(
     llm: LLMProvider,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    random_seed: int | None = None,
 ) -> StateGraph:
     """Build a Dutch (descending) auction LangGraph workflow.
 
@@ -44,6 +45,7 @@ def build_dutch_graph(
         llm: LLM provider for bidder interactions.
         prompts: Auction prompt configuration.
         callbacks_factory: Optional factory for tracing callbacks.
+        random_seed: Optional seed for deterministic bidder shuffling.
 
     Returns:
         Compiled StateGraph ready for execution.
@@ -51,10 +53,10 @@ def build_dutch_graph(
     builder = StateGraph(DutchAuctionState)
 
     # Nodes
-    builder.add_node("announce_price", make_announce_price_node())
+    builder.add_node("announce_price", make_announce_price_node(random_seed=random_seed))
     builder.add_node("solicit_acceptance", make_solicit_acceptance_node(llm, prompts, callbacks_factory))
     builder.add_node("check_dutch_end", make_check_dutch_end_node())
-    builder.add_node("lower_price", make_lower_price_node())
+    builder.add_node("lower_price", make_lower_price_node(random_seed=random_seed))
     builder.add_node("settle", make_settle_dutch_node())
     builder.add_node("update_history", make_update_dutch_history_node())
     builder.add_node("next_round", make_next_dutch_round_node())

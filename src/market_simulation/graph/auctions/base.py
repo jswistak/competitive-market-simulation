@@ -22,6 +22,8 @@ def extract_bid(response: str) -> float | None:
       2. Last $-prefixed number (e.g. "$3.27")
       3. Last bare decimal number (e.g. "1.50") — requires decimal point
          to avoid extracting round numbers like "round 1"
+      4. Last bare integer (e.g. "5") at a word boundary — catches
+         responses like "I bid 5" that lack a decimal point
     """
     if not response or not response.strip():
         return None
@@ -50,6 +52,18 @@ def extract_bid(response: str) -> float | None:
             extracted = float(bare_matches[-1])
             logger.debug(
                 f"Bid extracted via bare-decimal fallback: '{response}' -> {extracted}"
+            )
+            return extracted
+        except ValueError:
+            pass
+
+    # Stage 4: bare integers (e.g. "I bid 5")
+    int_matches = re.findall(r"\b(\d+)\b", response)
+    if int_matches:
+        try:
+            extracted = float(int_matches[-1])
+            logger.debug(
+                f"Bid extracted via bare-integer fallback: '{response}' -> {extracted}"
             )
             return extracted
         except ValueError:

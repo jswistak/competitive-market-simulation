@@ -89,6 +89,9 @@ class AuctionConfig(BaseModel):
     # General
     prize_value: float | None = None  # Override private values with common prize
 
+    # Reproducibility
+    random_seed: int | None = None  # Seed for random operations (shuffling, sampling)
+
 
 class AuctionPromptConfig(BaseModel):
     """Prompt templates specific to auction mechanisms."""

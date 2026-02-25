@@ -28,6 +28,7 @@ def build_auction_graph(
     llm: LLMProvider,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    random_seed: int | None = None,
 ) -> StateGraph:
     """Build the appropriate auction graph for the given type.
 
@@ -36,6 +37,8 @@ def build_auction_graph(
         llm: LLM provider for bidder interactions.
         prompts: Auction prompt configuration.
         callbacks_factory: Optional factory for tracing callbacks.
+        random_seed: Optional seed for deterministic random operations
+            (e.g. bidder shuffling in Dutch auctions).
 
     Returns:
         Compiled StateGraph ready for execution.
@@ -51,5 +54,11 @@ def build_auction_graph(
         raise ValueError(
             f"Unsupported auction type: {type_str}. Supported: {supported}"
         )
+
+    # Only Dutch currently uses the seed; other builders accept **kwargs
+    # gracefully via their signatures (extra kwargs are ignored by
+    # builders that don't declare them).
+    if type_str == AuctionType.DUTCH.value:
+        return builder(type_str, llm, prompts, callbacks_factory, random_seed=random_seed)
 
     return builder(type_str, llm, prompts, callbacks_factory)

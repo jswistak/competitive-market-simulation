@@ -87,6 +87,56 @@ uv run market-simulation validate <config>
 uv run market-simulation visualize [--output graph.png]
 ```
 
+## Auction Types
+
+The project supports 7 market mechanisms. The `double_auction` is the default; the remaining 6 are configured via `experiment.auction_type` and the `experiment.auction` block.
+
+| Type | Config value | Description | Payment rule |
+|------|-------------|-------------|--------------|
+| Double Auction | `double_auction` | Continuous bilateral trading (buyers and sellers) | Agreed price |
+| First-Price Sealed-Bid | `fpsb` | Simultaneous sealed bids; highest wins | Winner pays own bid |
+| Second-Price Sealed-Bid (Vickrey) | `spsb` | Simultaneous sealed bids; highest wins | Winner pays second-highest bid |
+| All-Pay | `all_pay` | Simultaneous sealed bids; highest wins, all bidders pay | Everyone pays their bid |
+| English (ascending) | `english` | Open ascending bids; last bidder standing wins | Winner pays standing bid |
+| Dutch (descending) | `dutch` | Price descends from a start price; first to accept wins | Winner pays accepted price |
+| First-Price Open Outcry | `first_price_open_outcry` | Open ascending bids (like English) with first-price payment | Winner pays own bid |
+
+### Auction-specific config keys
+
+```yaml
+experiment:
+  auction_type: fpsb        # One of the values above
+  auction:
+    n_rounds: 10             # Rounds per simulation
+    n_simulations: 10        # Independent simulation runs
+    random_seed: 42          # Optional seed for reproducibility
+    bidders:
+      num: 5
+      value_min: 0.0
+      value_max: 10.0
+      distribution: linspace # "linspace" or "uniform"
+
+    # English / Open-Outcry only
+    min_increment: 0.5
+    max_bidding_rounds: 50
+
+    # Dutch only
+    dutch_start_price: 12.0
+    dutch_decrement: 0.5
+    dutch_min_price: 0.0
+```
+
+### Auction output files
+
+Each auction simulation produces:
+
+- `auction_results_<sim>.csv` -- per-round winner, payment, surplus, and all bids
+- `bid_records_<sim>.csv` -- every individual bid submitted across all rounds
+- `bidder_histories_<sim>.csv` -- per-bidder history data (own bids, outcomes, payments)
+- `tool_usage_<sim>.csv` -- tool invocation log (when tools are enabled)
+
+Pre-built auction configs are located in `configs/` (`auction_fpsb.yaml`, `auction_spsb.yaml`, `auction_allpay.yaml`, `auction_english.yaml`, `auction_dutch.yaml`, `auction_open_outcry.yaml`).
+
 ## Configuration
 
 Configuration files are located in `configs/`. Available configs:

@@ -8,6 +8,7 @@ if the price hits the floor with no acceptance, there is no winner.
 
 import logging
 import random
+import re
 from typing import Callable
 
 from langchain_core.runnables import RunnableConfig
@@ -25,8 +26,17 @@ logger = logging.getLogger(__name__)
 # ------------------------------------------------------------------
 
 
-def make_announce_price_node() -> Callable[[DutchAuctionState], dict]:
-    """Create node that sets the starting price for a Dutch round."""
+def make_announce_price_node(
+    random_seed: int | None = None,
+) -> Callable[[DutchAuctionState], dict]:
+    """Create node that sets the starting price for a Dutch round.
+
+    Args:
+        random_seed: Optional seed for deterministic bidder shuffling.
+            When set, a seeded ``random.Random`` instance is used
+            instead of the module-level PRNG so runs are reproducible.
+    """
+    rng = random.Random(random_seed) if random_seed is not None else random.Random()
 
     def announce_price(state: DutchAuctionState) -> dict:
         price = state["dutch_start_price"]
@@ -38,7 +48,7 @@ def make_announce_price_node() -> Callable[[DutchAuctionState], dict]:
         # sequentially, randomising the order each price tick is the
         # pragmatic equivalent.
         shuffled_bidders = list(state["bidders"])
-        random.shuffle(shuffled_bidders)
+        rng.shuffle(shuffled_bidders)
         return {
             "current_price": price,
             "current_bidder_index": 0,
@@ -114,7 +124,6 @@ def make_solicit_acceptance_node(
             parse_failures = state.get("parse_failures", 0)
             # Detect ambiguous (no clear yes/no)
             resp_lower = response.strip().lower()
-            import re
             if resp_lower and not re.search(r"\b(yes|no)\b", resp_lower):
                 parse_failures += 1
 
@@ -203,8 +212,17 @@ def make_check_dutch_end_node() -> Callable[[DutchAuctionState], dict]:
 # ------------------------------------------------------------------
 
 
-def make_lower_price_node() -> Callable[[DutchAuctionState], dict]:
-    """Create node that decrements the current price."""
+def make_lower_price_node(
+    random_seed: int | None = None,
+) -> Callable[[DutchAuctionState], dict]:
+    """Create node that decrements the current price.
+
+    Args:
+        random_seed: Optional seed for deterministic bidder shuffling.
+            When set, a seeded ``random.Random`` instance is used
+            instead of the module-level PRNG so runs are reproducible.
+    """
+    rng = random.Random(random_seed) if random_seed is not None else random.Random()
 
     def lower_price(state: DutchAuctionState) -> dict:
         new_price = round(state["current_price"] - state["dutch_decrement"], 2)
@@ -213,7 +231,7 @@ def make_lower_price_node() -> Callable[[DutchAuctionState], dict]:
         )
         # Shuffle bidder order for each price tick to avoid positional bias
         shuffled_bidders = list(state["bidders"])
-        random.shuffle(shuffled_bidders)
+        rng.shuffle(shuffled_bidders)
         return {
             "current_price": new_price,
             "current_bidder_index": 0,

@@ -169,7 +169,10 @@ def run(
 
     # Build graph and calculate recursion limit
     if is_auction and auction_config and cfg.prompts.auction:
-        graph = build_auction_graph(cfg.experiment.auction_type, llm, cfg.prompts.auction)
+        graph = build_auction_graph(
+            cfg.experiment.auction_type, llm, cfg.prompts.auction,
+            random_seed=auction_config.random_seed,
+        )
         n_bidders = auction_config.bidders.num
         n_rounds = auction_config.n_rounds
 
