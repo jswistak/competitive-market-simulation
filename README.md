@@ -146,6 +146,8 @@ prompts:
   general:
     main_template: |
       You are a {role} participating in a market...
+      {persona}
+      ...
   buyer:
     main_keywords:
       role: buyer
@@ -159,6 +161,45 @@ prompts:
   seller:
     # ... similar structure
 ```
+
+### Agent Personas
+
+The `personas` configuration block allows you to assign behavioral descriptions to individual agents or groups of agents. Persona text is injected into the system prompt at the location of the `{persona}` placeholder in `main_template`.
+
+**Fields:**
+
+| Field            | Type              | Description                                                    |
+| ---------------- | ----------------- | -------------------------------------------------------------- |
+| `buyer_default`  | `string`          | Default persona applied to all buyers (unless overridden)      |
+| `seller_default` | `string`          | Default persona applied to all sellers (unless overridden)     |
+| `buyers`         | `dict[int, str]`  | Per-buyer overrides, keyed by buyer index (0-based)            |
+| `sellers`        | `dict[int, str]`  | Per-seller overrides, keyed by seller index (0-based)          |
+
+**Important:** The `{persona}` placeholder must be present in `prompts.general.main_template` for persona text to appear in prompts. If no persona is assigned to an agent, the placeholder is replaced with an empty string.
+
+**Example:**
+
+```yaml
+personas:
+  buyer_default: "You are a cautious buyer who carefully evaluates prices before acting."
+  seller_default: "You are an assertive seller who aims to maximize profit."
+  buyers:
+    0: "You are an aggressive buyer who bids boldly and closes deals quickly."
+  sellers:
+    0: "You are a risk-averse seller who prefers a guaranteed sale."
+
+prompts:
+  general:
+    main_template: |
+      You are a {role} participating in a market...
+
+      {persona}
+
+      There are {N_BUYERS} buyers and {N_SELLERS} sellers...
+      ...
+```
+
+In this example, buyer 0 receives the individual override ("aggressive buyer"), while all other buyers receive the `buyer_default` persona. Seller 0 gets its own override, while the remaining sellers use `seller_default`. See `configs/example_personas.yaml` for a complete working configuration.
 
 ## Environment Variables
 

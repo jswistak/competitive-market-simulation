@@ -25,6 +25,8 @@ tracing:
 
 prompts:
   general:
+    # NOTE: "11 buyers and 11 sellers" below is hardcoded — should use
+    # {N_BUYERS} and {N_SELLERS} template variables instead.
     main_template: |
       You are a {role} participating in a market for a good you need to {verb}. Your task is to {verb} a unit of the good at the {preference} possible price but not {condition} your reservation price.
       Your reservation price is known to you and only you.
