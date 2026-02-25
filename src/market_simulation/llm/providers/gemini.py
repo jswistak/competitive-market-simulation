@@ -20,6 +20,7 @@ class GeminiProvider(LLMProvider):
         return ChatGoogleGenerativeAI(
             model=self.config.model,
             temperature=self.config.temperature,
+            max_output_tokens=self.config.max_tokens,
         )
 
     def _max_tokens_kwargs(self, max_tokens: int) -> dict[str, Any]:
