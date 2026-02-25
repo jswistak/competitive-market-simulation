@@ -123,6 +123,10 @@ experiment:
     min: 0.8
     max: 3.2
     num: 11
+  history:
+    mode: full # "full" or "summary" (see History Modes below)
+    own_history_mode: full # "full" or "summary"
+    summary_last_n_events: 3 # Recent raw events appended in summary mode
 
 llm:
   provider: openai # openai | anthropic | gemini | deepseek
@@ -158,6 +162,31 @@ prompts:
       Do you want to announce a bid to buy?
   seller:
     # ... similar structure
+```
+
+### History Modes
+
+The `experiment.history` block controls how market history and agent history are presented in LLM prompts. This is useful for reducing token usage and prompt length as the simulation progresses.
+
+| Field | Values | Description |
+|-------|--------|-------------|
+| `mode` | `"full"` (default) / `"summary"` | Controls market-wide history. `"full"` injects the entire raw event log. `"summary"` replaces it with aggregate statistics (transaction count, average price, price trend, bid-ask spread, acceptance rate) plus the last N raw events. |
+| `own_history_mode` | `"full"` (default) / `"summary"` | Controls each agent's personal action history. `"full"` shows every past action verbatim. `"summary"` shows counts, success rate, average trade price, and the last action taken. |
+| `summary_last_n_events` | integer (default `3`) | In summary mode, this many recent raw event lines are appended after the statistics so the LLM still sees the most recent context. Set to `0` to show only statistics. |
+
+**Example -- summary mode:**
+
+```yaml
+experiment:
+  n_rounds: 5
+  n_iterations: 10
+  n_simulations: 10
+  buyers: { min: 0.8, max: 3.2, num: 11 }
+  sellers: { min: 0.8, max: 3.2, num: 11 }
+  history:
+    mode: summary
+    own_history_mode: summary
+    summary_last_n_events: 3
 ```
 
 ## Environment Variables

@@ -1,7 +1,10 @@
 """Market history formatting for agent prompts."""
 
+import logging
 import statistics
 from typing import Literal
+
+logger = logging.getLogger(__name__)
 
 
 def build_market_history_for_prompt(
@@ -20,9 +23,12 @@ def build_market_history_for_prompt(
         Formatted history string for prompt injection.
     """
     if mode == "full":
-        return state["market_history_text"]
+        result = state["market_history_text"]
+    else:
+        result = _build_summary(state, last_n_events)
 
-    return _build_summary(state, last_n_events)
+    logger.debug("Market history for prompt (mode=%s):\n%s", mode, result)
+    return result
 
 
 def _build_summary(state: dict, last_n_events: int) -> str:
@@ -77,15 +83,25 @@ def _build_summary(state: dict, last_n_events: int) -> str:
         parts.append(f"Latest bid (buy offer): ${buy_prices[-1]:.2f}")
         parts.append(f"Latest ask (sell offer): ${sell_prices[-1]:.2f}")
         spread = sell_prices[-1] - buy_prices[-1]
-        parts.append(f"Bid-ask spread: ${spread:.2f}")
+        if spread < 0:
+            parts.append(
+                f"Bid-ask spread: ${abs(spread):.2f} (crossed/converged)"
+            )
+        else:
+            parts.append(f"Bid-ask spread: ${spread:.2f}")
 
-    # Acceptance rate
-    total_announcements = sum(1 for r in records if r.get("announcement_made"))
-    if total_announcements > 0:
+    # Acceptance rate – count distinct announcements by (round, iteration)
+    # to avoid over-counting when multiple responders are queried per announcement
+    distinct_announcements = len(set(
+        (r["round"], r["iteration"])
+        for r in records
+        if r.get("announcement_made")
+    ))
+    if distinct_announcements > 0:
         n_accepted = len(transactions)
-        rate = n_accepted / total_announcements
+        rate = n_accepted / distinct_announcements
         parts.append(
-            f"Acceptance rate: {rate:.0%} ({n_accepted}/{total_announcements})"
+            f"Acceptance rate: {rate:.0%} ({n_accepted}/{distinct_announcements})"
         )
 
     # Current round context
@@ -124,11 +140,15 @@ def build_own_history_for_prompt(
         Formatted own history string.
     """
     if mode == "full":
-        return agent["own_history_prompt"]
+        result = agent["own_history_prompt"]
+        logger.debug("Own history for prompt (mode=full):\n%s", result)
+        return result
 
     history_data = agent.get("own_history_data", [])
     if not history_data:
-        return "No actions taken yet."
+        result = "No actions taken yet."
+        logger.debug("Own history for prompt (mode=summary):\n%s", result)
+        return result
 
     parts: list[str] = []
 
@@ -154,4 +174,6 @@ def build_own_history_for_prompt(
         f"Last action: {last['action']} at ${last['price']:.2f} ({last['outcome']})"
     )
 
-    return "\n".join(parts)
+    result = "\n".join(parts)
+    logger.debug("Own history for prompt (mode=summary):\n%s", result)
+    return result
