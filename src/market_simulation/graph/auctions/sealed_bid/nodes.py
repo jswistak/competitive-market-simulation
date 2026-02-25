@@ -180,6 +180,8 @@ def make_determine_winner_node() -> Callable[[SealedBidState], dict]:
         if auction_type == "fpsb":
             payment = winner["bid_amount"]
         elif auction_type == "spsb":
+            # When only one bidder, SPSB degenerates to FPSB — bidder pays
+            # own bid since there is no second price.
             payment = second_bid if second_bid is not None else winner["bid_amount"]
         elif auction_type == "all_pay":
             payment = winner["bid_amount"]
@@ -187,6 +189,14 @@ def make_determine_winner_node() -> Callable[[SealedBidState], dict]:
             payment = winner["bid_amount"]
 
         surplus = winner["private_value"] - payment if payment is not None else None
+
+        # For all-pay auctions, every bidder pays their bid regardless of
+        # winning.  total_payments captures the aggregate cost for economic
+        # analysis (e.g. revenue equivalence checks).
+        if auction_type == "all_pay":
+            total_payments = sum(b["bid_amount"] for b in bids)
+        else:
+            total_payments = payment
 
         result = AuctionResult(
             round=round_num,
@@ -198,6 +208,7 @@ def make_determine_winner_node() -> Callable[[SealedBidState], dict]:
             all_bids=[{"bidder_id": b["bidder_id"], "bid_amount": b["bid_amount"]} for b in bids],
             n_active_bidders=len(state["bidders"]),
             surplus=surplus,
+            total_payments=total_payments,
         )
 
         logger.info(

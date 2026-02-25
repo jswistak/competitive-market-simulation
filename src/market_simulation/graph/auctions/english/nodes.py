@@ -258,7 +258,7 @@ def make_settle_english_node() -> Callable[[EnglishAuctionState], dict]:
     """
 
     def settle_english(state: EnglishAuctionState) -> dict:
-        return _settle(state, first_price=False)
+        return _settle(state)
 
     return settle_english
 
@@ -276,12 +276,12 @@ def make_settle_open_outcry_node() -> Callable[[EnglishAuctionState], dict]:
     """
 
     def settle_open_outcry(state: EnglishAuctionState) -> dict:
-        return _settle(state, first_price=True)
+        return _settle(state)
 
     return settle_open_outcry
 
 
-def _settle(state: EnglishAuctionState, *, first_price: bool) -> dict:
+def _settle(state: EnglishAuctionState) -> dict:
     """Shared settlement logic for English and Open-Outcry auctions."""
     round_num = state["round"]
     auction_type = state["auction_type"]

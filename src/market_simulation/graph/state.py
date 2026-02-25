@@ -125,6 +125,7 @@ class AuctionResult(TypedDict):
     all_bids: list[dict]  # [{bidder_id, bid_amount}]
     n_active_bidders: int
     surplus: float | None  # winner's private_value - payment
+    total_payments: NotRequired[float | None]  # Sum of ALL bidders' payments (relevant for all-pay auctions where losers also pay)
 
 
 # --- Sealed-Bid state (FPSB, SPSB, All-Pay) ---

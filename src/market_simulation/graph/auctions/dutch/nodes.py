@@ -7,6 +7,7 @@ if the price hits the floor with no acceptance, there is no winner.
 """
 
 import logging
+import random
 from typing import Callable
 
 from langchain_core.runnables import RunnableConfig
@@ -32,6 +33,12 @@ def make_announce_price_node() -> Callable[[DutchAuctionState], dict]:
         logger.info(
             f"R{state['round']}: Dutch auction starting at ${price:.2f}"
         )
+        # Shuffle bidder order to avoid first-mover advantage.
+        # True Dutch auctions are simultaneous; since we query LLMs
+        # sequentially, randomising the order each price tick is the
+        # pragmatic equivalent.
+        shuffled_bidders = list(state["bidders"])
+        random.shuffle(shuffled_bidders)
         return {
             "current_price": price,
             "current_bidder_index": 0,
@@ -39,6 +46,7 @@ def make_announce_price_node() -> Callable[[DutchAuctionState], dict]:
             "accepting_bidder_id": None,
             "all_queried_at_price": False,
             "bids": [],
+            "bidders": shuffled_bidders,
         }
 
     return announce_price
@@ -203,10 +211,14 @@ def make_lower_price_node() -> Callable[[DutchAuctionState], dict]:
         logger.info(
             f"R{state['round']}: Lowering price to ${new_price:.2f}"
         )
+        # Shuffle bidder order for each price tick to avoid positional bias
+        shuffled_bidders = list(state["bidders"])
+        random.shuffle(shuffled_bidders)
         return {
             "current_price": new_price,
             "current_bidder_index": 0,
             "all_queried_at_price": False,
+            "bidders": shuffled_bidders,
         }
 
     return lower_price

@@ -1,5 +1,6 @@
 """Results saving and export functionality."""
 
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -144,9 +145,9 @@ class ResultsSaver:
         auction_results = state.get("auction_results", [])
         if auction_results:
             df_results = pd.DataFrame(auction_results)
-            # all_bids column is a list of dicts — serialize to string for CSV
+            # all_bids column is a list of dicts — serialize to JSON for CSV
             if "all_bids" in df_results.columns:
-                df_results["all_bids"] = df_results["all_bids"].astype(str)
+                df_results["all_bids"] = df_results["all_bids"].apply(json.dumps)
             df_results.to_csv(
                 self.data_dir / f"auction_results_{simulation_id}.csv",
                 index=False,

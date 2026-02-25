@@ -182,7 +182,14 @@ def run(
             recursion_limit = n_rounds * n_bidders * 3 + 50
 
         n_sims = auction_config.n_simulations
+    elif is_auction and auction_config and not cfg.prompts.auction:
+        raise typer.BadParameter(
+            f"Auction type '{cfg.experiment.auction_type.value}' requires "
+            f"'prompts.auction' to be configured. Please add auction prompt "
+            f"settings to your config file."
+        )
     else:
+        logger.info("No auction type specified — defaulting to double-auction mode")
         graph = build_market_graph(llm, cfg.prompts)
         max_nodes_per_iteration = 10  # approximate
         recursion_limit = (
@@ -193,15 +200,8 @@ def run(
         )
         n_sims = cfg.experiment.n_simulations
 
-    # Calculate recursion limit based on experiment size
-    max_nodes_per_iteration = 10  # approximate
-    recursion_limit = (
-        cfg.experiment.n_rounds
-        * cfg.experiment.n_iterations
-        * max_nodes_per_iteration
-        * (cfg.experiment.buyers.num + cfg.experiment.sellers.num)
-    )
-    recursion_limit = max(100, min(recursion_limit, 15000))  # Clamp between 100-15000
+    # Clamp recursion limit between 100 and 15000
+    recursion_limit = max(100, min(recursion_limit, 15000))
 
     # Run simulations
     with Progress(
