@@ -156,9 +156,12 @@ def build_own_history_for_prompt(
     responses = [h for h in history_data if h["action"] == "respond"]
     accepted_actions = [h for h in history_data if h["outcome"] == "accepted"]
 
+    def _plural(n: int, singular: str) -> str:
+        return f"{n} {singular}" if n == 1 else f"{n} {singular}s"
+
     parts.append(
         f"Total actions: {len(history_data)} "
-        f"({len(announcements)} announcements, {len(responses)} responses)"
+        f"({_plural(len(announcements), 'announcement')}, {_plural(len(responses), 'response')})"
     )
     parts.append(f"Successful trades: {len(accepted_actions)}")
 

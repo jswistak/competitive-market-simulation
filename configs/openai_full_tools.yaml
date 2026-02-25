@@ -54,7 +54,7 @@ prompts:
       Under no condition can you {verb} {condition} your reservation price.
       However, {verb}ing at a price equal to your reservation price is acceptable and preferred than not {verb}ing at all.
 
-      There are 11 buyers and 11 sellers in the room (including you).
+      There are {N_BUYERS} buyers and {N_SELLERS} sellers in the room (including you).
       Any buyer or seller is free at any time to raise his hand and make a verbal offer to buy/sell.
       Any buyer or seller is free to accept an offer, in which case a binding contract has been formed, the transaction occurs and the buyer and seller drop out of the market (no longer permitted to do anything for the remainder of that round).
 
@@ -94,7 +94,7 @@ prompts:
       In round {round} at iteration {iteration}, your offer to {announcement_type} for ${price:.2f} was {outcome}.
 
     response_history_template: |
-      In round {round} at iteration {iteration}, you {outcome} an offer to {opposite_announcement_type} for ${price:.2f}.
+      In round {round} at iteration {iteration}, you {outcome} a {opposite_announcement_type} offer for ${price:.2f}.
 
   seller:
     main_keywords:

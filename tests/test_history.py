@@ -145,7 +145,7 @@ class TestBuildOwnHistorySummary:
         result = build_own_history_for_prompt(agent, mode="summary")
         assert "Total actions: 3" in result
         assert "2 announcements" in result
-        assert "1 responses" in result
+        assert "1 response" in result
         assert "Successful trades: 2" in result
 
     def test_summary_last_action(self):
