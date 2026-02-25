@@ -191,6 +191,11 @@ def run(
             f"'prompts.auction' to be configured. Please add auction prompt "
             f"settings to your config file."
         )
+    elif is_auction and not auction_config:
+        raise typer.BadParameter(
+            f"Auction type '{cfg.experiment.auction_type.value}' requires "
+            f"an 'experiment.auction' block in the config file."
+        )
     else:
         logger.info("No auction type specified — defaulting to double-auction mode")
         graph = build_market_graph(llm, cfg.prompts)
