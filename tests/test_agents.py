@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 
 from market_simulation.agents.factory import create_agents, create_initial_state
-from market_simulation.config.schema import ExperimentConfig, AgentPricesConfig
+from market_simulation.config.schema import ExperimentConfig, AgentPricesConfig, PersonaConfig
 
 
 class TestCreateAgents:
@@ -116,3 +116,52 @@ class TestCreateInitialState:
         assert state["market_history_text"] == ""
         assert state["iteration_records"] == []
         assert state["transactions"] == []
+
+
+class TestPersonaAssignment:
+    """Tests for per-agent persona customization."""
+
+    def test_agents_have_empty_persona_by_default(self, experiment_config):
+        """Without PersonaConfig, all agents should have empty persona."""
+        agents = create_agents(experiment_config)
+        assert all(a["persona"] == "" for a in agents)
+
+    def test_role_default_persona_applied(self, experiment_config):
+        """Role-level default persona should apply to all agents of that role."""
+        personas = PersonaConfig(buyer_default="Aggressive buyer")
+        agents = create_agents(experiment_config, personas)
+        buyers = [a for a in agents if a["type"] == "buyer"]
+        sellers = [a for a in agents if a["type"] == "seller"]
+        assert all(b["persona"] == "Aggressive buyer" for b in buyers)
+        assert all(s["persona"] == "" for s in sellers)
+
+    def test_individual_persona_overrides_role_default(self, experiment_config):
+        """Individual persona should override role-level default."""
+        personas = PersonaConfig(
+            buyer_default="Default buyer",
+            buyers={0: "Special buyer"},
+        )
+        agents = create_agents(experiment_config, personas)
+        buyers = [a for a in agents if a["type"] == "buyer"]
+        assert buyers[0]["persona"] == "Special buyer"
+        assert buyers[1]["persona"] == "Default buyer"
+        assert buyers[2]["persona"] == "Default buyer"
+
+    def test_seller_persona(self, experiment_config):
+        """Seller personas should work the same way."""
+        personas = PersonaConfig(
+            seller_default="Patient seller",
+            sellers={1: "Aggressive seller"},
+        )
+        agents = create_agents(experiment_config, personas)
+        sellers = [a for a in agents if a["type"] == "seller"]
+        assert sellers[0]["persona"] == "Patient seller"
+        assert sellers[1]["persona"] == "Aggressive seller"
+        assert sellers[2]["persona"] == "Patient seller"
+
+    def test_personas_passed_through_create_initial_state(self, experiment_config):
+        """create_initial_state should forward personas to create_agents."""
+        personas = PersonaConfig(buyer_default="Test persona")
+        state = create_initial_state(experiment_config, personas=personas)
+        buyers = [a for a in state["agents"] if a["type"] == "buyer"]
+        assert all(b["persona"] == "Test persona" for b in buyers)

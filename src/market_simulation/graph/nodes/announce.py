@@ -235,9 +235,14 @@ def _render_announcement_prompt(
         "round": state["round"],
         "iteration": state["iteration"],
         "action_prompt": agent_prompts.announcement_prompt,
+        "persona": agent.get("persona", ""),
     }
 
-    return prompts.general.main_template.format(**template_vars)
+    # Use sentinel replacement for persona to avoid str.format() issues with curly braces
+    persona_text = template_vars.pop("persona")
+    template = prompts.general.main_template.replace("{persona}", "<<PERSONA>>")
+    result = template.format(**template_vars)
+    return result.replace("<<PERSONA>>", persona_text)
 
 
 def _extract_price(response: str) -> float | None:
