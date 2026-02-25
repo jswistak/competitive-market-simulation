@@ -145,6 +145,18 @@ def run(
     cot_config = cfg.chain_of_thought
     answer_tag = cot_config.answer_tag if cot_config.enabled else None
 
+    if cot_config.enabled:
+        console.print(f"Chain-of-thought: [cyan]enabled (tag: {cot_config.answer_tag})[/]")
+    else:
+        console.print("Chain-of-thought: [cyan]disabled[/]")
+
+    if answer_tag and cfg.llm.max_tokens < 100:
+        logger.warning(
+            f"CoT enabled but max_tokens={cfg.llm.max_tokens} is very low. "
+            "CoT requires higher token limits (500+) for reasoning. "
+            "Set llm.max_tokens in your config."
+        )
+
     # Build graph (callbacks passed via config at invoke time)
     graph = build_market_graph(llm, cfg.prompts, answer_tag=answer_tag)
 

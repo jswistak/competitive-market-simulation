@@ -155,6 +155,7 @@ def make_announce_node(
                         "announced_this_iteration", []
                     )
                     + [agent_id],
+                    "last_announcement_reasoning": reasoning,
                 }
 
             # Check for reservation price constraint violation (log only)
@@ -208,6 +209,7 @@ def make_announce_node(
                 "last_error": str(e),
                 "announced_this_iteration": state.get("announced_this_iteration", [])
                 + [agent_id],
+                "last_announcement_reasoning": "",
             }
 
     return announce

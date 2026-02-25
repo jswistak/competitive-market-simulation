@@ -221,6 +221,7 @@ def make_respond_node(
                 "response_accepted": False,
                 "current_responder_index": current_idx + 1,
                 "last_error": str(e),
+                "last_response_reasoning": "",
             }
 
     return respond

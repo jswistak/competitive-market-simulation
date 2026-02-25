@@ -1,0 +1,2126 @@
+warning: `VIRTUAL_ENV=/Users/jakubswistak/Developer/master-wide/my_impl/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+Market Simulation
+Loading config: smith6a_cot
+Provider: gemini
+Model: gemini-3-flash-preview
+Simulations: 2
+Rounds: 4
+Iterations: 12
+Tracing: disabled
+Tools: disabled
+
+[02/25/26 22:51:13] INFO     Created gemini provider with model      main.py:121
+                             gemini-3-flash-preview                             
+[02/25/26 22:51:14] INFO     Langfuse client initialized          langfuse.py:57
+                             successfully                                       
+Langfuse tracing enabled
+Results will be saved to: results/smith6a_cot_20260225_225114
+
+                    INFO     Selected agent 16 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:51:18] WARNING  Could not parse price from agent 16 announce.py:144
+                             (R1/I1): 'To maximize my profit                    
+                             (the difference between my                         
+                             reservation price and the purchase                 
+                             price) while ensuring I'                           
+                    INFO     R1/I1: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 2         control.py:221
+                    INFO     Selected agent 26 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:51:19] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:51:22] WARNING  Could not parse price from agent 26 announce.py:144
+                             (R1/I2): 'In this market, there are                
+                             more buyers (17) than sellers (12),                
+                             which'                                             
+                    INFO     R1/I2: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 3         control.py:221
+                    INFO     Selected agent 9 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:51:24] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:51:26] WARNING  Could not parse price from agent 9  announce.py:144
+                             (R1/I3): 'To maximize your chances                 
+                             of securing a unit while keeping                   
+                             the price as low as possible, it'                  
+                    INFO     R1/I3: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 4         control.py:221
+                    INFO     Selected agent 25 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:51:29] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:51:31] WARNING  Could not parse price from agent 25 announce.py:144
+                             (R1/I4): 'To maximize your profit                  
+                             in a market with excess demand (17                 
+                             buyers and 12 sellers'                             
+                    INFO     R1/I4: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 5         control.py:221
+                    INFO     Selected agent 5 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:51:34] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:51:36] WARNING  Could not parse price from agent 5  announce.py:144
+                             (R1/I5): 'To maximize your chances                 
+                             of securing a unit while keeping                   
+                             the price as low as possible, we                   
+                             must consider'                                     
+                    INFO     R1/I5: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 6         control.py:221
+                    INFO     Selected agent 9 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:51:39] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:51:40] WARNING  Could not parse price from agent 9  announce.py:144
+                             (R1/I6): 'To secure a unit at the                  
+                             lowest possible price while                        
+                             ensuring I don't exceed my                         
+                             reservation'                                       
+                    INFO     R1/I6: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 7         control.py:221
+                    INFO     Selected agent 2 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:51:43] WARNING  Could not parse price from agent 2  announce.py:144
+                             (R1/I7): 'To secure a unit in a                    
+                             market where buyers outnumber                      
+                             sellers (17 buyers to '                            
+                    INFO     R1/I7: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 8         control.py:221
+                    INFO     Selected agent 14 to announce        announce.py:44
+[02/25/26 22:51:44] INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:51:45] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:51:48] WARNING  Could not parse price from agent 14 announce.py:144
+                             (R1/I8): 'In this market, there are                
+                             17 buyers and only 12 sellers,                     
+                             meaning competition'                               
+                    INFO     R1/I8: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 9         control.py:221
+                    INFO     Selected agent 28 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:51:50] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:51:52] WARNING  Could not parse price from agent 28 announce.py:144
+                             (R1/I9): 'In this market, there are                
+                             more buyers (17) than sellers (12),                
+                             which'                                             
+                    INFO     R1/I9: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 10        control.py:221
+                    INFO     Selected agent 27 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:51:55] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:51:56] WARNING  Could not parse price from agent 27 announce.py:144
+                             (R1/I10): 'To maximize my profit                   
+                             while ensuring a sale in Round 1, I                
+                             must consider the current'                         
+                    INFO     R1/I10: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 11        control.py:221
+                    INFO     Selected agent 22 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:00] WARNING  Could not parse price from agent 22 announce.py:144
+                             (R1/I11): 'To maximize your profit                 
+                             while ensuring a sale before the                   
+                             round ends, we must consider the                   
+                             current market dynamics'                           
+                    INFO     R1/I11: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 12        control.py:221
+                    INFO     Selected agent 0 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:52:04] WARNING  Could not parse price from agent 0  announce.py:144
+                             (R1/I12): 'To maximize your chances                
+                             of securing a unit in the final                    
+                             iteration of the round, you must'                  
+                    INFO     R1/I12: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     Round 1 complete: max iterations     control.py:199
+                             reached                                            
+                    INFO     Round 1 completed with 0             control.py:259
+                             transaction(s). Advancing to round 2               
+                    INFO     Selected agent 2 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:06] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:52:08] WARNING  Could not parse price from agent 2  announce.py:144
+                             (R2/I1): 'To maximize your chances                 
+                             of purchasing a unit at the lowest                 
+                             possible price while staying within                
+                             your reservation'                                  
+                    INFO     R2/I1: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 2         control.py:221
+                    INFO     Selected agent 0 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:11] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:52:12] WARNING  Could not parse price from agent 0  announce.py:144
+                             (R2/I2): 'To buy a unit of the good                
+                             at the lowest possible price while                 
+                             ensuring I do not exceed my                        
+                             reservation'                                       
+                    INFO     R2/I2: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 3         control.py:221
+                    INFO     Selected agent 5 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:16] WARNING  Could not parse price from agent 5  announce.py:144
+                             (R2/I3): 'To secure a unit at the                  
+                             lowest possible price while                        
+                             ensuring I don't exceed my                         
+                             reservation price of'                              
+                    INFO     R2/I3: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 4         control.py:221
+                    INFO     Selected agent 0 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:52:20] WARNING  Could not parse price from agent 0  announce.py:144
+                             (R2/I4): 'To secure a unit of the                  
+                             good while maximizing my profit                    
+                             (the difference between my                         
+                             reservation price and'                             
+                    INFO     R2/I4: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 5         control.py:221
+                    INFO     Selected agent 8 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:21] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:52:24] WARNING  Could not parse price from agent 8  announce.py:144
+                             (R2/I5): 'To secure a unit of the                  
+                             good at the lowest possible price                  
+                             while ensuring I do not exceed my                  
+                             reservation'                                       
+                    INFO     R2/I5: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 6         control.py:221
+                    INFO     Selected agent 18 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:26] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:52:28] WARNING  Could not parse price from agent 18 announce.py:144
+                             (R2/I6): 'To maximize my profit                    
+                             while ensuring I sell my unit, I                   
+                             must consider the market dynamics.                 
+                             There are'                                         
+[02/25/26 22:52:29] INFO     R2/I6: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 7         control.py:221
+                    INFO     Selected agent 7 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:32] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:52:33] WARNING  Could not parse price from agent 7  announce.py:144
+                             (R2/I7): 'To buy a unit at the                     
+                             lowest possible price while                        
+                             ensuring I secure one in a market                  
+                             with'                                              
+                    INFO     R2/I7: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 8         control.py:221
+                    INFO     Selected agent 24 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:37] WARNING  Could not parse price from agent 24 announce.py:144
+                             (R2/I8): 'To maximize profit, I                    
+                             should start high and be prepared                  
+                             to lower it if no one'                             
+                    INFO     R2/I8: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 9         control.py:221
+                    INFO     Selected agent 9 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:52:41] WARNING  Could not parse price from agent 9  announce.py:144
+                             (R2/I9): 'To secure a unit in a                    
+                             market with more buyers (17) than                  
+                             sellers ('                                         
+                    INFO     R2/I9: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 10        control.py:221
+                    INFO     Selected agent 4 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:42] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:52:45] WARNING  Could not parse price from agent 4  announce.py:144
+                             (R2/I10): 'To secure a unit at the                 
+                             lowest possible price while                        
+                             ensuring I don't miss out on a'                    
+                    INFO     R2/I10: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 11        control.py:221
+                    INFO     Selected agent 15 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:48] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Could not parse price from agent 15 announce.py:144
+                             (R2/I11): 'To secure a unit of the                 
+                             good in this round, I must consider                
+                             the market conditions'                             
+                    INFO     R2/I11: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 12        control.py:221
+                    INFO     Selected agent 16 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:52] WARNING  Could not parse price from agent 16 announce.py:144
+                             (R2/I12): 'To maximize your chances                
+                             of securing a unit while staying                   
+                             within your reservation price,                     
+                             consider the following'                            
+                    INFO     R2/I12: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     Round 2 complete: max iterations     control.py:199
+                             reached                                            
+                    INFO     Round 2 completed with 0             control.py:259
+                             transaction(s). Advancing to round 3               
+                    INFO     Selected agent 5 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:53] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:52:56] WARNING  Could not parse price from agent 5  announce.py:144
+                             (R3/I1): 'In this market, there are                
+                             17 buyers and only 12 sellers,                     
+                             meaning competition among'                         
+                    INFO     R3/I1: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 2         control.py:221
+                    INFO     Selected agent 23 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:52:58] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:53:01] WARNING  Could not parse price from agent 23 announce.py:144
+                             (R3/I2): 'To maximize my profit as                 
+                             a seller in this market, I must                    
+                             consider the current supply'                       
+                    INFO     R3/I2: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 3         control.py:221
+                    INFO     Selected agent 4 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:03] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:53:05] WARNING  Could not parse price from agent 4  announce.py:144
+                             (R3/I3): 'To secure a unit at the                  
+                             lowest possible price while staying                
+                             within my reservation price of 10.'                
+                    INFO     R3/I3: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 4         control.py:221
+                    INFO     Selected agent 3 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:08] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:53:09] WARNING  Could not parse price from agent 3  announce.py:144
+                             (R3/I4): 'To buy the good at the                   
+                             lowest possible price while                        
+                             ensuring I secure a unit in a                      
+                             competitive market'                                
+                    INFO     R3/I4: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 5         control.py:221
+                    INFO     Selected agent 9 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:14] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Could not parse price from agent 9  announce.py:144
+                             (R3/I5): 'To secure a unit of the                  
+                             good in a market where there are                   
+                             more buyers (1'                                    
+                    INFO     R3/I5: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 6         control.py:221
+                    INFO     Selected agent 11 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:18] WARNING  Could not parse price from agent 11 announce.py:144
+                             (R3/I6): 'To secure a unit of the                  
+                             good, I must participate in the                    
+                             market. Given that'                                
+                    INFO     R3/I6: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 7         control.py:221
+                    INFO     Selected agent 17 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:19] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:53:22] WARNING  Could not parse price from agent 17 announce.py:144
+                             (R3/I7): 'In this market, there are                
+                             more buyers (17) than sellers (12'                 
+                    INFO     R3/I7: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 8         control.py:221
+                    INFO     Selected agent 23 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:24] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:53:26] WARNING  Could not parse price from agent 23 announce.py:144
+                             (R3/I8): 'To maximize your profit                  
+                             while ensuring a sale, it is                       
+                             important to consider the market                   
+                             dynamics. There are'                               
+                    INFO     R3/I8: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 9         control.py:221
+                    INFO     Selected agent 7 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:29] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:53:30] WARNING  Could not parse price from agent 7  announce.py:144
+                             (R3/I9): 'To buy a unit of the good                
+                             at the lowest possible price while                 
+                             ensuring I do not exceed my                        
+                             reservation'                                       
+                    INFO     R3/I9: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 10        control.py:221
+                    INFO     Selected agent 14 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:34] WARNING  Could not parse price from agent 14 announce.py:144
+                             (R3/I10): 'To maximize my chances                  
+                             of purchasing a unit while staying                 
+                             below my reservation price of 15'                  
+                    INFO     R3/I10: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 11        control.py:221
+                    INFO     Selected agent 7 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:35] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:53:38] WARNING  Could not parse price from agent 7  announce.py:144
+                             (R3/I11): 'To secure a unit before                 
+                             the round ends, and considering the                
+                             lack of activity in the market so'                 
+                    INFO     R3/I11: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 12        control.py:221
+                    INFO     Selected agent 16 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:40] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:53:42] WARNING  Could not parse price from agent 16 announce.py:144
+                             (R3/I12): 'To maximize your chances                
+                             of securing a transaction in the                   
+                             final iteration of Round 3,                        
+                             especially given the'                              
+                    INFO     R3/I12: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     Round 3 complete: max iterations     control.py:199
+                             reached                                            
+                    INFO     Round 3 completed with 0             control.py:259
+                             transaction(s). Advancing to round 4               
+                    INFO     Selected agent 3 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:45] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:53:46] WARNING  Could not parse price from agent 3  announce.py:144
+                             (R4/I1): 'To secure a unit in the                  
+                             final round of the market, I must                  
+                             consider the high competition among                
+                             buyers'                                            
+                    INFO     R4/I1: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 2         control.py:221
+                    INFO     Selected agent 24 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:50] WARNING  Could not parse price from agent 24 announce.py:144
+                             (R4/I2): 'To maximize my profit                    
+                             while ensuring a sale in the final                 
+                             round, I must consider the market                  
+                             dynamics'                                          
+                    INFO     R4/I2: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 3         control.py:221
+                    INFO     Selected agent 28 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:51] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:53:54] WARNING  Could not parse price from agent 28 announce.py:144
+                             (R4/I3): 'To maximize my profit in                 
+                             the final round of the market, I                   
+                             must consider the following:'                      
+                    INFO     R4/I3: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 4         control.py:221
+                    INFO     Selected agent 28 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:53:56] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:53:58] WARNING  Could not parse price from agent 28 announce.py:144
+                             (R4/I4): 'To maximize my profit in                 
+                             this final round, I must consider                  
+                             the market conditions and my                       
+                             reservation price.'                                
+                    INFO     R4/I4: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 5         control.py:221
+                    INFO     Selected agent 15 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:01] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:54:02] WARNING  Could not parse price from agent 15 announce.py:144
+                             (R4/I5): 'To maximize my chances of                
+                             buying a unit while keeping the                    
+                             price as low as possible, I need                   
+                             to'                                                
+                    INFO     R4/I5: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 6         control.py:221
+                    INFO     Selected agent 17 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:06] WARNING  Could not parse price from agent 17 announce.py:144
+                             (R4/I6): 'To maximize my profit                    
+                             while ensuring a sale before the                   
+                             market closes, I must consider the                 
+                             current market'                                    
+                    INFO     R4/I6: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 7         control.py:221
+                    INFO     Selected agent 9 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:07] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:54:10] WARNING  Could not parse price from agent 9  announce.py:144
+                             (R4/I7): 'To buy a unit of the good                
+                             at the lowest possible price while                 
+                             ensuring I do not exceed'                          
+                    INFO     R4/I7: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 8         control.py:221
+                    INFO     Selected agent 16 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:12] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:54:14] WARNING  Could not parse price from agent 16 announce.py:144
+                             (R4/I8): 'To maximize your chances                 
+                             of purchasing a unit before the                    
+                             market closes, you must take                       
+                             action, as there'                                  
+                    INFO     R4/I8: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 9         control.py:221
+                    INFO     Selected agent 10 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:17] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:54:18] WARNING  Could not parse price from agent 10 announce.py:144
+                             (R4/I9): 'To secure a unit before                  
+                             the market closes, I must act now,                 
+                             as we are in the'                                  
+                    INFO     R4/I9: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 10        control.py:221
+                    INFO     Selected agent 8 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:22] WARNING  Could not parse price from agent 8  announce.py:144
+                             (R4/I10): 'To maximize your chances                
+                             of securing a unit before the                      
+                             market closes, you must act now.                   
+                             With'                                              
+                    INFO     R4/I10: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 11        control.py:221
+                    INFO     Selected agent 16 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:54:26] WARNING  Could not parse price from agent 16 announce.py:144
+                             (R4/I11): 'The market has been                     
+                             completely silent throughout all                   
+                             four rounds, with no bids or asks                  
+                             made by any'                                       
+                    INFO     R4/I11: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 12        control.py:221
+                    INFO     Selected agent 1 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:28] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:54:30] WARNING  Could not parse price from agent 1  announce.py:144
+                             (R4/I12): 'To maximize my chances                  
+                             of securing a unit before the                      
+                             market closes, I must act now, as                  
+                             this'                                              
+                    INFO     R4/I12: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     Round 4 complete: max iterations     control.py:199
+                             reached                                            
+                    INFO     Simulation complete: all 4 rounds    control.py:255
+                             finished (0 total transactions)                    
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    INFO     Simulation 1 complete: 0 transactions,  main.py:206
+                             48 parse failures, 0 constraint                    
+                             violations                                         
+                    INFO     Selected agent 25 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:33] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:54:34] WARNING  Could not parse price from agent 25 announce.py:144
+                             (R1/I1): 'In this market, there are                
+                             17 buyers and 12 sellers, meaning                  
+                             demand'                                            
+                    INFO     R1/I1: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 2         control.py:221
+                    INFO     Selected agent 0 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:38] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Could not parse price from agent 0  announce.py:144
+                             (R1/I2): 'To maximize your chances                 
+                             of securing a unit at the lowest                   
+                             possible price while ensuring you                  
+                             do'                                                
+                    INFO     R1/I2: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 3         control.py:221
+                    INFO     Selected agent 19 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:42] WARNING  Could not parse price from agent 19 announce.py:144
+                             (R1/I3): 'In this market, there are                
+                             17 buyers and 12 sellers, meaning                  
+                             demand'                                            
+                    INFO     R1/I3: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 4         control.py:221
+                    INFO     Selected agent 17 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:43] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:54:46] WARNING  Could not parse price from agent 17 announce.py:144
+                             (R1/I4): 'In this market, there are                
+                             more buyers (17) than sellers (12),                
+                             which suggests'                                    
+                    INFO     R1/I4: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 5         control.py:221
+                    INFO     Selected agent 3 to announce         announce.py:44
+[02/25/26 22:54:47] INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:48] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:54:50] WARNING  Could not parse price from agent 3  announce.py:144
+                             (R1/I5): 'To determine the best                    
+                             strategy for this round, let's                     
+                             analyze the current market                         
+                             conditions:                                        
+                                                                                
+                             1'                                                 
+                    INFO     R1/I5: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 6         control.py:221
+                    INFO     Selected agent 16 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:54] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Could not parse price from agent 16 announce.py:144
+                             (R1/I6): 'To secure a unit in a                    
+                             market with more buyers (17) than                  
+                             sellers (1'                                        
+                    INFO     R1/I6: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 7         control.py:221
+                    INFO     Selected agent 6 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:58] WARNING  Could not parse price from agent 6  announce.py:144
+                             (R1/I7): 'To secure a unit of the                  
+                             good at the lowest possible price,                 
+                             I must consider the market                         
+                             dynamics.'                                         
+                    INFO     R1/I7: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 8         control.py:221
+                    INFO     Selected agent 28 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:54:59] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:55:02] WARNING  Could not parse price from agent 28 announce.py:144
+                             (R1/I8): 'In this market, there are                
+                             more buyers (17) than sellers (12),                
+                             which'                                             
+                    INFO     R1/I8: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 9         control.py:221
+                    INFO     Selected agent 7 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:04] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:55:07] WARNING  Could not parse price from agent 7  announce.py:144
+                             (R1/I9): 'To secure a unit at the                  
+                             lowest possible price while                        
+                             ensuring I do not exceed my                        
+                             reservation'                                       
+                    INFO     R1/I9: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 10        control.py:221
+                    INFO     Selected agent 3 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:09] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:55:11] WARNING  Could not parse price from agent 3  announce.py:144
+                             (R1/I10): 'To secure a unit of the                 
+                             good while aiming for the lowest                   
+                             possible price, I must consider'                   
+                    INFO     R1/I10: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 11        control.py:221
+                    INFO     Selected agent 28 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:15] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Could not parse price from agent 28 announce.py:144
+                             (R1/I11): 'To maximize your profit                 
+                             while ensuring a sale before the                   
+                             round ends, we must consider the                   
+                             current market conditions'                         
+                    INFO     R1/I11: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R1: Advancing to iteration 12        control.py:221
+                    INFO     Selected agent 8 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:19] WARNING  Could not parse price from agent 8  announce.py:144
+                             (R1/I12): 'To maximize your chances                
+                             of securing a unit at the lowest                   
+                             possible price while staying within                
+                             your reservation price'                            
+                    INFO     R1/I12: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     Round 1 complete: max iterations     control.py:199
+                             reached                                            
+                    INFO     Round 1 completed with 0             control.py:259
+                             transaction(s). Advancing to round 2               
+                    INFO     Selected agent 25 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:20] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:55:23] WARNING  Could not parse price from agent 25 announce.py:144
+                             (R2/I1): 'In this market, there are                
+                             more buyers (17) than sellers (12),                
+                             which typically'                                   
+                    INFO     R2/I1: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 2         control.py:221
+                    INFO     Selected agent 24 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:25] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:55:27] WARNING  Could not parse price from agent 24 announce.py:144
+                             (R2/I2): 'To maximize my profit as                 
+                             a seller in a market with excess                   
+                             demand (17 buyers and 1'                           
+                    INFO     R2/I2: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 3         control.py:221
+                    INFO     Selected agent 19 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:30] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:55:32] WARNING  Price extracted via Stage 3         announce.py:307
+                             (bare-decimal fallback). Response                  
+                             (52 chars): '1.95 is necessary.                    
+                             Let's try something like 3.50 or ',                
+                             extracted: 3.5                                     
+                    INFO     Agent 19 (seller,                   announce.py:177
+                             reservation=$1.95) announced sell                  
+                             at $3.50                                           
+                    INFO     Found 17 potential responders         respond.py:58
+                             (buyers)                                           
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:35] WARNING  Ambiguous response from 12           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, and your reservation               
+                             price is $14.5'                                    
+                    INFO     R2/I3: Agent 12 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:55:39] WARNING  Ambiguous response from 11           respond.py:151
+                             (defaulting to reject): 'To decide                 
+                             whether to accept the offer, let's                 
+                             evaluate the situation:                            
+                                                                                
+                             1.'                                                
+                    INFO     R2/I3: Agent 11 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:41] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:55:43] WARNING  Ambiguous response from 15           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation'                                       
+                    INFO     R2/I3: Agent 15 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:46] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:55:47] WARNING  Ambiguous response from 0            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, and your reservation               
+                             price is $8.'                                      
+                    INFO     R2/I3: Agent 0 (buyer) rejected      respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:51] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Ambiguous response from 3            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price'                                 
+                    INFO     R2/I3: Agent 3 (buyer) rejected      respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:55] WARNING  Ambiguous response from 9            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price'                                 
+                    INFO     R2/I3: Agent 9 (buyer) rejected      respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:55:56] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:55:59] WARNING  Ambiguous response from 4            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, and your reservation               
+                             price is $10'                                      
+                    INFO     R2/I3: Agent 4 (buyer) rejected      respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:01] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:56:03] WARNING  Ambiguous response from 6            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, and your reservation               
+                             price is $11.5. Since $3.50 is                     
+                             significantly lower than your                      
+                             reservation'                                       
+                    INFO     R2/I3: Agent 6 (buyer) rejected      respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:07] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Ambiguous response from 13           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, and your reservation               
+                             price is $15.'                                     
+                    INFO     R2/I3: Agent 13 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:11] WARNING  Ambiguous response from 1            respond.py:151
+                             (defaulting to reject): 'To decide                 
+                             whether to accept the offer, let's                 
+                             evaluate the situation step by                     
+                             step:'                                             
+                    INFO     R2/I3: Agent 1 (buyer) rejected      respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:12] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:56:15] WARNING  Ambiguous response from 16           respond.py:151
+                             (defaulting to reject): ' 16.5.                    
+                                 *   Scarcity: 17 buyers, '                     
+                    INFO     R2/I3: Agent 16 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:17] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:56:18] WARNING  Ambiguous response from 14           respond.py:151
+                             (defaulting to reject): 'The                       
+                             reservation price is 15.5. A seller                
+                             is offering to sell at 3.'                         
+                    INFO     R2/I3: Agent 14 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:22] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Ambiguous response from 2            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of'                              
+                    INFO     R2/I3: Agent 2 (buyer) rejected      respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:26] WARNING  Ambiguous response from 10           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, and your reservation               
+                             price is $13.5'                                    
+                    INFO     R2/I3: Agent 10 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:28] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:56:30] WARNING  Ambiguous response from 7            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of'                              
+                    INFO     R2/I3: Agent 7 (buyer) rejected      respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:33] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Ambiguous response from 5            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of $'                            
+                    INFO     R2/I3: Agent 5 (buyer) rejected      respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:37] WARNING  Ambiguous response from 8            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation'                                       
+                    INFO     R2/I3: Agent 8 (buyer) rejected      respond.py:189
+                             offer at $3.50                                     
+                    INFO     R2/I3: Iteration complete (all 17    control.py:174
+                             responders queried)                                
+                    INFO     Selected agent 11 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:38] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:56:41] WARNING  Could not parse price from agent 11 announce.py:144
+                             (R2/I3): 'Based on the market                      
+                             conditions and your reservation                    
+                             price, here is the strategic                       
+                             analysis:'                                         
+                    INFO     R2/I3: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 4         control.py:221
+                    INFO     Selected agent 27 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:44] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:56:45] WARNING  Could not parse price from agent 27 announce.py:144
+                             (R2/I4): 'To maximize my profit                    
+                             while ensuring I do not sell below                 
+                             my reservation price of 3.'                        
+                    INFO     R2/I4: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 5         control.py:221
+                    INFO     Selected agent 9 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:49] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Could not parse price from agent 9  announce.py:144
+                             (R2/I5): 'To secure a unit at a low                
+                             price while ensuring I don't miss                  
+                             out on a transaction ('                            
+                    INFO     R2/I5: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 6         control.py:221
+                    INFO     Selected agent 0 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:53] WARNING  Could not parse price from agent 0  announce.py:144
+                             (R2/I6): 'To secure a unit of the                  
+                             good at a price below my                           
+                             reservation price of 8.'                           
+                    INFO     R2/I6: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 7         control.py:221
+                    INFO     Selected agent 4 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:56:54] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:56:57] WARNING  Could not parse price from agent 4  announce.py:144
+                             (R2/I7): 'To maximize your profit,                 
+                             you should aim to buy the good at                  
+                             the lowest possible price while                    
+                             ensuring you'                                      
+                    INFO     R2/I7: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 8         control.py:221
+                    INFO     Selected agent 5 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:00] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:57:01] WARNING  Could not parse price from agent 5  announce.py:144
+                             (R2/I8): 'To secure a unit in this                 
+                             seller's market (17 buyers vs. 12                  
+                             sellers'                                           
+                    INFO     R2/I8: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 9         control.py:221
+                    INFO     Selected agent 13 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:05] WARNING  Could not parse price from agent 13 announce.py:144
+                             (R2/I9): 'To buy a unit at the                     
+                             lowest possible price while                        
+                             ensuring I do not exceed my                        
+                             reservation price of '                             
+                    INFO     R2/I9: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 10        control.py:221
+                    INFO     Selected agent 19 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:57:08] WARNING  Could not parse price from agent 19 announce.py:144
+                             (R2/I10): 'To maximize my profit                   
+                             while ensuring a sale before the                   
+                             end of the round, I must consider                  
+                             the'                                               
+                    INFO     R2/I10: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 11        control.py:221
+                    INFO     Selected agent 26 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:10] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:57:12] WARNING  Price extracted via Stage 3         announce.py:307
+                             (bare-decimal fallback). Response                  
+                             (90 chars): 'To maximize your                      
+                             profit while ensuring you do not                   
+                             sell below your reservation price                  
+                             of 3.5', extracted: 3.5                            
+                    WARNING  CONSTRAINT VIOLATION: Seller 26     announce.py:170
+                             announced $3.50 below reservation                  
+                             $3.55                                              
+                    INFO     Agent 26 (seller,                   announce.py:177
+                             reservation=$3.55) announced sell                  
+                             at $3.50                                           
+                    INFO     Found 17 potential responders         respond.py:58
+                             (buyers)                                           
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:15] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:57:16] WARNING  Ambiguous response from 15           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of'                              
+                    INFO     R2/I11: Agent 15 (buyer) rejected    respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:20] WARNING  Ambiguous response from 1            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of $'                            
+                    INFO     R2/I11: Agent 1 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:21] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:57:24] WARNING  Ambiguous response from 13           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of $'                            
+                    INFO     R2/I11: Agent 13 (buyer) rejected    respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:26] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:57:27] WARNING  Ambiguous response from 6            respond.py:151
+                             (defaulting to reject): 'The current               
+                             offer is $3.50, which is                           
+                             significantly below your reservation               
+                             price of $'                                        
+                    INFO     R2/I11: Agent 6 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:31] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:57:32] WARNING  Ambiguous response from 5            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of $'                            
+                    INFO     R2/I11: Agent 5 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:35] WARNING  Ambiguous response from 7            respond.py:151
+                             (defaulting to reject): 'The current               
+                             offer is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of'                              
+                    INFO     R2/I11: Agent 7 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:36] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:57:39] WARNING  Ambiguous response from 10           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of $'                            
+                    INFO     R2/I11: Agent 10 (buyer) rejected    respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:42] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:57:43] WARNING  Ambiguous response from 2            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50.                                    
+                             The reservation price is $9.5'                     
+                    INFO     R2/I11: Agent 2 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:47] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Ambiguous response from 3            respond.py:151
+                             (defaulting to reject): 'The                       
+                             reservation price is 10.0. The                     
+                             current offer is 3.5'                              
+                    INFO     R2/I11: Agent 3 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:51] WARNING  Ambiguous response from 14           respond.py:151
+                             (defaulting to reject): 'The current               
+                             offer is $3.50, which is                           
+                             significantly below your reservation               
+                             price of $'                                        
+                    INFO     R2/I11: Agent 14 (buyer) rejected    respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:52] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:57:55] WARNING  Ambiguous response from 8            respond.py:151
+                             (defaulting to reject): 'The current               
+                             offer is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation'                                       
+                    INFO     R2/I11: Agent 8 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:57:58] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Ambiguous response from 0            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of'                              
+                    INFO     R2/I11: Agent 0 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:02] WARNING  Ambiguous response from 9            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of'                              
+                    INFO     R2/I11: Agent 9 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:03] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:58:06] WARNING  Ambiguous response from 11           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of $'                            
+                    INFO     R2/I11: Agent 11 (buyer) rejected    respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:08] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:58:09] WARNING  Ambiguous response from 12           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation'                                       
+                    INFO     R2/I11: Agent 12 (buyer) rejected    respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:13] WARNING  Ambiguous response from 16           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of'                              
+                    INFO     R2/I11: Agent 16 (buyer) rejected    respond.py:189
+                             offer at $3.50                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:14] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:58:17] WARNING  Ambiguous response from 4            respond.py:151
+                             (defaulting to reject): 'The current               
+                             offer is $3.50, which is                           
+                             significantly lower than your                      
+                             reservation price of'                              
+                    INFO     R2/I11: Agent 4 (buyer) rejected     respond.py:189
+                             offer at $3.50                                     
+                    INFO     R2/I11: Iteration complete (all 17   control.py:174
+                             responders queried)                                
+                    INFO     Selected agent 24 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:19] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:58:21] WARNING  Could not parse price from agent 24 announce.py:144
+                             (R2/I11): 'To maximize your chances                
+                             of selling while still aiming for a                
+                             price above your reservation price                 
+                             of '                                               
+                    INFO     R2/I11: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R2: Advancing to iteration 12        control.py:221
+                    INFO     Selected agent 12 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:24] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:58:25] WARNING  Could not parse price from agent 12 announce.py:144
+                             (R2/I12): 'To maximize my utility,                 
+                             I need to purchase a unit of the                   
+                             good at a price'                                   
+                    INFO     R2/I12: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     Round 2 complete: max iterations     control.py:199
+                             reached                                            
+                    INFO     Round 2 completed with 0             control.py:259
+                             transaction(s). Advancing to round 3               
+                    INFO     Selected agent 25 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:29] WARNING  Could not parse price from agent 25 announce.py:144
+                             (R3/I1): 'To maximize my profit                    
+                             while ensuring a sale, I must                      
+                             consider my reservation price of                   
+                             3.'                                                
+                    INFO     R3/I1: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 2         control.py:221
+                    INFO     Selected agent 21 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:58:33] WARNING  Could not parse price from agent 21 announce.py:144
+                             (R3/I2): 'To maximize my profit                    
+                             while ensuring I sell the good, I                  
+                             need to consider the market                        
+                             dynamics. There'                                   
+                    INFO     R3/I2: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 3         control.py:221
+                    INFO     Selected agent 13 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:35] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:58:37] WARNING  Could not parse price from agent 13 announce.py:144
+                             (R3/I3): 'I need to buy a unit.                    
+                                 *   The current round is 3, and                
+                             I'                                                 
+                    INFO     R3/I3: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 4         control.py:221
+                    INFO     Selected agent 23 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:40] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:58:41] WARNING  Could not parse price from agent 23 announce.py:144
+                             (R3/I4): 's try a price that is                    
+                             attractive but still gives me a                    
+                             decent margin.                                     
+                                 '                                              
+                    INFO     R3/I4: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 5         control.py:221
+                    INFO     Selected agent 10 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:45] WARNING  Could not parse price from agent 10 announce.py:144
+                             (R3/I5): 'To secure a unit of the                  
+                             good in a market where buyers (17)                 
+                             outnumber sellers ('                               
+                    INFO     R3/I5: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 6         control.py:221
+                    INFO     Selected agent 10 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:58:49] WARNING  Could not parse price from agent 10 announce.py:144
+                             (R3/I6): 'To buy a unit at the                     
+                             lowest possible price while                        
+                             ensuring I secure one of the 1'                    
+                    INFO     R3/I6: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 7         control.py:221
+                    INFO     Selected agent 13 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:50] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:58:53] WARNING  Could not parse price from agent 13 announce.py:144
+                             (R3/I7): 'To secure a unit and                     
+                             maximize my profit, I must consider                
+                             the market dynamics. There are '                   
+                    INFO     R3/I7: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 8         control.py:221
+                    INFO     Selected agent 24 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:58:56] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:58:57] WARNING  Could not parse price from agent 24 announce.py:144
+                             (R3/I8): 'To maximize my profit                    
+                             while ensuring a sale, I must                      
+                             consider the market dynamics and                   
+                             the history of the'                                
+                    INFO     R3/I8: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 9         control.py:221
+                    INFO     Selected agent 27 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:01] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Could not parse price from agent 27 announce.py:144
+                             (R3/I9): 'To sell the good at the                  
+                             highest possible price while                       
+                             ensuring it is not below your                      
+                             reservation'                                       
+                    INFO     R3/I9: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 10        control.py:221
+                    INFO     Selected agent 8 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:05] WARNING  Could not parse price from agent 8  announce.py:144
+                             (R3/I10): 'To buy a unit of the                    
+                             good at the lowest possible price                  
+                             while ensuring I do not exceed my                  
+                             reservation'                                       
+                    INFO     R3/I10: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 11        control.py:221
+                    INFO     Selected agent 25 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:07] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:59:09] WARNING  Price extracted via Stage 3         announce.py:307
+                             (bare-decimal fallback). Response                  
+                             (82 chars): 'To maximize my chances                
+                             of selling while staying above my                  
+                             reservation price of 3.32',                        
+                             extracted: 3.32                                    
+                    INFO     Agent 25 (seller,                   announce.py:177
+                             reservation=$3.32) announced sell                  
+                             at $3.32                                           
+                    INFO     Found 17 potential responders         respond.py:58
+                             (buyers)                                           
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:12] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:59:13] WARNING  Ambiguous response from 5            respond.py:151
+                             (defaulting to reject): ' 7.68.                    
+                                 *   Waiting for a lower price in               
+                             Iteration'                                         
+                    INFO     R3/I11: Agent 5 (buyer) rejected     respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:17] WARNING  Ambiguous response from 4            respond.py:151
+                             (defaulting to reject): 'The current               
+                             offer is $3.32. Your reservation                   
+                             price is $10.5'                                    
+                    INFO     R3/I11: Agent 4 (buyer) rejected     respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:59:20] WARNING  Ambiguous response from 12           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.32, which is                           
+                             significantly lower than your                      
+                             reservation price'                                 
+                    INFO     R3/I11: Agent 12 (buyer) rejected    respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:22] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:59:25] WARNING  Ambiguous response from 9            respond.py:151
+                             (defaulting to reject): 'The current               
+                             offer is $3.32. Your reservation                   
+                             price is $13.0.'                                   
+                    INFO     R3/I11: Agent 9 (buyer) rejected     respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:28] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Ambiguous response from 0            respond.py:151
+                             (defaulting to reject): 'The current               
+                             offer is $3.32. Your reservation                   
+                             price is $8.'                                      
+                    INFO     R3/I11: Agent 0 (buyer) rejected     respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:32] WARNING  Ambiguous response from 7            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.32, which is                           
+                             significantly below your reservation               
+                             price'                                             
+                    INFO     R3/I11: Agent 7 (buyer) rejected     respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:33] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:59:37] WARNING  Ambiguous response from 3            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.32, which is                           
+                             significantly lower than your                      
+                             reservation'                                       
+                    INFO     R3/I11: Agent 3 (buyer) rejected     respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:38] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:59:41] WARNING  Ambiguous response from 14           respond.py:151
+                             (defaulting to reject): 'The                       
+                             reservation price is 15.5. The                     
+                             current offer to sell is $3'                       
+                    INFO     R3/I11: Agent 14 (buyer) rejected    respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:44] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    INFO     R3/I11: Agent 2 (buyer) rejected     respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:48] WARNING  Ambiguous response from 11           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.32, which is                           
+                             significantly below your reservation               
+                             price of'                                          
+                    INFO     R3/I11: Agent 11 (buyer) rejected    respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:49] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:59:53] WARNING  Ambiguous response from 10           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price of $3.32 is significantly                    
+                             below your reservation price of                    
+                             $13.'                                              
+                    INFO     R3/I11: Agent 10 (buyer) rejected    respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 22:59:54] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 22:59:57] WARNING  Ambiguous response from 6            respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.32, which is                           
+                             significantly lower than your                      
+                             reservation'                                       
+                    INFO     R3/I11: Agent 6 (buyer) rejected     respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:00] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Ambiguous response from 15           respond.py:151
+                             (defaulting to reject): 'The current               
+                             offer to sell at $3.32 is well below               
+                             your reservation price of $1'                      
+                    INFO     R3/I11: Agent 15 (buyer) rejected    respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:04] WARNING  Ambiguous response from 1            respond.py:151
+                             (defaulting to reject): 'The current               
+                             offer is $3.32. My reservation price               
+                             is $9.0.'                                          
+                    INFO     R3/I11: Agent 1 (buyer) rejected     respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:05] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 23:00:08] WARNING  Ambiguous response from 8            respond.py:151
+                             (defaulting to reject): 'To                        
+                             determine whether to accept the                    
+                             offer, let's evaluate the situation                
+                             step-by-'                                          
+                    INFO     R3/I11: Agent 8 (buyer) rejected     respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:10] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 23:00:11] WARNING  Ambiguous response from 16           respond.py:151
+                             (defaulting to reject): 'The offer                 
+                             price is $3.32, which is                           
+                             significantly below your reservation               
+                             price of $1'                                       
+                    INFO     R3/I11: Agent 16 (buyer) rejected    respond.py:189
+                             offer at $3.32                                     
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:15] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Ambiguous response from 13           respond.py:151
+                             (defaulting to reject): 'To                        
+                             determine whether to accept the                    
+                             offer, let's evaluate the situation                
+                             step-by-step'                                      
+                    INFO     R3/I11: Agent 13 (buyer) rejected    respond.py:189
+                             offer at $3.32                                     
+                    INFO     R3/I11: Iteration complete (all 17   control.py:174
+                             responders queried)                                
+                    INFO     Selected agent 20 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:19] WARNING  Could not parse price from agent 20 announce.py:144
+                             (R3/I11): 'To sell the good at the                 
+                             highest possible price while                       
+                             ensuring it is above my reservation                
+                             price of '                                         
+                    INFO     R3/I11: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R3: Advancing to iteration 12        control.py:221
+                    INFO     Selected agent 25 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:20] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 23:00:23] WARNING  Could not parse price from agent 25 announce.py:144
+                             (R3/I12): 'In this market, there                   
+                             are more buyers (17) than sellers                  
+                             (12), which theoretically'                         
+                    INFO     R3/I12: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     Round 3 complete: max iterations     control.py:199
+                             reached                                            
+                    INFO     Round 3 completed with 0             control.py:259
+                             transaction(s). Advancing to round 4               
+                    INFO     Selected agent 20 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:26] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 23:00:27] WARNING  Could not parse price from agent 20 announce.py:144
+                             (R4/I1): 'To maximize my profit                    
+                             while ensuring a sale in the final                 
+                             round, I need to consider the'                     
+                    INFO     R4/I1: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 2         control.py:221
+                    INFO     Selected agent 18 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:30] WARNING  Could not parse price from agent 18 announce.py:144
+                             (R4/I2): 'To maximize my chances of                
+                             selling in the final round while                   
+                             still aiming for a price above my                  
+                             reservation'                                       
+                    INFO     R4/I2: Iteration complete (no        control.py:166
+                             announcement)                                      
+[02/25/26 23:00:31] INFO     R4: Advancing to iteration 3         control.py:221
+                    INFO     Selected agent 18 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 23:00:35] WARNING  Could not parse price from agent 18 announce.py:144
+                             (R4/I3): 'To maximize my profit                    
+                             while ensuring a sale in this final                
+                             round, I need to consider the                      
+                             market dynamics'                                   
+                    INFO     R4/I3: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 4         control.py:221
+                    INFO     Selected agent 5 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:36] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 23:00:38] WARNING  Could not parse price from agent 5  announce.py:144
+                             (R4/I4): 'To maximize my profit                    
+                             while ensuring I secure a unit in                  
+                             this final round, I need'                          
+                    INFO     R4/I4: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 5         control.py:221
+                    INFO     Selected agent 4 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:42] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 23:00:43] WARNING  Could not parse price from agent 4  announce.py:144
+                             (R4/I5): 'To maximize your utility,                
+                             you need to purchase one unit of                   
+                             the good in this final round'                      
+                    INFO     R4/I5: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 6         control.py:221
+                    INFO     Selected agent 3 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:47] WARNING  Could not parse price from agent 3  announce.py:144
+                             (R4/I6): 'To secure a unit in this                 
+                             final round, I must consider the                   
+                             market conditions and my                           
+                             reservation price.'                                
+                    INFO     R4/I6: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 7         control.py:221
+                    INFO     Selected agent 14 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 23:00:51] WARNING  Could not parse price from agent 14 announce.py:144
+                             (R4/I7): 'To maximize my chances of                
+                             securing a unit in this final                      
+                             round, I must consider the market                  
+                             dynamics and'                                      
+                    INFO     R4/I7: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 8         control.py:221
+                    INFO     Selected agent 12 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:52] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 23:00:55] WARNING  Could not parse price from agent 12 announce.py:144
+                             (R4/I8): 'To maximize my utility in                
+                             this final round, I must secure a                  
+                             transaction before the market'                     
+                    INFO     R4/I8: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 9         control.py:221
+                    INFO     Selected agent 23 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:00:58] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 23:00:59] WARNING  Could not parse price from agent 23 announce.py:144
+                             (R4/I9): 'To maximize my chances of                
+                             selling the good in the final                      
+                             round, I must consider the market                  
+                             history and'                                       
+                    INFO     R4/I9: Iteration complete (no        control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 10        control.py:221
+                    INFO     Selected agent 9 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:01:03] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    WARNING  Could not parse price from agent 9  announce.py:144
+                             (R4/I10): 'In this final round of                  
+                             the market, with only three                        
+                             iterations remaining (10, 11'                      
+                    INFO     R4/I10: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 11        control.py:221
+                    INFO     Selected agent 7 to announce         announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:01:07] WARNING  Could not parse price from agent 7  announce.py:144
+                             (R4/I11): 'To secure a transaction                 
+                             in the final round before the                      
+                             market closes, I must act now.'                    
+                    INFO     R4/I11: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     R4: Advancing to iteration 12        control.py:221
+                    INFO     Selected agent 19 to announce        announce.py:44
+                    INFO     AFC is enabled with max remote       models.py:5207
+                             calls: 10.                                         
+[02/25/26 23:01:09] ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+[02/25/26 23:01:12] WARNING  Could not parse price from agent 19 announce.py:144
+                             (R4/I12): 'To maximize my chances                  
+                             of selling in the final iteration                  
+                             of the market, I must consider                     
+                             that'                                              
+                    INFO     R4/I12: Iteration complete (no       control.py:166
+                             announcement)                                      
+                    INFO     Round 4 complete: max iterations     control.py:199
+                             reached                                            
+                    INFO     Simulation complete: all 4 rounds    control.py:255
+                             finished (0 total transactions)                    
+                    ERROR    Failed to export span batch code:   __init__.py:193
+                             403, reason: {"message":"Ingestion                 
+                             suspended: Usage threshold                         
+                             exceeded. Please upgrade your                      
+                             plan.","error":"ForbiddenError"}                   
+                    INFO     Simulation 2 complete: 0 transactions,  main.py:206
+                             98 parse failures, 1 constraint                    
+                             violations                                         
+  Simulation 2/2 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100%
+
+Experiment complete!
+Results saved to: results/smith6a_cot_20260225_225114
