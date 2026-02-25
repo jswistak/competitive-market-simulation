@@ -46,6 +46,8 @@ def make_update_history_node() -> Callable[[MarketState], dict]:
             announcing_agent_reservation_price=announcing_rp,
             responding_agent_id=state["responding_agent_id"],
             responding_agent_reservation_price=responding_rp,
+            announcement_reasoning=state.get("last_announcement_reasoning", ""),
+            response_reasoning=state.get("last_response_reasoning", ""),
         )
 
         # Check if all responders for the current announcement have been queried

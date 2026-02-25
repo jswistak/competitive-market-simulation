@@ -7,6 +7,7 @@ from .schema import (
     TracingConfig,
     ToolConfig,
     PromptConfig,
+    ChainOfThoughtConfig,
     SimulationConfig,
 )
 from .settings import load_config
@@ -18,6 +19,7 @@ __all__ = [
     "TracingConfig",
     "ToolConfig",
     "PromptConfig",
+    "ChainOfThoughtConfig",
     "SimulationConfig",
     "load_config",
 ]

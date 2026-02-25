@@ -141,8 +141,14 @@ def run(
         experiment_name=config,
     )
 
+    # Chain-of-thought configuration
+    cot_config = cfg.chain_of_thought
+    answer_tag = cot_config.answer_tag if cot_config.enabled else None
+    if cot_config.enabled and cot_config.max_tokens_override is not None:
+        cfg.llm.max_tokens = cot_config.max_tokens_override
+
     # Build graph (callbacks passed via config at invoke time)
-    graph = build_market_graph(llm, cfg.prompts)
+    graph = build_market_graph(llm, cfg.prompts, answer_tag=answer_tag)
 
     # Calculate recursion limit based on experiment size
     max_nodes_per_iteration = 10  # approximate

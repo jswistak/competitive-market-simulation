@@ -39,6 +39,8 @@ class IterationRecord(TypedDict):
     announcing_agent_reservation_price: float | None
     responding_agent_id: int | None
     responding_agent_reservation_price: float | None
+    announcement_reasoning: str
+    response_reasoning: str
 
 
 class MarketState(TypedDict):
@@ -79,6 +81,10 @@ class MarketState(TypedDict):
 
     # Tool usage tracking
     tool_usage_log: Annotated[list[dict], add]
+
+    # Chain-of-thought reasoning
+    last_announcement_reasoning: str
+    last_response_reasoning: str
 
     # Error handling
     last_error: str | None

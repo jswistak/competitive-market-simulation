@@ -88,6 +88,14 @@ class PromptConfig(BaseModel):
     seller: AgentPromptConfig | None = None
 
 
+class ChainOfThoughtConfig(BaseModel):
+    """Chain-of-thought reasoning configuration for agents."""
+
+    enabled: bool = False
+    answer_tag: str = "ANSWER:"
+    max_tokens_override: int | None = None
+
+
 class SimulationConfig(BaseModel):
     """Complete simulation configuration."""
 
@@ -96,3 +104,4 @@ class SimulationConfig(BaseModel):
     tracing: TracingConfig = Field(default_factory=TracingConfig)
     prompts: PromptConfig = Field(default_factory=PromptConfig)
     tools: ToolConfig = Field(default_factory=ToolConfig)
+    chain_of_thought: ChainOfThoughtConfig = Field(default_factory=ChainOfThoughtConfig)
