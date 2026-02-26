@@ -107,6 +107,8 @@ Configuration files are located in `configs/`. Available configs:
 | `deepseek_simple_tools.yaml`  | DeepSeek  | deepseek-chat           | Simple       |
 | `deepseek_full_tools.yaml`    | DeepSeek  | deepseek-chat           | Simple + E2B |
 | `test_tools.yaml`             | OpenAI    | gpt-4o-mini (minimal)   | Simple       |
+| `example_personas.yaml`       | Google    | gemini-3-flash-preview  | No (personas)|
+| `smith6a_personas.yaml`       | Google    | gemini-3-flash-preview  | No (personas)|
 
 ### Configuration Structure
 
