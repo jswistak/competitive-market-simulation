@@ -13,6 +13,7 @@ class AgentState(TypedDict):
     active: bool  # Still in current round
     own_history_prompt: str  # History for prompt rendering
     own_history_data: list[dict]  # Data for CSV export
+    persona: str  # Per-agent persona text
 
 
 class Transaction(TypedDict):

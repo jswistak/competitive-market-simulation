@@ -88,6 +88,15 @@ class PromptConfig(BaseModel):
     seller: AgentPromptConfig | None = None
 
 
+class PersonaConfig(BaseModel):
+    """Per-agent persona/prompt customization."""
+
+    buyer_default: str = ""
+    seller_default: str = ""
+    buyers: dict[int, str] = Field(default_factory=dict)
+    sellers: dict[int, str] = Field(default_factory=dict)
+
+
 class SimulationConfig(BaseModel):
     """Complete simulation configuration."""
 
@@ -96,3 +105,4 @@ class SimulationConfig(BaseModel):
     tracing: TracingConfig = Field(default_factory=TracingConfig)
     prompts: PromptConfig = Field(default_factory=PromptConfig)
     tools: ToolConfig = Field(default_factory=ToolConfig)
+    personas: PersonaConfig = Field(default_factory=PersonaConfig)
