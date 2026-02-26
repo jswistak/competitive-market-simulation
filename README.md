@@ -107,6 +107,7 @@ Configuration files are located in `configs/`. Available configs:
 | `deepseek_simple_tools.yaml`  | DeepSeek  | deepseek-chat           | Simple       |
 | `deepseek_full_tools.yaml`    | DeepSeek  | deepseek-chat           | Simple + E2B |
 | `test_tools.yaml`             | OpenAI    | gpt-4o-mini (minimal)   | Simple       |
+| `smith6a_history_summary.yaml`| Google    | gemini-3-flash-preview  | No (summary) |
 
 ### Configuration Structure
 
@@ -230,7 +231,8 @@ master-thesis/
 │   │   │   ├── transaction.py
 │   │   │   └── control.py   # Flow control
 │   │   ├── edges.py         # Conditional routing
-│   │   └── workflow.py      # Graph builder
+│   │   ├── workflow.py      # Graph builder
+│   │   └── history.py       # History summary builder (full/summary modes)
 │   ├── tools/
 │   │   ├── definitions.py   # Tool definitions (evaluate_trade, etc.)
 │   │   ├── registry.py      # Tool registry
