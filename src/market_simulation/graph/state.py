@@ -1,6 +1,6 @@
 """Market simulation state definitions."""
 
-from typing import Annotated, TypedDict
+from typing import Annotated, Literal, TypedDict
 from operator import add
 
 
@@ -87,3 +87,8 @@ class MarketState(TypedDict):
     # Diagnostic counters
     parse_failures: int
     constraint_violations: int
+
+    # History display configuration
+    history_mode: Literal["full", "summary"]
+    history_summary_last_n: int
+    own_history_mode: Literal["full", "summary"]

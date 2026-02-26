@@ -35,6 +35,14 @@ class AgentPricesConfig(BaseModel):
     num: int = 11
 
 
+class HistoryConfig(BaseModel):
+    """Configuration for how market history is presented in prompts."""
+
+    mode: Literal["full", "summary"] = "full"
+    own_history_mode: Literal["full", "summary"] = "full"
+    summary_last_n_events: int = 3
+
+
 class ExperimentConfig(BaseModel):
     """Experiment parameters."""
 
@@ -43,6 +51,7 @@ class ExperimentConfig(BaseModel):
     n_simulations: int = 10
     buyers: AgentPricesConfig = Field(default_factory=AgentPricesConfig)
     sellers: AgentPricesConfig = Field(default_factory=AgentPricesConfig)
+    history: HistoryConfig = Field(default_factory=HistoryConfig)
 
 
 class TracingConfig(BaseModel):
