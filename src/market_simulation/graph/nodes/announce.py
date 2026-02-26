@@ -54,6 +54,7 @@ def make_announce_node(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    answer_tag: str | None = None,
 ) -> Callable[[MarketState, RunnableConfig], dict]:
     """Create node that handles agent price announcements.
 
@@ -123,7 +124,7 @@ def make_announce_node(
             logger.debug(
                 f"Raw LLM announcement response for agent {agent_id}: '{response}'"
             )
-            price = _extract_price(response)
+            price, reasoning = _extract_price(response, answer_tag=answer_tag)
 
             # Capture tool usage log if available
             tool_log_entries = getattr(llm, "last_tool_log", [])
@@ -155,6 +156,7 @@ def make_announce_node(
                         "announced_this_iteration", []
                     )
                     + [agent_id],
+                    "last_announcement_reasoning": reasoning,
                 }
 
             # Check for reservation price constraint violation (log only)
@@ -190,6 +192,7 @@ def make_announce_node(
                 "announcement_made": True,
                 "announced_this_iteration": announced_this_iteration,
                 "tool_usage_log": tool_usage_log,
+                "last_announcement_reasoning": reasoning,
             }
             if violation:
                 result["constraint_violations"] = (
@@ -207,6 +210,7 @@ def make_announce_node(
                 "last_error": str(e),
                 "announced_this_iteration": state.get("announced_this_iteration", [])
                 + [agent_id],
+                "last_announcement_reasoning": "",
             }
 
     return announce
@@ -253,26 +257,57 @@ def _render_announcement_prompt(
     return result.replace("<<PERSONA>>", persona_text)
 
 
-def _extract_price(response: str) -> float | None:
+def _extract_price(
+    response: str, answer_tag: str | None = None
+) -> tuple[float | None, str]:
     """Extract price from LLM response.
 
     Handles both plain numbers and longer tool-augmented responses
     where the number may be embedded in reasoning text.
 
+    Args:
+        response: Raw LLM response text.
+        answer_tag: Optional tag to split reasoning from answer (e.g. "ANSWER:").
+
+    Returns:
+        Tuple of (price, reasoning_text). reasoning_text is "" if no CoT detected.
+
     Extraction priority:
+      0. If answer_tag provided, look for tagged answer first
       1. Plain float parse (after stripping $ and ,)
       2. Last $-prefixed number (e.g. "$3.27")
       3. Last bare decimal number (e.g. "1.50") — requires decimal point
          to avoid extracting round/iteration numbers like "round 1"
     """
     if not response or not response.strip():
-        return None
+        return None, ""
+
+    reasoning = ""
+
+    # Stage 0: If answer_tag provided, try to split reasoning from answer
+    if answer_tag:
+        tag_idx = response.upper().rfind(answer_tag.upper())
+        if tag_idx != -1:
+            reasoning = response[:tag_idx].strip()
+            answer_part = response[tag_idx + len(answer_tag) :].strip()
+            clean = answer_part.replace("$", "").replace(",", "").split()[0] if answer_part else ""
+            if re.fullmatch(r"\d+\.?\d*", clean):
+                return float(clean), reasoning
+            # Tag was found but answer_part didn't parse as a valid number.
+            # Do NOT fall through to search the full response (which includes
+            # reasoning) -- prices mentioned in reasoning could be extracted
+            # as the announced price.
+            logger.warning(
+                f"Answer tag found but could not parse price from answer portion: "
+                f"'{answer_part}'"
+            )
+            return None, reasoning
 
     # Stage 1: plain parse (most common case without tools)
     # Validate format to reject negative numbers and scientific notation
     clean = response.strip().replace("$", "").replace(",", "")
     if re.fullmatch(r"\d+\.?\d*", clean):
-        return float(clean)
+        return float(clean), reasoning
 
     # Stage 2: prefer $-prefixed numbers (most reliable signal)
     dollar_matches = re.findall(r"\$([\d]+\.?\d*)", response)
@@ -283,7 +318,7 @@ def _extract_price(response: str) -> float | None:
                 f"Price extracted via Stage 2 ($-prefix fallback). "
                 f"Response ({len(response)} chars): '{response}', extracted: {extracted}"
             )
-            return extracted
+            return extracted, reasoning
         except ValueError:
             pass
 
@@ -297,8 +332,8 @@ def _extract_price(response: str) -> float | None:
                 f"Price extracted via Stage 3 (bare-decimal fallback). "
                 f"Response ({len(response)} chars): '{response}', extracted: {extracted}"
             )
-            return extracted
+            return extracted, reasoning
         except ValueError:
             pass
 
-    return None
+    return None, reasoning

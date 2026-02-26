@@ -132,6 +132,9 @@ def create_initial_state(
         simulation_complete=False,
         # Tool usage tracking
         tool_usage_log=[],
+        # Chain-of-thought reasoning
+        last_announcement_reasoning="",
+        last_response_reasoning="",
         # Error handling
         last_error=None,
         # Diagnostic counters
