@@ -1,9 +1,10 @@
 # Market Simulation
 
-LangGraph-based market equilibrium simulation for LLM agents. This project studies how LLM-based agents behave when placed in competitive double auction markets.
+LangGraph-based market simulation for LLM agents. This project studies how LLM-based agents behave when placed in competitive market environments including double auctions, sealed-bid auctions, English, Dutch, and other mechanisms.
 
 ## Features
 
+- **7 Auction Mechanisms**: Double auction, FPSB, SPSB (Vickrey), English, Dutch, All-Pay, First-Price Open Outcry
 - **Multi-Provider LLM Support**: OpenAI, Anthropic (Claude), Google Gemini, DeepSeek
 - **LangGraph Workflow**: Visualizable, editable execution flow with nodes and conditional edges
 - **Langfuse Tracing**: Full observability of LLM calls with cost tracking
@@ -87,6 +88,55 @@ uv run market-simulation validate <config>
 uv run market-simulation visualize [--output graph.png]
 ```
 
+## Auction Types
+
+The project supports 7 market mechanisms. The `double_auction` is the default; the remaining 6 are configured via `experiment.auction_type` and the `experiment.auction` block.
+
+| Type | Config value | Description | Payment rule |
+|------|-------------|-------------|--------------|
+| Double Auction | `double_auction` | Continuous bilateral trading (buyers and sellers) | Agreed price |
+| First-Price Sealed-Bid | `fpsb` | Simultaneous sealed bids; highest wins | Winner pays own bid |
+| Second-Price Sealed-Bid (Vickrey) | `spsb` | Simultaneous sealed bids; highest wins | Winner pays second-highest bid |
+| All-Pay | `all_pay` | Simultaneous sealed bids; highest wins, all bidders pay | Everyone pays their bid |
+| English (ascending) | `english` | Open ascending bids; last bidder standing wins | Winner pays standing bid |
+| Dutch (descending) | `dutch` | Price descends from a start price; first to accept wins | Winner pays accepted price |
+| First-Price Open Outcry | `first_price_open_outcry` | Open ascending bids (like English) with first-price payment | Winner pays own bid |
+
+### Auction-specific config keys
+
+```yaml
+experiment:
+  auction_type: fpsb        # One of the values above
+  auction:
+    n_rounds: 10             # Rounds per simulation
+    n_simulations: 10        # Independent simulation runs
+    random_seed: 42          # Optional seed for reproducibility
+    bidders:
+      num: 5
+      value_min: 0.0
+      value_max: 10.0
+      distribution: linspace # "linspace" or "uniform"
+
+    # English / Open-Outcry only
+    min_increment: 0.5
+    max_bidding_rounds: 50
+
+    # Dutch only
+    dutch_start_price: 12.0
+    dutch_decrement: 0.5
+    dutch_min_price: 0.0
+```
+
+### Auction output files
+
+Each auction simulation produces:
+
+- `auction_results_<sim>.csv` -- per-round winner, payment, surplus, and all bids (as JSON)
+- `all_bids_<sim>.csv` -- every individual bid submitted across all rounds
+- `bidder_histories_<sim>.csv` -- per-bidder history data (own bids, outcomes, payments)
+
+Pre-built auction configs are located in `configs/` (`auction_fpsb.yaml`, `auction_spsb.yaml`, `auction_allpay.yaml`, `auction_english.yaml`, `auction_dutch.yaml`, `auction_open_outcry.yaml`).
+
 ## Configuration
 
 Configuration files are located in `configs/`. Available configs:
@@ -107,7 +157,12 @@ Configuration files are located in `configs/`. Available configs:
 | `deepseek_simple_tools.yaml`  | DeepSeek  | deepseek-chat           | Simple       |
 | `deepseek_full_tools.yaml`    | DeepSeek  | deepseek-chat           | Simple + E2B |
 | `test_tools.yaml`             | OpenAI    | gpt-4o-mini (minimal)   | Simple       |
-| `smith6a_history_summary.yaml`| Google    | gemini-3-flash-preview  | No (summary) |
+| `auction_fpsb.yaml`           | OpenAI    | gpt-4o-mini             | No (FPSB)    |
+| `auction_spsb.yaml`           | OpenAI    | gpt-4o-mini             | No (SPSB)    |
+| `auction_allpay.yaml`         | OpenAI    | gpt-4o-mini             | No (All-Pay) |
+| `auction_english.yaml`        | OpenAI    | gpt-4o-mini             | No (English) |
+| `auction_dutch.yaml`          | OpenAI    | gpt-4o-mini             | No (Dutch)   |
+| `auction_open_outcry.yaml`    | OpenAI    | gpt-4o-mini             | No (Open Outcry) |
 | `example_personas.yaml`       | Google    | gemini-3-flash-preview  | No (personas)|
 | `smith6a_personas.yaml`       | Google    | gemini-3-flash-preview  | No (personas)|
 
@@ -268,14 +323,20 @@ master-thesis/
 │   │   └── factory.py       # Agent creation
 │   ├── graph/
 │   │   ├── state.py         # MarketState TypedDict
-│   │   ├── nodes/           # LangGraph nodes
+│   │   ├── nodes/           # Double-auction LangGraph nodes
 │   │   │   ├── announce.py  # Price announcement
 │   │   │   ├── respond.py   # Response handling
 │   │   │   ├── transaction.py
 │   │   │   └── control.py   # Flow control
 │   │   ├── edges.py         # Conditional routing
 │   │   ├── workflow.py      # Graph builder
-│   │   └── history.py       # History summary builder (full/summary modes)
+│   │   ├── history.py       # History summary builder (full/summary modes)
+│   │   └── auctions/        # Auction-type workflows
+│   │       ├── base.py      # Shared extraction (extract_bid, extract_yes_no)
+│   │       ├── sealed_bid/  # FPSB, SPSB, All-Pay
+│   │       ├── english/     # English ascending auction
+│   │       ├── dutch/       # Dutch descending auction
+│   │       └── open_outcry/ # First-Price Open Outcry
 │   ├── tools/
 │   │   ├── definitions.py   # Tool definitions (evaluate_trade, etc.)
 │   │   ├── registry.py      # Tool registry
@@ -356,16 +417,28 @@ continue     end
 
 Results are saved to `./results/<config>_<timestamp>/`:
 
+**Double auction output:**
 ```
 results/openai_20250121_143052/
 ├── config_used.yaml           # Configuration snapshot
+├── logs/
+│   └── sim_1.log              # Per-simulation log
 └── data/
     ├── iteration_history_1.csv
-    ├── iteration_history_2.csv
     ├── transactions_1.csv
-    ├── transactions_2.csv
-    ├── agent_histories_1.csv
-    └── agent_histories_2.csv
+    └── agent_histories_1.csv
+```
+
+**Auction output:**
+```
+results/test_fpsb_gemini_20260226_003623/
+├── config_used.yaml
+├── logs/
+│   └── sim_1.log
+└── data/
+    ├── auction_results_1.csv   # Per-round winner, payment, surplus, all bids
+    ├── all_bids_1.csv          # Every individual bid
+    └── bidder_histories_1.csv  # Per-bidder history
 ```
 
 ## Adding a New LLM Provider
