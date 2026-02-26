@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 
 from market_simulation.agents.factory import create_agents, create_initial_state
-from market_simulation.config.schema import ExperimentConfig, AgentPricesConfig
+from market_simulation.config.schema import ExperimentConfig, AgentPricesConfig, PersonaConfig
 
 
 class TestCreateAgents:
@@ -116,3 +116,156 @@ class TestCreateInitialState:
         assert state["market_history_text"] == ""
         assert state["iteration_records"] == []
         assert state["transactions"] == []
+
+
+class TestPersonaAssignment:
+    """Tests for per-agent persona customization."""
+
+    def test_agents_have_empty_persona_by_default(self, experiment_config):
+        """Without PersonaConfig, all agents should have empty persona."""
+        agents = create_agents(experiment_config)
+        assert all(a["persona"] == "" for a in agents)
+
+    def test_role_default_persona_applied(self, experiment_config):
+        """Role-level default persona should apply to all agents of that role."""
+        personas = PersonaConfig(buyer_default="Aggressive buyer")
+        agents = create_agents(experiment_config, personas)
+        buyers = [a for a in agents if a["type"] == "buyer"]
+        sellers = [a for a in agents if a["type"] == "seller"]
+        assert all(b["persona"] == "Aggressive buyer" for b in buyers)
+        assert all(s["persona"] == "" for s in sellers)
+
+    def test_individual_persona_overrides_role_default(self, experiment_config):
+        """Individual persona should override role-level default."""
+        personas = PersonaConfig(
+            buyer_default="Default buyer",
+            buyers={0: "Special buyer"},
+        )
+        agents = create_agents(experiment_config, personas)
+        buyers = [a for a in agents if a["type"] == "buyer"]
+        assert buyers[0]["persona"] == "Special buyer"
+        assert buyers[1]["persona"] == "Default buyer"
+        assert buyers[2]["persona"] == "Default buyer"
+
+    def test_seller_persona(self, experiment_config):
+        """Seller personas should work the same way."""
+        personas = PersonaConfig(
+            seller_default="Patient seller",
+            sellers={1: "Aggressive seller"},
+        )
+        agents = create_agents(experiment_config, personas)
+        sellers = [a for a in agents if a["type"] == "seller"]
+        assert sellers[0]["persona"] == "Patient seller"
+        assert sellers[1]["persona"] == "Aggressive seller"
+        assert sellers[2]["persona"] == "Patient seller"
+
+    def test_personas_passed_through_create_initial_state(self, experiment_config):
+        """create_initial_state should forward personas to create_agents."""
+        personas = PersonaConfig(buyer_default="Test persona")
+        state = create_initial_state(experiment_config, personas=personas)
+        buyers = [a for a in state["agents"] if a["type"] == "buyer"]
+        assert all(b["persona"] == "Test persona" for b in buyers)
+
+
+class TestPersonaInRenderedPrompts:
+    """Tests that persona text actually appears in rendered prompt output."""
+
+    def test_persona_appears_in_announcement_prompt(self, prompt_config, base_market_state):
+        """Persona text assigned to an agent should appear in the rendered announcement prompt."""
+        from market_simulation.graph.nodes.announce import _render_announcement_prompt
+
+        # Patch the main_template to include {persona} placeholder
+        persona_template = prompt_config.general.main_template.replace(
+            "{action_prompt}",
+            "{persona} {action_prompt}",
+        )
+        prompt_config.general.main_template = persona_template
+
+        # Set a distinctive persona on the buyer agent
+        persona_text = "You are an aggressive buyer who always pushes for the lowest price."
+        agent = base_market_state["agents"][0]  # buyer, id=0
+        agent["persona"] = persona_text
+
+        rendered = _render_announcement_prompt(
+            agent=agent,
+            state=base_market_state,
+            prompts=prompt_config,
+            agent_prompts=prompt_config.buyer,
+        )
+
+        assert persona_text in rendered
+
+    def test_persona_appears_in_response_prompt(self, prompt_config, base_market_state):
+        """Persona text assigned to an agent should appear in the rendered response prompt."""
+        from market_simulation.graph.nodes.respond import _render_response_prompt
+
+        # Patch the main_template to include {persona} placeholder
+        persona_template = prompt_config.general.main_template.replace(
+            "{action_prompt}",
+            "{persona} {action_prompt}",
+        )
+        prompt_config.general.main_template = persona_template
+
+        # Set a distinctive persona on the seller agent and set announced_price for response_prompt
+        persona_text = "You are a patient seller who waits for the best offer."
+        agent = base_market_state["agents"][3]  # seller, id=3
+        agent["persona"] = persona_text
+        base_market_state["announced_price"] = 1.50
+
+        rendered = _render_response_prompt(
+            agent=agent,
+            state=base_market_state,
+            prompts=prompt_config,
+            agent_prompts=prompt_config.seller,
+        )
+
+        assert persona_text in rendered
+
+    def test_empty_persona_produces_no_artifact(self, prompt_config, base_market_state):
+        """An agent with empty persona should not leave sentinel markers in the rendered prompt."""
+        from market_simulation.graph.nodes.announce import _render_announcement_prompt
+
+        # Patch the main_template to include {persona} placeholder
+        persona_template = prompt_config.general.main_template.replace(
+            "{action_prompt}",
+            "{persona} {action_prompt}",
+        )
+        prompt_config.general.main_template = persona_template
+
+        agent = base_market_state["agents"][0]
+        agent["persona"] = ""
+
+        rendered = _render_announcement_prompt(
+            agent=agent,
+            state=base_market_state,
+            prompts=prompt_config,
+            agent_prompts=prompt_config.buyer,
+        )
+
+        assert "<<PERSONA>>" not in rendered
+        assert "{persona}" not in rendered
+
+    def test_persona_with_curly_braces_not_mangled(self, prompt_config, base_market_state):
+        """Persona text containing curly braces should survive rendering intact."""
+        from market_simulation.graph.nodes.announce import _render_announcement_prompt
+
+        # Patch the main_template to include {persona} placeholder
+        persona_template = prompt_config.general.main_template.replace(
+            "{action_prompt}",
+            "{persona} {action_prompt}",
+        )
+        prompt_config.general.main_template = persona_template
+
+        # Curly braces in persona text would break naive str.format()
+        persona_text = "You must follow this rule: {always negotiate} and {never give up}."
+        agent = base_market_state["agents"][0]
+        agent["persona"] = persona_text
+
+        rendered = _render_announcement_prompt(
+            agent=agent,
+            state=base_market_state,
+            prompts=prompt_config,
+            agent_prompts=prompt_config.buyer,
+        )
+
+        assert persona_text in rendered

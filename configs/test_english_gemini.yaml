@@ -1,0 +1,60 @@
+experiment:
+  auction_type: english
+  auction:
+    n_rounds: 2
+    n_simulations: 2
+    bidders:
+      num: 4
+      value_min: 0.0
+      value_max: 10.0
+      distribution: linspace
+    min_increment: 0.5
+    max_bidding_rounds: 50
+
+llm:
+  provider: gemini
+  model: gemini-3-flash-preview
+  temperature: 0.0
+  max_tokens: 150
+  max_retries: 5
+
+tracing:
+  enabled: false
+
+prompts:
+  auction:
+    system_template: |
+      You are Bidder {bidder_id} in an English (ascending) auction.
+
+      RULES:
+      - There are {n_bidders} bidders ({n_active} still active). Each has a private value, known only to them.
+      - Bidders take turns. On your turn you may either:
+        (a) Place a bid of at least {min_bid} (current standing bid {standing_bid} + minimum increment {min_increment}), or
+        (b) Say "pass" to permanently drop out of this round.
+      - The auction ends when only one bidder remains or a full cycle passes with no new bids.
+      - The last remaining bidder wins and pays their last bid.
+      - If you win: your profit = your private value - your winning bid.
+      - If you drop out: your profit = 0 for this round.
+
+      {value_explanation}
+
+      Your private value for the item is {private_value}.
+
+      There will be {max_rounds} rounds. This is round {round}/{max_rounds}.
+      The current standing bid is {standing_bid}. You must bid at least {min_bid} or pass.
+
+      Market history:
+      {market_history}
+
+      Your history:
+      {own_history}
+
+      {action_prompt}
+
+    english_bid_prompt: |
+      Enter your bid (at least {min_bid}) or say "pass" to drop out.
+
+    value_explanation: |
+      STRATEGY NOTE: You should stay in the auction as long as the required bid is below your private value.
+      Once the bid exceeds your value, you should pass — winning at a price above your value means a loss.
+      The winner typically pays just above the second-highest bidder's value.
