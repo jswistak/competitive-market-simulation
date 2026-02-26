@@ -8,6 +8,7 @@ from typing import Callable, Any
 from langchain_core.runnables import RunnableConfig
 
 from ..state import MarketState
+from ..history import build_market_history_for_prompt, build_own_history_for_prompt
 from ...llm.providers.base import LLMProvider
 from ...config.schema import PromptConfig
 
@@ -237,14 +238,26 @@ def _render_response_prompt(
         "N_ITER": state["max_iterations"],
         "N_BUYERS": sum(1 for a in state["agents"] if a["type"] == "buyer"),
         "N_SELLERS": sum(1 for a in state["agents"] if a["type"] == "seller"),
-        "market_history": state["market_history_text"],
-        "own_history": agent["own_history_prompt"],
+        "market_history": build_market_history_for_prompt(
+            state,
+            mode=state.get("history_mode", "full"),
+            last_n_events=state.get("history_summary_last_n", 3),
+        ),
+        "own_history": build_own_history_for_prompt(
+            agent,
+            mode=state.get("own_history_mode", "full"),
+        ),
         "round": state["round"],
         "iteration": state["iteration"],
         "action_prompt": action_prompt,
+        "persona": agent.get("persona", ""),
     }
 
-    return prompts.general.main_template.format(**template_vars)
+    # Use sentinel replacement for persona to avoid str.format() issues with curly braces
+    persona_text = template_vars.pop("persona")
+    template = prompts.general.main_template.replace("{persona}", "<<PERSONA>>")
+    result = template.format(**template_vars)
+    return result.replace("<<PERSONA>>", persona_text)
 
 
 def _extract_response(response: str) -> bool:

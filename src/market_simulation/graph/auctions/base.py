@@ -118,6 +118,7 @@ def render_auction_prompt(
         "max_rounds": state["max_rounds"],
         "market_history": state.get("market_history_text", ""),
         "own_history": bidder["own_history_prompt"],
+        "persona": bidder.get("persona", ""),
     }
     if extra_vars:
         template_vars.update(extra_vars)
@@ -133,7 +134,11 @@ def render_auction_prompt(
         except (KeyError, IndexError):
             pass  # Leave as-is if it has unresolvable placeholders
 
-    return template.format(**template_vars)
+    # Use sentinel replacement for persona to avoid str.format() issues with curly braces
+    persona_text = template_vars.pop("persona")
+    result = template.replace("{persona}", "<<PERSONA>>")
+    result = result.format(**template_vars)
+    return result.replace("<<PERSONA>>", persona_text)
 
 
 # ---------------------------------------------------------------------------

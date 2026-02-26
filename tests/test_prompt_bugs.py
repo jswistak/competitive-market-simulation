@@ -74,6 +74,9 @@ def _make_state_for_history_test(
         "last_error": None,
         "parse_failures": 0,
         "constraint_violations": 0,
+        "history_mode": "full",
+        "history_summary_last_n": 3,
+        "own_history_mode": "full",
     }
 
 
@@ -188,6 +191,11 @@ class TestDynamicParticipantCount:
     @pytest.mark.parametrize("config_path", SHIPPED_CONFIGS, ids=lambda p: p.name)
     def test_main_template_uses_dynamic_participant_count(self, config_path):
         config = load_config(config_path)
+
+        # Auction configs use prompts.auction.system_template instead of main_template
+        if config.experiment.auction_type.value != "double_auction":
+            pytest.skip("Auction configs use system_template, not main_template")
+
         template = config.prompts.general.main_template
 
         assert "{N_BUYERS}" in template, (

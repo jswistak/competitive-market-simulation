@@ -3,7 +3,7 @@
 import numpy as np
 from typing import Any
 
-from ..config.schema import ExperimentConfig, AuctionConfig, AuctionType
+from ..config.schema import ExperimentConfig, AuctionConfig, AuctionType, PersonaConfig
 from ..graph.state import (
     MarketState,
     AgentState,
@@ -14,16 +14,23 @@ from ..graph.state import (
 )
 
 
-def create_agents(config: ExperimentConfig) -> list[AgentState]:
+def create_agents(
+    config: ExperimentConfig,
+    personas: PersonaConfig | None = None,
+) -> list[AgentState]:
     """Create buyer and seller agents based on configuration.
 
     Args:
         config: Experiment configuration with price distributions.
+        personas: Optional persona configuration for per-agent customization.
 
     Returns:
         List of AgentState dictionaries.
     """
     agents: list[AgentState] = []
+
+    if personas is None:
+        personas = PersonaConfig()
 
     # Create buyers
     buyer_prices = np.round(
@@ -36,6 +43,7 @@ def create_agents(config: ExperimentConfig) -> list[AgentState]:
     )
 
     for i, price in enumerate(buyer_prices):
+        persona_text = personas.buyers.get(i, personas.buyer_default)
         agent = AgentState(
             id=i,
             type="buyer",
@@ -43,6 +51,7 @@ def create_agents(config: ExperimentConfig) -> list[AgentState]:
             active=True,
             own_history_prompt="",
             own_history_data=[],
+            persona=persona_text,
         )
         agents.append(agent)
 
@@ -58,6 +67,7 @@ def create_agents(config: ExperimentConfig) -> list[AgentState]:
 
     id_offset = config.buyers.num
     for i, price in enumerate(seller_prices):
+        persona_text = personas.sellers.get(i, personas.seller_default)
         agent = AgentState(
             id=id_offset + i,
             type="seller",
@@ -65,6 +75,7 @@ def create_agents(config: ExperimentConfig) -> list[AgentState]:
             active=True,
             own_history_prompt="",
             own_history_data=[],
+            persona=persona_text,
         )
         agents.append(agent)
 
@@ -74,17 +85,19 @@ def create_agents(config: ExperimentConfig) -> list[AgentState]:
 def create_initial_state(
     config: ExperimentConfig,
     simulation_id: int = 1,
+    personas: PersonaConfig | None = None,
 ) -> MarketState:
     """Create the initial market state for a simulation.
 
     Args:
         config: Experiment configuration.
         simulation_id: Identifier for this simulation run.
+        personas: Optional persona configuration for per-agent persona text.
 
     Returns:
         Initial MarketState dictionary.
     """
-    agents = create_agents(config)
+    agents = create_agents(config, personas=personas)
     all_agent_ids = [agent["id"] for agent in agents]
 
     return MarketState(
@@ -124,6 +137,10 @@ def create_initial_state(
         # Diagnostic counters
         parse_failures=0,
         constraint_violations=0,
+        # History display configuration
+        history_mode=config.history.mode,
+        history_summary_last_n=config.history.summary_last_n_events,
+        own_history_mode=config.history.own_history_mode,
     )
 
 
@@ -132,11 +149,15 @@ def create_initial_state(
 # ============================================================
 
 
-def create_bidders(config: AuctionConfig) -> list[BidderState]:
+def create_bidders(
+    config: AuctionConfig,
+    personas: PersonaConfig | None = None,
+) -> list[BidderState]:
     """Create auction bidders with independent private values.
 
     Args:
         config: Auction configuration with bidder distribution params.
+        personas: Optional persona configuration for per-bidder customization.
 
     Returns:
         List of BidderState dictionaries.
@@ -151,8 +172,12 @@ def create_bidders(config: AuctionConfig) -> list[BidderState]:
             rng.uniform(bc.value_min, bc.value_max, bc.num), 2
         )
 
+    if personas is None:
+        personas = PersonaConfig()
+
     bidders: list[BidderState] = []
     for i, val in enumerate(values):
+        persona_text = personas.bidders.get(i, personas.bidder_default)
         bidders.append(
             BidderState(
                 id=i,
@@ -160,6 +185,7 @@ def create_bidders(config: AuctionConfig) -> list[BidderState]:
                 active=True,
                 own_history_prompt="",
                 own_history_data=[],
+                persona=persona_text,
             )
         )
     return bidders
@@ -169,6 +195,7 @@ def create_auction_initial_state(
     experiment_config: ExperimentConfig,
     auction_config: AuctionConfig,
     simulation_id: int = 1,
+    personas: PersonaConfig | None = None,
 ) -> dict:
     """Create the initial state dict for an auction simulation.
 
@@ -178,12 +205,13 @@ def create_auction_initial_state(
         experiment_config: Top-level experiment config (carries auction_type).
         auction_config: Auction-specific parameters.
         simulation_id: Identifier for this simulation run.
+        personas: Optional persona configuration for per-bidder customization.
 
     Returns:
         Initial state dictionary matching the appropriate auction state type.
     """
     auction_type = experiment_config.auction_type
-    bidders = create_bidders(auction_config)
+    bidders = create_bidders(auction_config, personas=personas)
 
     # Common fields shared by all auction states
     common: dict[str, Any] = {

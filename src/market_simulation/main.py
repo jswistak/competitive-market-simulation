@@ -167,6 +167,27 @@ def run(
         experiment_name=config,
     )
 
+    # Warn if personas are configured but placeholder is missing from template
+    has_da_personas = cfg.personas and (
+        cfg.personas.buyer_default or cfg.personas.seller_default
+        or cfg.personas.buyers or cfg.personas.sellers
+    )
+    has_auction_personas = cfg.personas and (
+        cfg.personas.bidder_default or cfg.personas.bidders
+    )
+    if has_da_personas and not is_auction:
+        if "{persona}" not in cfg.prompts.general.main_template:
+            logger.warning(
+                "Personas configured but {persona} placeholder missing from main_template. "
+                "Persona text will not appear in prompts."
+            )
+    if has_auction_personas and is_auction and cfg.prompts.auction:
+        if "{persona}" not in cfg.prompts.auction.system_template:
+            logger.warning(
+                "Bidder personas configured but {persona} placeholder missing from "
+                "auction system_template. Persona text will not appear in prompts."
+            )
+
     # Build graph and calculate recursion limit
     if is_auction and auction_config and cfg.prompts.auction:
         graph = build_auction_graph(
@@ -230,10 +251,13 @@ def run(
             # Create initial state
             if is_auction and auction_config:
                 initial_state = create_auction_initial_state(
-                    cfg.experiment, auction_config, simulation_id=sim_id
+                    cfg.experiment, auction_config, simulation_id=sim_id,
+                    personas=cfg.personas,
                 )
             else:
-                initial_state = create_initial_state(cfg.experiment, simulation_id=sim_id)
+                initial_state = create_initial_state(
+                    cfg.experiment, simulation_id=sim_id, personas=cfg.personas,
+                )
 
             try:
                 # Use trace_simulation context manager for proper Langfuse tracing

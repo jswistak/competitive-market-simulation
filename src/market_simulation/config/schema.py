@@ -58,6 +58,14 @@ class AgentPricesConfig(BaseModel):
     num: int = 11
 
 
+class HistoryConfig(BaseModel):
+    """Configuration for how market history is presented in prompts."""
+
+    mode: Literal["full", "summary"] = "full"
+    own_history_mode: Literal["full", "summary"] = "full"
+    summary_last_n_events: int = 3
+
+
 # --- Auction-specific configs ---
 
 
@@ -114,6 +122,7 @@ class ExperimentConfig(BaseModel):
     n_simulations: int = 10
     buyers: AgentPricesConfig = Field(default_factory=AgentPricesConfig)
     sellers: AgentPricesConfig = Field(default_factory=AgentPricesConfig)
+    history: HistoryConfig = Field(default_factory=HistoryConfig)
 
     # Auction-specific config (only used when auction_type != double_auction)
     auction: AuctionConfig | None = None
@@ -163,6 +172,18 @@ class PromptConfig(BaseModel):
     auction: AuctionPromptConfig | None = None
 
 
+class PersonaConfig(BaseModel):
+    """Per-agent persona/prompt customization."""
+
+    buyer_default: str = ""
+    seller_default: str = ""
+    buyers: dict[int, str] = Field(default_factory=dict)
+    sellers: dict[int, str] = Field(default_factory=dict)
+    # Auction bidder personas
+    bidder_default: str = ""
+    bidders: dict[int, str] = Field(default_factory=dict)
+
+
 class SimulationConfig(BaseModel):
     """Complete simulation configuration."""
 
@@ -171,3 +192,4 @@ class SimulationConfig(BaseModel):
     tracing: TracingConfig = Field(default_factory=TracingConfig)
     prompts: PromptConfig = Field(default_factory=PromptConfig)
     tools: ToolConfig = Field(default_factory=ToolConfig)
+    personas: PersonaConfig = Field(default_factory=PersonaConfig)

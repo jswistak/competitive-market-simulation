@@ -116,6 +116,7 @@ def sample_buyer():
         active=True,
         own_history_prompt="",
         own_history_data=[],
+        persona="",
     )
 
 
@@ -128,6 +129,7 @@ def sample_seller():
         active=True,
         own_history_prompt="",
         own_history_data=[],
+        persona="",
     )
 
 
@@ -135,12 +137,12 @@ def sample_seller():
 def sample_agents():
     """Three buyers (ids 0-2) and three sellers (ids 3-5)."""
     return [
-        AgentState(id=0, type="buyer", reservation_price=2.0, active=True, own_history_prompt="", own_history_data=[]),
-        AgentState(id=1, type="buyer", reservation_price=1.5, active=True, own_history_prompt="", own_history_data=[]),
-        AgentState(id=2, type="buyer", reservation_price=1.0, active=True, own_history_prompt="", own_history_data=[]),
-        AgentState(id=3, type="seller", reservation_price=1.0, active=True, own_history_prompt="", own_history_data=[]),
-        AgentState(id=4, type="seller", reservation_price=1.5, active=True, own_history_prompt="", own_history_data=[]),
-        AgentState(id=5, type="seller", reservation_price=2.0, active=True, own_history_prompt="", own_history_data=[]),
+        AgentState(id=0, type="buyer", reservation_price=2.0, active=True, own_history_prompt="", own_history_data=[], persona=""),
+        AgentState(id=1, type="buyer", reservation_price=1.5, active=True, own_history_prompt="", own_history_data=[], persona=""),
+        AgentState(id=2, type="buyer", reservation_price=1.0, active=True, own_history_prompt="", own_history_data=[], persona=""),
+        AgentState(id=3, type="seller", reservation_price=1.0, active=True, own_history_prompt="", own_history_data=[], persona=""),
+        AgentState(id=4, type="seller", reservation_price=1.5, active=True, own_history_prompt="", own_history_data=[], persona=""),
+        AgentState(id=5, type="seller", reservation_price=2.0, active=True, own_history_prompt="", own_history_data=[], persona=""),
     ]
 
 
@@ -176,6 +178,9 @@ def base_market_state(sample_agents):
         last_error=None,
         parse_failures=0,
         constraint_violations=0,
+        history_mode="full",
+        history_summary_last_n=3,
+        own_history_mode="full",
     )
 
 

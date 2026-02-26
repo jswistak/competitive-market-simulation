@@ -1,25 +1,30 @@
+# Smith 6A with agent personas (test)
 experiment:
-  n_rounds: 5
-  n_iterations: 10
-  n_simulations: 10
+  n_rounds: 4
+  n_iterations: 12
+  n_simulations: 2
   buyers:
-    min: 0.8
-    max: 3.2
-    num: 11
+    min: 8.5
+    max: 16.5
+    num: 17
   sellers:
-    min: 0.8
-    max: 3.2
-    num: 11
+    min: 1.5
+    max: 4.0
+    num: 12
 
 llm:
-  provider: deepseek
-  model: deepseek-chat
+  provider: gemini
+  model: gemini-3-flash-preview
   temperature: 0.0
-  max_tokens: 50
-  max_retries: 5
+  max_tokens: 150
+  max_retries: 3
 
 tracing:
   enabled: true
+
+personas:
+  buyer_default: "You are a cautious buyer who carefully evaluates prices before acting."
+  seller_default: "You are an assertive seller who aims to maximize profit."
 
 prompts:
   general:
@@ -28,6 +33,8 @@ prompts:
       Your reservation price is known to you and only you.
       Under no condition can you {verb} {condition} your reservation price.
       However, {verb}ing at a price equal to your reservation price is acceptable and preferred than not {verb}ing at all.
+
+      {persona}
 
       There are {N_BUYERS} buyers and {N_SELLERS} sellers in the room (including you).
       Any buyer or seller is free at any time to raise his hand and make a verbal offer to buy/sell.
@@ -63,10 +70,12 @@ prompts:
       condition: below
 
     response_prompt: |
-      Someone is offering to buy at ${price:.2f}. Do you sell? Only answer with a yes or no.
+      Someone is offering to buy at ${price:.2f}. Do you accept this offer and sell at this price?
+      You MUST answer with exactly one word: "yes" or "no". Do not include prices, reasoning, or any other text.
 
     announcement_prompt: |
-      Do you want to announce an offer to sell? If so, what is your asking price? Answer only with a number.
+      Do you want to announce an offer to sell? If so, what is your asking price?
+      You MUST answer with ONLY a single number (e.g. 2.50). No dollar signs, no words, no explanation. Just the number.
 
   buyer:
     main_keywords:
@@ -76,7 +85,9 @@ prompts:
       condition: above
 
     response_prompt: |
-      Someone is offering to sell at ${price:.2f}. Do you buy? Only answer with a yes or no.
+      Someone is offering to sell at ${price:.2f}. Do you accept this offer and buy at this price?
+      You MUST answer with exactly one word: "yes" or "no". Do not include prices, reasoning, or any other text.
 
     announcement_prompt: |
-      Do you want to announce a bid to buy? If so, what is your bid price? Answer only with a number.
+      Do you want to announce a bid to buy? If so, what is your bid price?
+      You MUST answer with ONLY a single number (e.g. 1.50). No dollar signs, no words, no explanation. Just the number.

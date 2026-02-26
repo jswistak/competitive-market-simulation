@@ -163,6 +163,8 @@ Configuration files are located in `configs/`. Available configs:
 | `auction_english.yaml`        | OpenAI    | gpt-4o-mini             | No (English) |
 | `auction_dutch.yaml`          | OpenAI    | gpt-4o-mini             | No (Dutch)   |
 | `auction_open_outcry.yaml`    | OpenAI    | gpt-4o-mini             | No (Open Outcry) |
+| `example_personas.yaml`       | Google    | gemini-3-flash-preview  | No (personas)|
+| `smith6a_personas.yaml`       | Google    | gemini-3-flash-preview  | No (personas)|
 
 ### Configuration Structure
 
@@ -179,6 +181,10 @@ experiment:
     min: 0.8
     max: 3.2
     num: 11
+  history:
+    mode: full # "full" or "summary" (see History Modes below)
+    own_history_mode: full # "full" or "summary"
+    summary_last_n_events: 3 # Recent raw events appended in summary mode
 
 llm:
   provider: openai # openai | anthropic | gemini | deepseek
@@ -202,6 +208,8 @@ prompts:
   general:
     main_template: |
       You are a {role} participating in a market...
+      {persona}
+      ...
   buyer:
     main_keywords:
       role: buyer
@@ -215,6 +223,70 @@ prompts:
   seller:
     # ... similar structure
 ```
+
+### History Modes
+
+The `experiment.history` block controls how market history and agent history are presented in LLM prompts. This is useful for reducing token usage and prompt length as the simulation progresses.
+
+| Field | Values | Description |
+|-------|--------|-------------|
+| `mode` | `"full"` (default) / `"summary"` | Controls market-wide history. `"full"` injects the entire raw event log. `"summary"` replaces it with aggregate statistics (transaction count, average price, price trend, bid-ask spread, acceptance rate) plus the last N raw events. |
+| `own_history_mode` | `"full"` (default) / `"summary"` | Controls each agent's personal action history. `"full"` shows every past action verbatim. `"summary"` shows counts, success rate, average trade price, and the last action taken. |
+| `summary_last_n_events` | integer (default `3`) | In summary mode, this many recent raw event lines are appended after the statistics so the LLM still sees the most recent context. Set to `0` to show only statistics. |
+
+**Example -- summary mode:**
+
+```yaml
+experiment:
+  n_rounds: 5
+  n_iterations: 10
+  n_simulations: 10
+  buyers: { min: 0.8, max: 3.2, num: 11 }
+  sellers: { min: 0.8, max: 3.2, num: 11 }
+  history:
+    mode: summary
+    own_history_mode: summary
+    summary_last_n_events: 3
+```
+
+### Agent Personas
+
+The `personas` configuration block allows you to assign behavioral descriptions to individual agents or groups of agents. Persona text is injected into the system prompt at the location of the `{persona}` placeholder in `main_template`.
+
+**Fields:**
+
+| Field            | Type              | Description                                                    |
+| ---------------- | ----------------- | -------------------------------------------------------------- |
+| `buyer_default`  | `string`          | Default persona applied to all buyers (unless overridden)      |
+| `seller_default` | `string`          | Default persona applied to all sellers (unless overridden)     |
+| `buyers`         | `dict[int, str]`  | Per-buyer overrides, keyed by buyer index (0-based)            |
+| `sellers`        | `dict[int, str]`  | Per-seller overrides, keyed by seller index (0-based)          |
+
+**Important:** The `{persona}` placeholder must be present in `prompts.general.main_template` for persona text to appear in prompts. If no persona is assigned to an agent, the placeholder is replaced with an empty string.
+
+**Example:**
+
+```yaml
+personas:
+  buyer_default: "You are a cautious buyer who carefully evaluates prices before acting."
+  seller_default: "You are an assertive seller who aims to maximize profit."
+  buyers:
+    0: "You are an aggressive buyer who bids boldly and closes deals quickly."
+  sellers:
+    0: "You are a risk-averse seller who prefers a guaranteed sale."
+
+prompts:
+  general:
+    main_template: |
+      You are a {role} participating in a market...
+
+      {persona}
+
+      There are {N_BUYERS} buyers and {N_SELLERS} sellers...
+      ...
+```
+
+In this example, buyer 0 receives the individual override ("aggressive buyer"), while all other buyers receive the `buyer_default` persona. Seller 0 gets its own override, while the remaining sellers use `seller_default`. See `configs/example_personas.yaml` for a complete working configuration.
 
 ## Environment Variables
 
@@ -258,6 +330,7 @@ master-thesis/
 │   │   │   └── control.py   # Flow control
 │   │   ├── edges.py         # Conditional routing
 │   │   ├── workflow.py      # Graph builder
+│   │   ├── history.py       # History summary builder (full/summary modes)
 │   │   └── auctions/        # Auction-type workflows
 │   │       ├── base.py      # Shared extraction (extract_bid, extract_yes_no)
 │   │       ├── sealed_bid/  # FPSB, SPSB, All-Pay

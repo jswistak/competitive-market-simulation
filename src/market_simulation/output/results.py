@@ -114,6 +114,7 @@ class ResultsSaver:
                         "agent_id": agent["id"],
                         "agent_type": agent["type"],
                         "reservation_price": agent["reservation_price"],
+                        "persona": agent.get("persona", ""),
                         **record,
                     }
                 )

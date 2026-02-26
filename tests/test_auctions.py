@@ -90,9 +90,9 @@ from market_simulation.graph.auctions.dutch.edges import (
 def sample_bidders():
     """Three bidders with values 0, 5, 10."""
     return [
-        BidderState(id=0, private_value=0.0, active=True, own_history_prompt="", own_history_data=[]),
-        BidderState(id=1, private_value=5.0, active=True, own_history_prompt="", own_history_data=[]),
-        BidderState(id=2, private_value=10.0, active=True, own_history_prompt="", own_history_data=[]),
+        BidderState(id=0, private_value=0.0, active=True, own_history_prompt="", own_history_data=[], persona=""),
+        BidderState(id=1, private_value=5.0, active=True, own_history_prompt="", own_history_data=[], persona=""),
+        BidderState(id=2, private_value=10.0, active=True, own_history_prompt="", own_history_data=[], persona=""),
     ]
 
 

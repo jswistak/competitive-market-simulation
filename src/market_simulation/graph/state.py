@@ -1,6 +1,6 @@
 """Market simulation state definitions."""
 
-from typing import Annotated, TypedDict, NotRequired
+from typing import Annotated, Literal, NotRequired, TypedDict
 from operator import add
 
 
@@ -13,6 +13,7 @@ class AgentState(TypedDict):
     active: bool  # Still in current round
     own_history_prompt: str  # History for prompt rendering
     own_history_data: list[dict]  # Data for CSV export
+    persona: str  # Per-agent persona text
 
 
 class Transaction(TypedDict):
@@ -87,6 +88,11 @@ class MarketState(TypedDict):
     parse_failures: int
     constraint_violations: int
 
+    # History display configuration
+    history_mode: Literal["full", "summary"]
+    history_summary_last_n: int
+    own_history_mode: Literal["full", "summary"]
+
 
 # ============================================================
 # Auction state definitions (new auction types)
@@ -101,6 +107,7 @@ class BidderState(TypedDict):
     active: bool  # Still participating in current round
     own_history_prompt: str  # History for prompt rendering
     own_history_data: list[dict]  # Data for CSV export
+    persona: str  # Per-bidder persona text
 
 
 class BidRecord(TypedDict):
