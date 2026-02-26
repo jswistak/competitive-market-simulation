@@ -141,6 +141,14 @@ def run(
         experiment_name=config,
     )
 
+    # Warn if personas are configured but {persona} placeholder is missing from template
+    if cfg.personas and (cfg.personas.buyer_default or cfg.personas.seller_default or cfg.personas.buyers or cfg.personas.sellers):
+        if "{persona}" not in cfg.prompts.general.main_template:
+            logger.warning(
+                "Personas configured but {persona} placeholder missing from main_template. "
+                "Persona text will not appear in prompts."
+            )
+
     # Build graph (callbacks passed via config at invoke time)
     graph = build_market_graph(llm, cfg.prompts)
 
@@ -173,7 +181,7 @@ def run(
             results_saver.start_simulation_logging(sim_id)
 
             # Create initial state
-            initial_state = create_initial_state(cfg.experiment, simulation_id=sim_id)
+            initial_state = create_initial_state(cfg.experiment, simulation_id=sim_id, personas=cfg.personas)
 
             try:
                 # Use trace_simulation context manager for proper Langfuse tracing
