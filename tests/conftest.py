@@ -175,6 +175,8 @@ def base_market_state(sample_agents):
         round_complete=False,
         simulation_complete=False,
         tool_usage_log=[],
+        last_announcement_reasoning="",
+        last_response_reasoning="",
         last_error=None,
         parse_failures=0,
         constraint_violations=0,

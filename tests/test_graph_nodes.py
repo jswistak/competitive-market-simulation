@@ -41,122 +41,122 @@ class TestExtractPrice:
     """Tests for _extract_price helper in announce module."""
 
     def test_plain_number(self):
-        assert _extract_price("1.50") == 1.50
+        assert _extract_price("1.50")[0] == 1.50
 
     def test_integer(self):
-        assert _extract_price("2") == 2.0
+        assert _extract_price("2")[0] == 2.0
 
     def test_small_decimal(self):
-        assert _extract_price("0.99") == 0.99
+        assert _extract_price("0.99")[0] == 0.99
 
     def test_dollar_sign(self):
-        assert _extract_price("$1.50") == 1.50
+        assert _extract_price("$1.50")[0] == 1.50
 
     def test_comma_separated(self):
-        assert _extract_price("1,500.00") == 1500.00
+        assert _extract_price("1,500.00")[0] == 1500.00
 
     def test_whitespace(self):
-        assert _extract_price("  1.50  ") == 1.50
+        assert _extract_price("  1.50  ")[0] == 1.50
 
     def test_non_numeric_returns_none(self):
-        assert _extract_price("hello") is None
+        assert _extract_price("hello")[0] is None
 
     def test_empty_string_returns_none(self):
-        assert _extract_price("") is None
+        assert _extract_price("")[0] is None
 
     def test_dollar_prefix_fallback(self):
-        assert _extract_price("I think $1.50 is fair") == 1.50
+        assert _extract_price("I think $1.50 is fair")[0] == 1.50
 
     def test_bare_decimal_takes_last(self):
         result = _extract_price("Between 1.0 and 2.0, I choose 1.75")
-        assert result == 1.75
+        assert result[0] == 1.75
 
     def test_dollar_sign_with_text(self):
-        assert _extract_price("My price is $2.50.") == 2.50
+        assert _extract_price("My price is $2.50.")[0] == 2.50
 
     # --- New tests for bug fixes (from real log failures) ---
 
     def test_round_number_not_extracted(self):
         # BUG: "round 1" was being extracted as price 1.0
-        assert _extract_price("Since I already sold in round 1, I") is None
+        assert _extract_price("Since I already sold in round 1, I")[0] is None
 
     def test_round_number_bought_not_extracted(self):
-        assert _extract_price("Given that I already bought in round 1,") is None
+        assert _extract_price("Given that I already bought in round 1,")[0] is None
 
     def test_no_response(self):
-        assert _extract_price("No") is None
+        assert _extract_price("No")[0] is None
 
     def test_no_dot_response(self):
-        assert _extract_price("No.") is None
+        assert _extract_price("No.")[0] is None
 
     def test_narrative_no_number(self):
-        assert _extract_price("Given the recent history, prices seem to be fluctuating") is None
+        assert _extract_price("Given the recent history, prices seem to be fluctuating")[0] is None
 
     def test_dollar_prefix_in_narrative(self):
-        assert _extract_price("Since a seller accepted $3.27 in") == 3.27
+        assert _extract_price("Since a seller accepted $3.27 in")[0] == 3.27
 
     def test_multiple_dollar_takes_last(self):
-        assert _extract_price("I think $1.5 or maybe $1.6") == 1.6
+        assert _extract_price("I think $1.5 or maybe $1.6")[0] == 1.6
 
     def test_dollar_prefix_preferred_over_bare(self):
-        assert _extract_price("2.0): $2.7") == 2.7
+        assert _extract_price("2.0): $2.7")[0] == 2.7
 
     def test_no_announcement(self):
-        assert _extract_price("No announcement.") is None
+        assert _extract_price("No announcement.")[0] is None
 
     def test_no_bid(self):
-        assert _extract_price("No bid.") is None
+        assert _extract_price("No bid.")[0] is None
 
     def test_none_input(self):
-        assert _extract_price(None) is None
+        assert _extract_price(None)[0] is None
 
     def test_whitespace_only_returns_none(self):
-        assert _extract_price("   ") is None
+        assert _extract_price("   ")[0] is None
 
     def test_negative_price_returns_none(self):
         # Negative prices are invalid in a market context
-        assert _extract_price("-1.5") is None
+        assert _extract_price("-1.5")[0] is None
 
     def test_dollar_integer_in_narrative(self):
         # "$2" without decimal should still be extracted via Stage 2
-        assert _extract_price("I bid $2") == 2.0
+        assert _extract_price("I bid $2")[0] == 2.0
 
     def test_bare_integer_in_narrative_returns_none(self):
         # "I bid 2" without $ or decimal → Stage 3 requires decimal point
-        assert _extract_price("I bid 2") is None
+        assert _extract_price("I bid 2")[0] is None
 
     def test_iteration_number_not_extracted(self):
         # Similar to "round 1" — iteration numbers should not match
-        assert _extract_price("In iteration 3, I will not bid") is None
+        assert _extract_price("In iteration 3, I will not bid")[0] is None
 
     def test_multiple_sentences_with_dollar(self):
-        assert _extract_price("Last round was $1.00. I now offer $1.25") == 1.25
+        assert _extract_price("Last round was $1.00. I now offer $1.25")[0] == 1.25
 
     # --- Corner case tests for price validation ---
 
     def test_zero_price(self):
-        assert _extract_price("0") == 0.0
+        assert _extract_price("0")[0] == 0.0
 
     def test_zero_decimal_price(self):
-        assert _extract_price("0.00") == 0.0
+        assert _extract_price("0.00")[0] == 0.0
 
     def test_negative_dollar_price(self):
-        assert _extract_price("$-1.50") is None
+        assert _extract_price("$-1.50")[0] is None
 
     def test_scientific_notation_rejected(self):
         # Scientific notation should not be accepted as a valid price
-        assert _extract_price("1e2") is None
+        assert _extract_price("1e2")[0] is None
 
     def test_dollar_sign_only(self):
-        assert _extract_price("$") is None
+        assert _extract_price("$")[0] is None
 
     def test_dollar_dot_fifty(self):
         # $.50 lacks digit before decimal in $-prefix regex
-        assert _extract_price("$.50") is None
+        assert _extract_price("$.50")[0] is None
 
     def test_dollar_zero_no_decimal_in_narrative(self):
         # $0 without decimal should be extracted via Stage 2
-        assert _extract_price("I think $0 is a good price") == 0.0
+        assert _extract_price("I think $0 is a good price")[0] == 0.0
 
 
 # ===========================================================================
@@ -168,62 +168,62 @@ class TestExtractResponse:
     """Tests for _extract_response helper in respond module."""
 
     def test_yes_lowercase(self):
-        assert _extract_response("yes") is True
+        assert _extract_response("yes")[0] is True
 
     def test_yes_capitalized(self):
-        assert _extract_response("Yes") is True
+        assert _extract_response("Yes")[0] is True
 
     def test_yes_uppercase(self):
-        assert _extract_response("YES") is True
+        assert _extract_response("YES")[0] is True
 
     def test_no_lowercase(self):
-        assert _extract_response("no") is False
+        assert _extract_response("no")[0] is False
 
     def test_no_capitalized(self):
-        assert _extract_response("No") is False
+        assert _extract_response("No")[0] is False
 
     def test_yes_in_sentence(self):
-        assert _extract_response("Yes, I accept the offer.") is True
+        assert _extract_response("Yes, I accept the offer.")[0] is True
 
     def test_no_yes_in_text(self):
-        assert _extract_response("absolutely") is False
+        assert _extract_response("absolutely")[0] is False
 
     def test_empty_string(self):
-        assert _extract_response("") is False
+        assert _extract_response("")[0] is False
 
     def test_yesterday_no_false_positive(self):
         # "yesterday" should NOT match as "yes" (word boundary check)
-        assert _extract_response("yesterday") is False
+        assert _extract_response("yesterday")[0] is False
 
     def test_yes_with_period(self):
-        assert _extract_response("Yes.") is True
+        assert _extract_response("Yes.")[0] is True
 
     def test_no_with_explanation(self):
-        assert _extract_response("No, the price is too high") is False
+        assert _extract_response("No, the price is too high")[0] is False
 
     def test_yes_with_explanation(self):
-        assert _extract_response("Yes, I accept") is True
+        assert _extract_response("Yes, I accept")[0] is True
 
     def test_whitespace_only(self):
-        assert _extract_response("   ") is False
+        assert _extract_response("   ")[0] is False
 
     def test_yes_with_exclamation(self):
-        assert _extract_response("Yes!") is True
+        assert _extract_response("Yes!")[0] is True
 
     def test_shorthand_y_not_matched(self):
         # Single "y" is not treated as "yes"
-        assert _extract_response("y") is False
+        assert _extract_response("y")[0] is False
 
     def test_no_followed_by_yes_matches_yes(self):
         # Contradictory response — current behavior: matches "yes" via regex
-        assert _extract_response("No, actually yes") is True
+        assert _extract_response("No, actually yes")[0] is True
 
     def test_none_input(self):
-        assert _extract_response(None) is False
+        assert _extract_response(None)[0] is False
 
     def test_yes_multiline(self):
         # Multiline LLM output with yes on first line
-        assert _extract_response("Yes\nI accept the offer") is True
+        assert _extract_response("Yes\nI accept the offer")[0] is True
 
 
 # ===========================================================================
