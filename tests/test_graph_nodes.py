@@ -6,12 +6,10 @@ from unittest.mock import MagicMock, patch
 from market_simulation.graph.nodes.announce import (
     make_select_announcer_node,
     make_announce_node,
-    _extract_price,
 )
 from market_simulation.graph.nodes.respond import (
     make_select_responders_node,
     make_respond_node,
-    _extract_response,
 )
 from market_simulation.graph.nodes.transaction import make_record_transaction_node
 from market_simulation.graph.nodes.control import (
@@ -20,6 +18,12 @@ from market_simulation.graph.nodes.control import (
     make_check_round_node,
     make_next_iteration_node,
     make_next_round_node,
+)
+from market_simulation.llm.response_schemas import (
+    AnnouncementResponse,
+    AnnouncementResponseWithReasoning,
+    AcceptRejectResponse,
+    AcceptRejectResponseWithReasoning,
 )
 
 
@@ -30,200 +34,6 @@ from market_simulation.graph.nodes.control import (
 def _make_config(callbacks=None):
     """Create a minimal RunnableConfig-like dict."""
     return {"callbacks": callbacks or []}
-
-
-# ===========================================================================
-# TestExtractPrice
-# ===========================================================================
-
-
-class TestExtractPrice:
-    """Tests for _extract_price helper in announce module."""
-
-    def test_plain_number(self):
-        assert _extract_price("1.50")[0] == 1.50
-
-    def test_integer(self):
-        assert _extract_price("2")[0] == 2.0
-
-    def test_small_decimal(self):
-        assert _extract_price("0.99")[0] == 0.99
-
-    def test_dollar_sign(self):
-        assert _extract_price("$1.50")[0] == 1.50
-
-    def test_comma_separated(self):
-        assert _extract_price("1,500.00")[0] == 1500.00
-
-    def test_whitespace(self):
-        assert _extract_price("  1.50  ")[0] == 1.50
-
-    def test_non_numeric_returns_none(self):
-        assert _extract_price("hello")[0] is None
-
-    def test_empty_string_returns_none(self):
-        assert _extract_price("")[0] is None
-
-    def test_dollar_prefix_fallback(self):
-        assert _extract_price("I think $1.50 is fair")[0] == 1.50
-
-    def test_bare_decimal_takes_last(self):
-        result = _extract_price("Between 1.0 and 2.0, I choose 1.75")
-        assert result[0] == 1.75
-
-    def test_dollar_sign_with_text(self):
-        assert _extract_price("My price is $2.50.")[0] == 2.50
-
-    # --- New tests for bug fixes (from real log failures) ---
-
-    def test_round_number_not_extracted(self):
-        # BUG: "round 1" was being extracted as price 1.0
-        assert _extract_price("Since I already sold in round 1, I")[0] is None
-
-    def test_round_number_bought_not_extracted(self):
-        assert _extract_price("Given that I already bought in round 1,")[0] is None
-
-    def test_no_response(self):
-        assert _extract_price("No")[0] is None
-
-    def test_no_dot_response(self):
-        assert _extract_price("No.")[0] is None
-
-    def test_narrative_no_number(self):
-        assert _extract_price("Given the recent history, prices seem to be fluctuating")[0] is None
-
-    def test_dollar_prefix_in_narrative(self):
-        assert _extract_price("Since a seller accepted $3.27 in")[0] == 3.27
-
-    def test_multiple_dollar_takes_last(self):
-        assert _extract_price("I think $1.5 or maybe $1.6")[0] == 1.6
-
-    def test_dollar_prefix_preferred_over_bare(self):
-        assert _extract_price("2.0): $2.7")[0] == 2.7
-
-    def test_no_announcement(self):
-        assert _extract_price("No announcement.")[0] is None
-
-    def test_no_bid(self):
-        assert _extract_price("No bid.")[0] is None
-
-    def test_none_input(self):
-        assert _extract_price(None)[0] is None
-
-    def test_whitespace_only_returns_none(self):
-        assert _extract_price("   ")[0] is None
-
-    def test_negative_price_returns_none(self):
-        # Negative prices are invalid in a market context
-        assert _extract_price("-1.5")[0] is None
-
-    def test_dollar_integer_in_narrative(self):
-        # "$2" without decimal should still be extracted via Stage 2
-        assert _extract_price("I bid $2")[0] == 2.0
-
-    def test_bare_integer_in_narrative_returns_none(self):
-        # "I bid 2" without $ or decimal → Stage 3 requires decimal point
-        assert _extract_price("I bid 2")[0] is None
-
-    def test_iteration_number_not_extracted(self):
-        # Similar to "round 1" — iteration numbers should not match
-        assert _extract_price("In iteration 3, I will not bid")[0] is None
-
-    def test_multiple_sentences_with_dollar(self):
-        assert _extract_price("Last round was $1.00. I now offer $1.25")[0] == 1.25
-
-    # --- Corner case tests for price validation ---
-
-    def test_zero_price(self):
-        assert _extract_price("0")[0] == 0.0
-
-    def test_zero_decimal_price(self):
-        assert _extract_price("0.00")[0] == 0.0
-
-    def test_negative_dollar_price(self):
-        assert _extract_price("$-1.50")[0] is None
-
-    def test_scientific_notation_rejected(self):
-        # Scientific notation should not be accepted as a valid price
-        assert _extract_price("1e2")[0] is None
-
-    def test_dollar_sign_only(self):
-        assert _extract_price("$")[0] is None
-
-    def test_dollar_dot_fifty(self):
-        # $.50 lacks digit before decimal in $-prefix regex
-        assert _extract_price("$.50")[0] is None
-
-    def test_dollar_zero_no_decimal_in_narrative(self):
-        # $0 without decimal should be extracted via Stage 2
-        assert _extract_price("I think $0 is a good price")[0] == 0.0
-
-
-# ===========================================================================
-# TestExtractResponse
-# ===========================================================================
-
-
-class TestExtractResponse:
-    """Tests for _extract_response helper in respond module."""
-
-    def test_yes_lowercase(self):
-        assert _extract_response("yes")[0] is True
-
-    def test_yes_capitalized(self):
-        assert _extract_response("Yes")[0] is True
-
-    def test_yes_uppercase(self):
-        assert _extract_response("YES")[0] is True
-
-    def test_no_lowercase(self):
-        assert _extract_response("no")[0] is False
-
-    def test_no_capitalized(self):
-        assert _extract_response("No")[0] is False
-
-    def test_yes_in_sentence(self):
-        assert _extract_response("Yes, I accept the offer.")[0] is True
-
-    def test_no_yes_in_text(self):
-        assert _extract_response("absolutely")[0] is False
-
-    def test_empty_string(self):
-        assert _extract_response("")[0] is False
-
-    def test_yesterday_no_false_positive(self):
-        # "yesterday" should NOT match as "yes" (word boundary check)
-        assert _extract_response("yesterday")[0] is False
-
-    def test_yes_with_period(self):
-        assert _extract_response("Yes.")[0] is True
-
-    def test_no_with_explanation(self):
-        assert _extract_response("No, the price is too high")[0] is False
-
-    def test_yes_with_explanation(self):
-        assert _extract_response("Yes, I accept")[0] is True
-
-    def test_whitespace_only(self):
-        assert _extract_response("   ")[0] is False
-
-    def test_yes_with_exclamation(self):
-        assert _extract_response("Yes!")[0] is True
-
-    def test_shorthand_y_not_matched(self):
-        # Single "y" is not treated as "yes"
-        assert _extract_response("y")[0] is False
-
-    def test_no_followed_by_yes_matches_yes(self):
-        # Contradictory response — current behavior: matches "yes" via regex
-        assert _extract_response("No, actually yes")[0] is True
-
-    def test_none_input(self):
-        assert _extract_response(None)[0] is False
-
-    def test_yes_multiline(self):
-        # Multiline LLM output with yes on first line
-        assert _extract_response("Yes\nI accept the offer")[0] is True
 
 
 # ===========================================================================
@@ -299,14 +109,14 @@ class TestAnnounceNode:
         assert result["announcement_made"] is False
         assert result["announced_price"] is None
 
-    def test_unparsable_response(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke.return_value = "I don't want to announce"
+    def test_none_price_means_no_announcement(self, base_market_state, mock_llm, prompt_config):
+        """Structured output with price=None is a valid response meaning no announcement."""
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=None, reasoning="")
         state = {**base_market_state, "announcing_agent_id": 0}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
 
         assert result["announcement_made"] is False
-        assert result["parse_failures"] == 1
 
     def test_tracks_announced_this_iteration(self, base_market_state, mock_llm, prompt_config):
         state = {**base_market_state, "announcing_agent_id": 0, "announced_this_iteration": []}
@@ -323,7 +133,7 @@ class TestAnnounceNode:
         assert result["announced_this_iteration"] == [0, 1]
 
     def test_llm_exception(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke.side_effect = RuntimeError("API error")
+        mock_llm.invoke_structured.side_effect = RuntimeError("API error")
         state = {**base_market_state, "announcing_agent_id": 0}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
@@ -344,7 +154,7 @@ class TestAnnounceNode:
 
     def test_buyer_above_reservation_increments_violations(self, base_market_state, mock_llm, prompt_config):
         # Buyer 0 has reservation_price=2.0, announcing $3.00 is a violation
-        mock_llm.invoke.return_value = "3.00"
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=3.00, reasoning="")
         state = {**base_market_state, "announcing_agent_id": 0}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
@@ -355,7 +165,7 @@ class TestAnnounceNode:
 
     def test_seller_below_reservation_increments_violations(self, base_market_state, mock_llm, prompt_config):
         # Seller 3 has reservation_price=1.0, announcing $0.50 is a violation
-        mock_llm.invoke.return_value = "0.50"
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=0.50, reasoning="")
         state = {**base_market_state, "announcing_agent_id": 3}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
@@ -366,7 +176,7 @@ class TestAnnounceNode:
 
     def test_no_violation_when_within_bounds(self, base_market_state, mock_llm, prompt_config):
         # Buyer 0 has reservation_price=2.0, announcing $1.50 is fine
-        mock_llm.invoke.return_value = "1.50"
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=1.50, reasoning="")
         state = {**base_market_state, "announcing_agent_id": 0}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
@@ -376,34 +186,16 @@ class TestAnnounceNode:
 
     def test_violation_counter_accumulates(self, base_market_state, mock_llm, prompt_config):
         # Start with 2 existing violations
-        mock_llm.invoke.return_value = "3.00"
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=3.00, reasoning="")
         state = {**base_market_state, "announcing_agent_id": 0, "constraint_violations": 2}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
 
         assert result["constraint_violations"] == 3
 
-    def test_parse_failure_counter_accumulates(self, base_market_state, mock_llm, prompt_config):
-        # Start with 3 existing parse failures
-        mock_llm.invoke.return_value = "I refuse to bid"
-        state = {**base_market_state, "announcing_agent_id": 0, "parse_failures": 3}
-        node = make_announce_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["parse_failures"] == 4
-
-    def test_empty_llm_response_increments_parse_failures(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke.return_value = ""
-        state = {**base_market_state, "announcing_agent_id": 0}
-        node = make_announce_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["announcement_made"] is False
-        assert result["parse_failures"] == 1
-
-    def test_parse_failure_adds_to_announced_this_iteration(self, base_market_state, mock_llm, prompt_config):
-        """Parse failure should still mark agent as having announced to prevent infinite loops."""
-        mock_llm.invoke.return_value = "I don't want to announce"
+    def test_none_price_adds_to_announced_this_iteration(self, base_market_state, mock_llm, prompt_config):
+        """price=None should still mark agent as having announced to prevent infinite loops."""
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=None, reasoning="")
         state = {**base_market_state, "announcing_agent_id": 0, "announced_this_iteration": []}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
@@ -413,7 +205,7 @@ class TestAnnounceNode:
 
     def test_exception_adds_to_announced_this_iteration(self, base_market_state, mock_llm, prompt_config):
         """LLM exception should still mark agent as having announced to prevent infinite loops."""
-        mock_llm.invoke.side_effect = RuntimeError("API error")
+        mock_llm.invoke_structured.side_effect = RuntimeError("API error")
         state = {**base_market_state, "announcing_agent_id": 0, "announced_this_iteration": [1]}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
@@ -515,7 +307,7 @@ class TestRespondNode:
     """Tests for respond node."""
 
     def test_accept_response(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke.return_value = "Yes"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],
@@ -532,7 +324,7 @@ class TestRespondNode:
         assert result["responding_agent_id"] == 3
 
     def test_reject_response(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke.return_value = "No"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],
@@ -548,7 +340,7 @@ class TestRespondNode:
         assert result["response_accepted"] is False
 
     def test_increments_responder_index(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke.return_value = "No"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3, 4, 5],
@@ -578,7 +370,7 @@ class TestRespondNode:
         assert result["responding_agent_id"] is None
 
     def test_llm_exception(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke.side_effect = RuntimeError("API error")
+        mock_llm.invoke_structured.side_effect = RuntimeError("LLM failed")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],
@@ -597,7 +389,7 @@ class TestRespondNode:
         self, base_market_state, mock_llm, prompt_config
     ):
         # Seller 3 has reservation_price=1.0, accepting buy at $0.50 is a violation
-        mock_llm.invoke.return_value = "Yes"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],
@@ -616,7 +408,7 @@ class TestRespondNode:
         self, base_market_state, mock_llm, prompt_config
     ):
         # Buyer 0 has reservation_price=2.0, accepting sell at $3.00 is a violation
-        mock_llm.invoke.return_value = "Yes"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [0],
@@ -633,7 +425,7 @@ class TestRespondNode:
 
     def test_no_violation_on_reject(self, base_market_state, mock_llm, prompt_config):
         # Rejecting a bad price is not a violation
-        mock_llm.invoke.return_value = "No"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],
@@ -650,7 +442,7 @@ class TestRespondNode:
 
     def test_no_violation_when_accept_within_bounds(self, base_market_state, mock_llm, prompt_config):
         # Seller 3 (reservation=1.0) accepting $1.50 is fine
-        mock_llm.invoke.return_value = "Yes"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],
@@ -665,47 +457,10 @@ class TestRespondNode:
         assert result["response_accepted"] is True
         assert "constraint_violations" not in result
 
-    def test_garbage_response_increments_parse_failures(
+    def test_clear_reject_does_not_increment_parse_failures(
         self, base_market_state, mock_llm, prompt_config
     ):
-        # Garbage that contains neither "yes" nor "no" should track as parse failure
-        mock_llm.invoke.return_value = "I'm not sure what to do here"
-        state = {
-            **base_market_state,
-            "potential_responder_ids": [3],
-            "current_responder_index": 0,
-            "announcing_agent_id": 0,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-        }
-        node = make_respond_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["response_accepted"] is False
-        assert result["parse_failures"] == 1
-
-    def test_empty_response_increments_parse_failures(
-        self, base_market_state, mock_llm, prompt_config
-    ):
-        mock_llm.invoke.return_value = ""
-        state = {
-            **base_market_state,
-            "potential_responder_ids": [3],
-            "current_responder_index": 0,
-            "announcing_agent_id": 0,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-        }
-        node = make_respond_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["response_accepted"] is False
-        assert result["parse_failures"] == 1
-
-    def test_clear_no_does_not_increment_parse_failures(
-        self, base_market_state, mock_llm, prompt_config
-    ):
-        mock_llm.invoke.return_value = "No"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],

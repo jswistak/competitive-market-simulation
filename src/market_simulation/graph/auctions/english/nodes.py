@@ -13,8 +13,9 @@ from langchain_core.runnables import RunnableConfig
 
 from ...state import EnglishAuctionState, BidRecord, AuctionResult
 from ....llm.providers.base import LLMProvider
+from ....llm.response_schemas import EnglishBidResponse, EnglishBidResponseWithReasoning
 from ....config.schema import AuctionPromptConfig
-from ..base import extract_bid, render_auction_prompt
+from ..base import render_auction_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ def make_solicit_bid_node(
     llm: LLMProvider,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    response_schema: type[EnglishBidResponse] = EnglishBidResponseWithReasoning,
 ) -> Callable[[EnglishAuctionState, RunnableConfig], dict]:
     """Create node that asks the current active bidder for a bid or pass."""
 
@@ -75,8 +77,12 @@ def make_solicit_bid_node(
             callbacks = callbacks_factory()
 
         try:
-            response = llm.invoke(prompt, callbacks=callbacks)
-            logger.debug(f"Bidder {bidder_id} response: '{response}'")
+            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            reasoning = getattr(response, 'reasoning', '')
+            logger.debug(
+                f"Bidder {bidder_id} structured response: action={response.action}, "
+                f"bid={response.bid}, reasoning='{reasoning[:100]}...'"
+            )
 
             # Capture tool log
             tool_log_entries = getattr(llm, "last_tool_log", [])
@@ -92,16 +98,11 @@ def make_solicit_bid_node(
                 for entry in tool_log_entries
             ]
 
-            # Check for "pass" / dropout
-            resp_lower = response.strip().lower()
-            is_pass = any(
-                kw in resp_lower for kw in ("pass", "fold", "drop out", "withdraw", "no")
-            )
+            is_pass = response.action == "pass"
+            bid_amount = response.bid
 
-            bid_amount = None if is_pass else extract_bid(response)
-
-            # If we got a number that is below the minimum, treat as pass
-            if bid_amount is not None and bid_amount < min_bid:
+            # If bidder chose to bid but amount is below minimum, treat as pass
+            if not is_pass and bid_amount is not None and bid_amount < min_bid:
                 logger.info(
                     f"Bidder {bidder_id} bid ${bid_amount:.2f} below min "
                     f"${min_bid:.2f} — treating as pass"
@@ -117,16 +118,12 @@ def make_solicit_bid_node(
                     f"Bidder {bidder_id} passes (drops out). "
                     f"{len(new_active)} active remain."
                 )
-                parse_failures = state.get("parse_failures", 0)
-                if not is_pass and bid_amount is None:
-                    parse_failures += 1
 
                 return {
                     "active_bidder_ids": new_active,
                     "current_bidder_index": idx + 1,
                     "bid_step": state["bid_step"] + 1,
                     "tool_usage_log": tool_usage_log,
-                    "parse_failures": parse_failures,
                 }
 
             # Valid bid

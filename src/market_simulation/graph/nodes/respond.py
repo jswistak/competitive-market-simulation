@@ -1,6 +1,5 @@
 """Response-related graph nodes."""
 
-import re
 import random
 import logging
 from typing import Callable, Any
@@ -10,6 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from ..state import MarketState
 from ..history import build_market_history_for_prompt, build_own_history_for_prompt
 from ...llm.providers.base import LLMProvider
+from ...llm.response_schemas import AcceptRejectResponse, AcceptRejectResponseWithReasoning
 from ...config.schema import PromptConfig
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ def make_respond_node(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
-    answer_tag: str | None = None,
+    response_schema: type[AcceptRejectResponse] = AcceptRejectResponseWithReasoning,
 ) -> Callable[[MarketState, RunnableConfig], dict]:
     """Create node that handles agent responses to announcements.
 
@@ -75,6 +75,7 @@ def make_respond_node(
         prompts: Prompt configuration.
         callbacks_factory: Optional factory for tracing callbacks (deprecated,
             prefer passing callbacks via graph config).
+        response_schema: Pydantic schema for structured output.
 
     Returns:
         Node function that generates response.
@@ -139,29 +140,12 @@ def make_respond_node(
             callbacks = callbacks_factory()
 
         try:
-            response = llm.invoke(prompt, callbacks=callbacks)
-            logger.debug(f"Raw LLM response for agent {responder_id}: '{response}'")
-            accepted, reasoning = _extract_response(response, answer_tag=answer_tag)
-
-            # Detect ambiguous responses (no clear yes/no signal).
-            # When CoT is enabled, check only the answer portion (after the tag)
-            # because reasoning almost certainly contains "yes"/"no" words.
-            if answer_tag:
-                tag_idx = response.upper().rfind(answer_tag.upper())
-                if tag_idx != -1:
-                    response_text = response[tag_idx + len(answer_tag) :].strip().lower()
-                else:
-                    response_text = response.strip().lower()
-            else:
-                response_text = response.strip().lower()
-            ambiguous = bool(
-                response_text and not re.search(r"\b(yes|no)\b", response_text)
-            ) or not response_text
-            if ambiguous:
-                logger.warning(
-                    f"Ambiguous response from {responder_id} "
-                    f"(defaulting to reject): '{response}'"
-                )
+            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            accepted = response.accept
+            reasoning = getattr(response, 'reasoning', '')
+            logger.debug(
+                f"Structured response for agent {responder_id}: accept={accepted}, reasoning='{reasoning[:100]}...'"
+            )
 
             # Capture tool usage log if available
             tool_log_entries = getattr(llm, "last_tool_log", [])
@@ -211,8 +195,6 @@ def make_respond_node(
             }
             if violation:
                 result["constraint_violations"] = state.get("constraint_violations", 0) + 1
-            if ambiguous:
-                result["parse_failures"] = state.get("parse_failures", 0) + 1
             return result
 
         except Exception as e:
@@ -272,48 +254,3 @@ def _render_response_prompt(
     return result.replace("<<PERSONA>>", persona_text)
 
 
-def _extract_response(
-    response: str, answer_tag: str | None = None
-) -> tuple[bool, str]:
-    """Extract yes/no response from LLM output.
-
-    Args:
-        response: Raw LLM response text.
-        answer_tag: Optional tag to split reasoning from answer.
-
-    Returns:
-        Tuple of (accepted, reasoning_text). reasoning_text is "" if no CoT detected.
-
-    Uses word boundary matching to avoid false positives
-    (e.g. "yesterday" should not match as "yes").
-    """
-    if not response:
-        return False, ""
-
-    reasoning = ""
-
-    # If answer_tag provided, try to split reasoning from answer
-    if answer_tag:
-        tag_idx = response.upper().rfind(answer_tag.upper())
-        if tag_idx != -1:
-            reasoning = response[:tag_idx].strip()
-            answer_part = response[tag_idx + len(answer_tag) :].strip().lower()
-            if answer_part.startswith("yes"):
-                return True, reasoning
-            elif answer_part.startswith("no"):
-                return False, reasoning
-            # Tag was found but answer_part didn't contain yes/no.
-            # Do NOT fall through to search the full response (which includes
-            # reasoning) -- yes/no words in reasoning could be misinterpreted.
-            logger.warning(
-                f"Answer tag found but could not parse yes/no from answer portion: "
-                f"'{answer_part}'"
-            )
-            return False, reasoning
-
-    text = response.strip().lower()
-    if not text:
-        return False, reasoning
-    if text in ("yes", "yes."):
-        return True, reasoning
-    return bool(re.search(r"\byes\b", text)), reasoning

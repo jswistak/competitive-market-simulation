@@ -13,7 +13,7 @@ llm:
   provider: gemini
   model: gemini-3-flash-preview
   temperature: 0.0
-  max_tokens: 150
+  max_tokens: 1024
   max_retries: 5
 
 tracing:
@@ -46,7 +46,7 @@ prompts:
       {action_prompt}
 
     bid_prompt: |
-      Submit your bid. Answer with a single number only.
+      Submit your bid.
 
     value_explanation: |
       STRATEGY NOTE: In a second-price auction, you pay the second-highest bid, not your own.

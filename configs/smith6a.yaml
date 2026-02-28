@@ -16,7 +16,7 @@ llm:
   provider: gemini
   model: gemini-3-flash-preview
   temperature: 0.0
-  max_tokens: 150
+  max_tokens: 1024
   max_retries: 3
 
 tracing:
@@ -65,11 +65,10 @@ prompts:
 
     response_prompt: |
       Someone is offering to buy at ${price:.2f}. Do you accept this offer and sell at this price?
-      You MUST answer with exactly one word: "yes" or "no". Do not include prices, reasoning, or any other text.
+
 
     announcement_prompt: |
       Do you want to announce an offer to sell? If so, what is your asking price?
-      You MUST answer with ONLY a single number (e.g. 2.50). No dollar signs, no words, no explanation. Just the number.
 
   buyer:
     main_keywords:
@@ -80,8 +79,7 @@ prompts:
 
     response_prompt: |
       Someone is offering to sell at ${price:.2f}. Do you accept this offer and buy at this price?
-      You MUST answer with exactly one word: "yes" or "no". Do not include prices, reasoning, or any other text.
+
 
     announcement_prompt: |
       Do you want to announce a bid to buy? If so, what is your bid price?
-      You MUST answer with ONLY a single number (e.g. 1.50). No dollar signs, no words, no explanation. Just the number.

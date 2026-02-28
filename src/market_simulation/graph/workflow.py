@@ -24,6 +24,7 @@ from .edges import (
     route_after_next_round,
 )
 from ..llm.providers.base import LLMProvider
+from ..llm.response_schemas import get_response_schemas
 from ..config.schema import PromptConfig
 
 
@@ -31,7 +32,7 @@ def build_market_graph(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
-    answer_tag: str | None = None,
+    include_reasoning: bool = True,
 ) -> StateGraph:
     """Build the market simulation LangGraph workflow.
 
@@ -39,17 +40,19 @@ def build_market_graph(
         llm: LLM provider for agent interactions.
         prompts: Prompt configuration for agents.
         callbacks_factory: Optional factory for creating tracing callbacks.
+        include_reasoning: Whether to include reasoning field in LLM responses.
 
     Returns:
         Compiled StateGraph ready for execution.
     """
+    schemas = get_response_schemas(include_reasoning)
     builder = StateGraph(MarketState)
 
     # Add nodes
     builder.add_node("select_announcer", make_select_announcer_node())
-    builder.add_node("announce", make_announce_node(llm, prompts, callbacks_factory, answer_tag=answer_tag))
+    builder.add_node("announce", make_announce_node(llm, prompts, callbacks_factory, response_schema=schemas.announcement))
     builder.add_node("select_responders", make_select_responders_node())
-    builder.add_node("respond", make_respond_node(llm, prompts, callbacks_factory, answer_tag=answer_tag))
+    builder.add_node("respond", make_respond_node(llm, prompts, callbacks_factory, response_schema=schemas.accept_reject))
     builder.add_node("record_transaction", make_record_transaction_node())
     builder.add_node("check_iteration", make_check_iteration_node())
     builder.add_node("update_history", make_update_history_node())
@@ -98,7 +101,7 @@ def build_iteration_graph(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
-    answer_tag: str | None = None,
+    include_reasoning: bool = True,
 ) -> StateGraph:
     """Build a simpler single-iteration graph for testing.
 
@@ -106,17 +109,19 @@ def build_iteration_graph(
         llm: LLM provider for agent interactions.
         prompts: Prompt configuration for agents.
         callbacks_factory: Optional factory for creating tracing callbacks.
+        include_reasoning: Whether to include reasoning field in LLM responses.
 
     Returns:
         Compiled StateGraph for single iteration.
     """
+    schemas = get_response_schemas(include_reasoning)
     builder = StateGraph(MarketState)
 
     # Add nodes
     builder.add_node("select_announcer", make_select_announcer_node())
-    builder.add_node("announce", make_announce_node(llm, prompts, callbacks_factory, answer_tag=answer_tag))
+    builder.add_node("announce", make_announce_node(llm, prompts, callbacks_factory, response_schema=schemas.announcement))
     builder.add_node("select_responders", make_select_responders_node())
-    builder.add_node("respond", make_respond_node(llm, prompts, callbacks_factory, answer_tag=answer_tag))
+    builder.add_node("respond", make_respond_node(llm, prompts, callbacks_factory, response_schema=schemas.accept_reject))
     builder.add_node("record_transaction", make_record_transaction_node())
     builder.add_node("check_iteration", make_check_iteration_node())
     builder.add_node("update_history", make_update_history_node())

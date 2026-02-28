@@ -8,15 +8,15 @@ if the price hits the floor with no acceptance, there is no winner.
 
 import logging
 import random
-import re
 from typing import Callable
 
 from langchain_core.runnables import RunnableConfig
 
 from ...state import DutchAuctionState, BidRecord, AuctionResult
 from ....llm.providers.base import LLMProvider
+from ....llm.response_schemas import AcceptRejectResponse, AcceptRejectResponseWithReasoning
 from ....config.schema import AuctionPromptConfig
-from ..base import extract_yes_no, render_auction_prompt
+from ..base import render_auction_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,7 @@ def make_solicit_acceptance_node(
     llm: LLMProvider,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    response_schema: type[AcceptRejectResponse] = AcceptRejectResponseWithReasoning,
 ) -> Callable[[DutchAuctionState, RunnableConfig], dict]:
     """Create node that asks the current bidder to accept or reject the price."""
 
@@ -102,8 +103,12 @@ def make_solicit_acceptance_node(
             callbacks = callbacks_factory()
 
         try:
-            response = llm.invoke(prompt, callbacks=callbacks)
-            logger.debug(f"Bidder {bidder['id']} response: '{response}'")
+            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            reasoning = getattr(response, 'reasoning', '')
+            logger.debug(
+                f"Bidder {bidder['id']} structured response: accept={response.accept}, "
+                f"reasoning='{reasoning[:100]}...'"
+            )
 
             # Capture tool log
             tool_log_entries = getattr(llm, "last_tool_log", [])
@@ -119,13 +124,7 @@ def make_solicit_acceptance_node(
                 for entry in tool_log_entries
             ]
 
-            accepted = extract_yes_no(response)
-
-            parse_failures = state.get("parse_failures", 0)
-            # Detect ambiguous (no clear yes/no)
-            resp_lower = response.strip().lower()
-            if resp_lower and not re.search(r"\b(yes|no)\b", resp_lower):
-                parse_failures += 1
+            accepted = response.accept
 
             if accepted:
                 # Check constraint: accepting above private value
@@ -159,7 +158,6 @@ def make_solicit_acceptance_node(
                     "current_bidder_index": idx + 1,
                     "tool_usage_log": tool_usage_log,
                     "constraint_violations": constraint_violations,
-                    "parse_failures": parse_failures,
                 }
 
             # Rejected
@@ -172,7 +170,6 @@ def make_solicit_acceptance_node(
                 "current_bidder_index": new_idx,
                 "all_queried_at_price": new_idx >= len(bidders),
                 "tool_usage_log": tool_usage_log,
-                "parse_failures": parse_failures,
             }
 
         except Exception as e:

@@ -22,10 +22,6 @@ llm:
 tracing:
   enabled: false
 
-chain_of_thought:
-  enabled: true
-  answer_tag: "ANSWER:"
-
 prompts:
   general:
     main_template: |
@@ -69,13 +65,9 @@ prompts:
 
     response_prompt: |
       Someone is offering to buy at ${price:.2f}. Do you accept this offer and sell at this price?
-      Think step by step about whether this price is acceptable given your reservation price.
-      Then provide your answer as: ANSWER: yes or ANSWER: no
 
     announcement_prompt: |
       Do you want to announce an offer to sell? If so, what is your asking price?
-      Think step by step about your strategy, considering your reservation price and market conditions.
-      Then provide your final price as: ANSWER: <number> (e.g. ANSWER: 2.50)
 
   buyer:
     main_keywords:
@@ -86,10 +78,6 @@ prompts:
 
     response_prompt: |
       Someone is offering to sell at ${price:.2f}. Do you accept this offer and buy at this price?
-      Think step by step about whether this price is acceptable given your reservation price.
-      Then provide your answer as: ANSWER: yes or ANSWER: no
 
     announcement_prompt: |
       Do you want to announce a bid to buy? If so, what is your bid price?
-      Think step by step about your strategy, considering your reservation price and market conditions.
-      Then provide your final price as: ANSWER: <number> (e.g. ANSWER: 1.50)

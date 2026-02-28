@@ -1,96 +1,11 @@
 """Shared utilities for auction graph nodes."""
 
-import re
 import logging
 from typing import Any
 
 from ..state import BidderState
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Bid / price extraction (reuses logic from graph/nodes/announce.py)
-# ---------------------------------------------------------------------------
-
-
-def extract_bid(response: str) -> float | None:
-    """Extract a numeric bid from an LLM response.
-
-    Extraction priority:
-      1. Plain float parse (after stripping $ and ,)
-      2. Last $-prefixed number (e.g. "$3.27")
-      3. Last bare decimal number (e.g. "1.50") — requires decimal point
-         to avoid extracting round numbers like "round 1"
-      4. Last bare integer (e.g. "5") at a word boundary — catches
-         responses like "I bid 5" that lack a decimal point
-    """
-    if not response or not response.strip():
-        return None
-
-    # Stage 1: plain parse
-    clean = response.strip().replace("$", "").replace(",", "")
-    if re.fullmatch(r"\d+\.?\d*", clean):
-        return float(clean)
-
-    # Stage 2: $-prefixed numbers
-    dollar_matches = re.findall(r"\$([\d]+\.?\d*)", response)
-    if dollar_matches:
-        try:
-            extracted = float(dollar_matches[-1])
-            logger.debug(
-                f"Bid extracted via $-prefix fallback: '{response}' -> {extracted}"
-            )
-            return extracted
-        except ValueError:
-            pass
-
-    # Stage 3: bare decimal numbers only
-    bare_matches = re.findall(r"(?<![\w\-])(\d+\.\d+)(?!\w)", response)
-    if bare_matches:
-        try:
-            extracted = float(bare_matches[-1])
-            logger.debug(
-                f"Bid extracted via bare-decimal fallback: '{response}' -> {extracted}"
-            )
-            return extracted
-        except ValueError:
-            pass
-
-    # Stage 4: bare integers (e.g. "I bid 5")
-    int_matches = re.findall(r"\b(\d+)\b", response)
-    if int_matches:
-        try:
-            extracted = float(int_matches[-1])
-            logger.debug(
-                f"Bid extracted via bare-integer fallback: '{response}' -> {extracted}"
-            )
-            return extracted
-        except ValueError:
-            pass
-
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Yes/no extraction (reuses logic from graph/nodes/respond.py)
-# ---------------------------------------------------------------------------
-
-
-def extract_yes_no(response: str) -> bool:
-    """Extract a yes/no answer from an LLM response.
-
-    Uses word boundary matching to avoid false positives
-    (e.g. "yesterday" should not match as "yes").
-    """
-    if not response:
-        return False
-    text = response.strip().lower()
-    if not text:
-        return False
-    if text in ("yes", "yes."):
-        return True
-    return bool(re.search(r"\byes\b", text))
 
 
 # ---------------------------------------------------------------------------

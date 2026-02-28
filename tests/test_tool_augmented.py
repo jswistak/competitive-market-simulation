@@ -211,6 +211,182 @@ class TestToolAugmentedProviderWithTools:
         assert len(provider.last_tool_log) == 0
 
 
+class TestToolAugmentedProviderStructuredNoTools:
+    """Tests for invoke_structured when no tools are available."""
+
+    def test_no_tools_delegates_to_base(self):
+        """When has_tools is False, invoke_structured delegates to base_provider."""
+        from market_simulation.llm.response_schemas import AnnouncementResponseWithReasoning
+
+        registry = MagicMock()
+        registry.has_tools = False
+        provider = _make_provider(tool_registry=registry)
+        expected = AnnouncementResponseWithReasoning(price=1.5, reasoning="test")
+        provider.base_provider.invoke_structured.return_value = expected
+
+        result = provider.invoke_structured("test", AnnouncementResponseWithReasoning)
+
+        assert result is expected
+        provider.base_provider.invoke_structured.assert_called_once_with(
+            "test", AnnouncementResponseWithReasoning, callbacks=None
+        )
+
+    def test_no_tools_passes_callbacks(self):
+        """When has_tools is False, callbacks forwarded to base_provider.invoke_structured."""
+        from market_simulation.llm.response_schemas import BidResponseWithReasoning
+
+        registry = MagicMock()
+        registry.has_tools = False
+        provider = _make_provider(tool_registry=registry)
+        expected = BidResponseWithReasoning(bid=3.0, reasoning="")
+        provider.base_provider.invoke_structured.return_value = expected
+        cbs = [MagicMock()]
+
+        provider.invoke_structured("test", BidResponseWithReasoning, callbacks=cbs)
+
+        provider.base_provider.invoke_structured.assert_called_once_with(
+            "test", BidResponseWithReasoning, callbacks=cbs
+        )
+
+
+class TestToolAugmentedProviderStructuredWithTools:
+    """Tests for invoke_structured with the tool-calling loop."""
+
+    def _make_tool_response(self, tool_calls, content=""):
+        resp = MagicMock()
+        resp.tool_calls = tool_calls
+        resp.content = content
+        return resp
+
+    def _make_text_response(self, content):
+        resp = MagicMock()
+        resp.tool_calls = []
+        resp.content = content
+        return resp
+
+    def _setup_model(self, provider, tool_responses, structured_result):
+        """Set up mock model for tool loop + structured extraction.
+
+        tool_responses: list of responses the tool-bound model returns.
+        structured_result: what the structured_model.invoke returns at the end.
+        """
+        mock_model = MagicMock()
+        mock_model.invoke.side_effect = tool_responses
+        mock_model.bind_tools.return_value = mock_model
+
+        mock_structured = MagicMock()
+        mock_structured.invoke.return_value = structured_result
+        # get_model().with_structured_output() returns the structured chain
+        base_model = MagicMock()
+        base_model.with_structured_output.return_value = mock_structured
+        provider.base_provider.get_model.return_value = base_model
+
+        # bind_tools should be called on the base model
+        base_model.bind_tools.return_value = mock_model
+        provider._model_with_tools = None  # Force re-creation
+
+        return mock_model, mock_structured
+
+    def test_direct_text_triggers_structured_extraction(self):
+        """When model returns no tool calls immediately, structured extraction runs."""
+        from market_simulation.llm.response_schemas import AcceptRejectResponseWithReasoning
+
+        provider = _make_provider()
+        expected = AcceptRejectResponseWithReasoning(accept=True, reasoning="good deal")
+        _, mock_structured = self._setup_model(
+            provider,
+            [self._make_text_response("yes")],
+            expected,
+        )
+
+        result = provider.invoke_structured("test", AcceptRejectResponseWithReasoning)
+
+        assert result is expected
+        assert provider.last_tool_log == []
+        mock_structured.invoke.assert_called_once()
+
+    def test_tool_call_then_structured_extraction(self):
+        """Model calls a tool, gets result, then structured extraction runs."""
+        from market_simulation.llm.response_schemas import BidResponseWithReasoning
+
+        provider = _make_provider()
+        mock_tool = MagicMock()
+        mock_tool.invoke.return_value = "profit=2.5"
+        provider.tool_registry.tool_map = {"evaluate_trade": mock_tool}
+
+        expected = BidResponseWithReasoning(bid=3.0, reasoning="calculated")
+        _, mock_structured = self._setup_model(
+            provider,
+            [
+                self._make_tool_response([{"name": "evaluate_trade", "args": {"price": 3.0}, "id": "t1"}]),
+                self._make_text_response("I'll bid 3.0"),
+            ],
+            expected,
+        )
+
+        result = provider.invoke_structured("test", BidResponseWithReasoning)
+
+        assert result is expected
+        assert len(provider.last_tool_log) == 1
+        assert provider.last_tool_log[0]["tool_name"] == "evaluate_trade"
+
+    def test_max_iterations_exhausted_still_extracts(self):
+        """When tool loop exhausts iterations, structured extraction still attempted."""
+        from market_simulation.llm.response_schemas import AnnouncementResponseWithReasoning
+
+        provider = _make_provider(max_iterations=2)
+        mock_tool = MagicMock()
+        mock_tool.invoke.return_value = "stats"
+        provider.tool_registry.tool_map = {"compute_market_stats": mock_tool}
+
+        expected = AnnouncementResponseWithReasoning(price=1.5, reasoning="forced")
+        tool_resp = self._make_tool_response(
+            [{"name": "compute_market_stats", "args": {}, "id": "t1"}]
+        )
+        _, mock_structured = self._setup_model(
+            provider,
+            [tool_resp, tool_resp],
+            expected,
+        )
+
+        result = provider.invoke_structured("test", AnnouncementResponseWithReasoning)
+
+        assert result is expected
+        assert len(provider.last_tool_log) == 2
+        mock_structured.invoke.assert_called_once()
+
+    def test_tool_log_reset_between_structured_calls(self):
+        """last_tool_log is reset at the start of each invoke_structured."""
+        from market_simulation.llm.response_schemas import AcceptRejectResponseWithReasoning
+
+        provider = _make_provider()
+        expected = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
+
+        # First call with a tool
+        mock_tool = MagicMock()
+        mock_tool.invoke.return_value = "data"
+        provider.tool_registry.tool_map = {"calc": mock_tool}
+
+        _, mock_structured = self._setup_model(
+            provider,
+            [
+                self._make_tool_response([{"name": "calc", "args": {}, "id": "t1"}]),
+                self._make_text_response("no"),
+            ],
+            expected,
+        )
+        provider.invoke_structured("test1", AcceptRejectResponseWithReasoning)
+        assert len(provider.last_tool_log) == 1
+
+        # Second call — direct text, no tools
+        mock_model_2 = MagicMock()
+        mock_model_2.invoke.side_effect = [self._make_text_response("done")]
+        provider._model_with_tools = mock_model_2
+
+        provider.invoke_structured("test2", AcceptRejectResponseWithReasoning)
+        assert len(provider.last_tool_log) == 0
+
+
 class TestToolAugmentedProviderProperties:
     """Tests for delegated properties."""
 

@@ -16,7 +16,7 @@ llm:
   provider: gemini
   model: gemini-3-flash-preview
   temperature: 0.0
-  max_tokens: 150
+  max_tokens: 1024
   max_retries: 5
 
 tracing:
@@ -52,7 +52,7 @@ prompts:
       {action_prompt}
 
     dutch_accept_prompt: |
-      The current price is {current_price}. Do you accept this price? Answer yes or no only.
+      The current price is {current_price}. Do you accept this price?
 
     value_explanation: |
       STRATEGY NOTE: Waiting for a lower price increases your profit if you win,

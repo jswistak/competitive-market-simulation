@@ -20,6 +20,7 @@ from .nodes import (
 )
 from .edges import route_after_collect_bid, route_after_update_history
 from ....llm.providers.base import LLMProvider
+from ....llm.response_schemas import get_response_schemas
 from ....config.schema import AuctionPromptConfig
 
 
@@ -28,6 +29,7 @@ def build_sealed_bid_graph(
     llm: LLMProvider,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    include_reasoning: bool = True,
 ) -> StateGraph:
     """Build a sealed-bid auction LangGraph workflow.
 
@@ -39,14 +41,16 @@ def build_sealed_bid_graph(
         llm: LLM provider for bidder interactions.
         prompts: Auction prompt configuration.
         callbacks_factory: Optional factory for tracing callbacks.
+        include_reasoning: Whether to include reasoning field in LLM responses.
 
     Returns:
         Compiled StateGraph ready for execution.
     """
+    schemas = get_response_schemas(include_reasoning)
     builder = StateGraph(SealedBidState)
 
     # Add nodes
-    builder.add_node("collect_bid", make_collect_bid_node(llm, prompts, callbacks_factory))
+    builder.add_node("collect_bid", make_collect_bid_node(llm, prompts, callbacks_factory, response_schema=schemas.bid))
     builder.add_node("determine_winner", make_determine_winner_node())
     builder.add_node("update_history", make_update_sealed_history_node())
     builder.add_node("next_round", make_next_sealed_round_node())

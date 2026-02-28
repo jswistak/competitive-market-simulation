@@ -7,8 +7,9 @@ from langchain_core.runnables import RunnableConfig
 
 from ...state import SealedBidState, BidRecord, AuctionResult
 from ....llm.providers.base import LLMProvider
+from ....llm.response_schemas import BidResponse, BidResponseWithReasoning
 from ....config.schema import AuctionPromptConfig
-from ..base import extract_bid, render_auction_prompt, get_bidder_by_id
+from ..base import render_auction_prompt, get_bidder_by_id
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ def make_collect_bid_node(
     llm: LLMProvider,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    response_schema: type[BidResponse] = BidResponseWithReasoning,
 ) -> Callable[[SealedBidState, RunnableConfig], dict]:
     """Create node that collects a bid from the current bidder.
 
@@ -51,9 +53,13 @@ def make_collect_bid_node(
             callbacks = callbacks_factory()
 
         try:
-            response = llm.invoke(prompt, callbacks=callbacks)
-            logger.debug(f"Bidder {bidder['id']} raw response: '{response}'")
-            bid_amount = extract_bid(response)
+            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            bid_amount = response.bid
+            reasoning = getattr(response, 'reasoning', '')
+            logger.debug(
+                f"Bidder {bidder['id']} structured bid: {bid_amount}, "
+                f"reasoning: '{reasoning[:100]}...'"
+            )
 
             # Capture tool usage
             tool_log_entries = getattr(llm, "last_tool_log", [])
@@ -68,28 +74,6 @@ def make_collect_bid_node(
                 }
                 for entry in tool_log_entries
             ]
-
-            if bid_amount is None:
-                logger.warning(
-                    f"Could not parse bid from bidder {bidder['id']} "
-                    f"(R{state['round']}): '{response}'"
-                )
-                # Record a zero bid on parse failure
-                bid_record = BidRecord(
-                    bidder_id=bidder["id"],
-                    bid_amount=0.0,
-                    round=state["round"],
-                    bid_step=0,
-                    private_value=bidder["private_value"],
-                )
-                new_idx = idx + 1
-                return {
-                    "bids": state["bids"] + [bid_record],
-                    "current_bidder_index": new_idx,
-                    "all_bids_collected": new_idx >= len(bidders),
-                    "tool_usage_log": tool_usage_log,
-                    "parse_failures": state.get("parse_failures", 0) + 1,
-                }
 
             # Check constraint: bid should not exceed private value
             constraint_violations = state.get("constraint_violations", 0)

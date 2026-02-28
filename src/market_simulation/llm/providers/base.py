@@ -4,6 +4,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
+from pydantic import BaseModel as PydanticBaseModel
+
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -112,6 +114,34 @@ class LLMProvider(ABC):
                 logger.warning(log_msg)
 
         return content
+
+    def invoke_structured(
+        self,
+        prompt: str,
+        schema: type[PydanticBaseModel],
+        callbacks: list[Any] | None = None,
+    ) -> PydanticBaseModel:
+        """Invoke the model and return a structured Pydantic response.
+
+        Args:
+            prompt: The prompt text.
+            schema: Pydantic model class to parse the response into.
+            callbacks: Optional list of callbacks for tracing.
+
+        Returns:
+            An instance of the provided schema.
+        """
+        model = self.get_model()
+        structured_model = model.with_structured_output(schema)
+        message = HumanMessage(content=prompt)
+
+        config: dict[str, Any] = {}
+        if callbacks:
+            config["callbacks"] = callbacks
+
+        return structured_model.invoke(
+            [message], config=config, **self._max_tokens_kwargs(self.config.max_tokens)
+        )
 
     @property
     def model_name(self) -> str:

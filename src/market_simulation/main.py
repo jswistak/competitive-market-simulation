@@ -167,22 +167,6 @@ def run(
         experiment_name=config,
     )
 
-    # Chain-of-thought configuration
-    cot_config = cfg.chain_of_thought
-    answer_tag = cot_config.answer_tag if cot_config.enabled else None
-
-    if cot_config.enabled:
-        console.print(f"Chain-of-thought: [cyan]enabled (tag: {cot_config.answer_tag})[/]")
-    else:
-        console.print("Chain-of-thought: [cyan]disabled[/]")
-
-    if answer_tag and cfg.llm.max_tokens < 100:
-        logger.warning(
-            f"CoT enabled but max_tokens={cfg.llm.max_tokens} is very low. "
-            "CoT requires higher token limits (500+) for reasoning. "
-            "Set llm.max_tokens in your config."
-        )
-
     # Warn if personas are configured but placeholder is missing from template
     has_da_personas = cfg.personas and (
         cfg.personas.buyer_default or cfg.personas.seller_default
@@ -209,6 +193,7 @@ def run(
         graph = build_auction_graph(
             cfg.experiment.auction_type, llm, cfg.prompts.auction,
             random_seed=auction_config.random_seed,
+            include_reasoning=cfg.experiment.include_reasoning,
         )
         n_bidders = auction_config.bidders.num
         n_rounds = auction_config.n_rounds
@@ -235,7 +220,7 @@ def run(
         )
     else:
         logger.info("No auction type specified — defaulting to double-auction mode")
-        graph = build_market_graph(llm, cfg.prompts, answer_tag=answer_tag)
+        graph = build_market_graph(llm, cfg.prompts, include_reasoning=cfg.experiment.include_reasoning)
         max_nodes_per_iteration = 10  # approximate
         recursion_limit = (
             cfg.experiment.n_rounds
@@ -367,11 +352,18 @@ def visualize(
         def invoke(self, prompt, callbacks=None):
             return "1.5"
 
+        def invoke_structured(self, prompt, schema, callbacks=None):
+            # Build kwargs from schema fields with sensible defaults
+            defaults = {"price": 1.5, "accept": True, "bid": 1.5,
+                        "action": "bid", "reasoning": "mock"}
+            kwargs = {k: defaults[k] for k in schema.model_fields if k in defaults}
+            return schema(**kwargs)
+
     mock_llm = MockLLM()
     prompts = PromptConfig()
 
     try:
-        graph = build_market_graph(mock_llm, prompts, None)
+        graph = build_market_graph(mock_llm, prompts)
 
         # Get mermaid diagram
         mermaid = graph.get_graph().draw_mermaid()

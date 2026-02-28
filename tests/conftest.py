@@ -188,9 +188,17 @@ def base_market_state(sample_agents):
 
 @pytest.fixture
 def mock_llm():
-    """A mock LLM provider that returns configurable responses."""
+    """A mock LLM provider that returns configurable responses.
+
+    Uses invoke_structured which returns Pydantic model instances.
+    Default: returns AnnouncementResponse(price=1.50, reasoning="").
+    Tests should override mock_llm.invoke_structured.return_value as needed.
+    """
+    from market_simulation.llm.response_schemas import AnnouncementResponseWithReasoning
+
     llm = MagicMock()
-    llm.invoke.return_value = "1.50"
+    llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=1.50, reasoning="")
+    llm.invoke.return_value = "1.50"  # Keep for backwards compat if any test still uses invoke
     llm.provider_name = "mock"
     llm.model_name = "mock-model"
     llm.last_tool_log = []
