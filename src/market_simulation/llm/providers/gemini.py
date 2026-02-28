@@ -42,6 +42,9 @@ class GeminiProvider(LLMProvider):
         Uses method="json_schema" which constrains Gemini's generation
         directly via the response_json_schema API parameter, producing
         reliable structured responses.
+
+        Note: max_output_tokens is set on the model constructor and cannot
+        be overridden at invoke time on a RunnableSequence chain.
         """
         model = self.get_model()
         structured_model = model.with_structured_output(schema, method="json_schema")
@@ -51,6 +54,4 @@ class GeminiProvider(LLMProvider):
         if callbacks:
             config["callbacks"] = callbacks
 
-        return structured_model.invoke(
-            [message], config=config, **self._max_tokens_kwargs(self.config.max_tokens)
-        )
+        return structured_model.invoke([message], config=config)
