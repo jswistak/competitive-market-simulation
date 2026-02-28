@@ -52,10 +52,25 @@ class TestRouteAfterUpdateHistory:
         state = {**base_market_state, "transaction_made": True, "announcement_made": True}
         assert route_after_update_history(state) == "check_round"
 
-    def test_routes_to_check_round_on_no_announcement(self, base_market_state):
-        """No announcement made -> check_round."""
-        state = {**base_market_state, "transaction_made": False, "announcement_made": False}
+    def test_routes_to_check_round_when_no_eligible_announcers(self, base_market_state):
+        """No announcement made and all agents already tried -> check_round."""
+        state = {
+            **base_market_state,
+            "transaction_made": False,
+            "announcement_made": False,
+            "announced_this_iteration": list(base_market_state["active_agent_ids"]),
+        }
         assert route_after_update_history(state) == "check_round"
+
+    def test_routes_to_select_announcer_on_parse_failure(self, base_market_state):
+        """Announcement parse failure but eligible agents remain -> select_announcer."""
+        state = {
+            **base_market_state,
+            "transaction_made": False,
+            "announcement_made": False,
+            "announced_this_iteration": [0],  # only agent 0 tried, others still eligible
+        }
+        assert route_after_update_history(state) == "select_announcer"
 
     def test_routes_to_respond_when_more_responders(self, base_market_state):
         """Announcement rejected but more responders available -> respond."""

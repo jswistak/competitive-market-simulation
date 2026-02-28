@@ -24,30 +24,33 @@ def make_update_history_node() -> Callable[[MarketState], dict]:
         announcement_made = state["announcement_made"]
         transaction_made = state["transaction_made"]
 
-        # Get reservation prices for record
+        # Get reservation prices for record (only when relevant)
         announcing_rp = None
         responding_rp = None
 
-        for agent in state["agents"]:
-            if agent["id"] == state["announcing_agent_id"]:
-                announcing_rp = agent["reservation_price"]
-            if agent["id"] == state["responding_agent_id"]:
-                responding_rp = agent["reservation_price"]
+        if announcement_made:
+            for agent in state["agents"]:
+                if agent["id"] == state["announcing_agent_id"]:
+                    announcing_rp = agent["reservation_price"]
+                if agent["id"] == state["responding_agent_id"]:
+                    responding_rp = agent["reservation_price"]
 
         # Create iteration record
+        # When announcement_made=False, clear fields that may be stale from
+        # a previous announcement cycle within the same iteration
         record = IterationRecord(
             round=round_num,
             iteration=iteration,
-            price=price,
+            price=price if announcement_made else None,
             announcement_made=announcement_made,
             transaction_made=transaction_made,
-            announcement_type=announcement_type,
+            announcement_type=announcement_type if announcement_made else None,
             announcing_agent_id=state["announcing_agent_id"],
             announcing_agent_reservation_price=announcing_rp,
-            responding_agent_id=state["responding_agent_id"],
+            responding_agent_id=state["responding_agent_id"] if announcement_made else None,
             responding_agent_reservation_price=responding_rp,
             announcement_reasoning=state.get("last_announcement_reasoning", ""),
-            response_reasoning=state.get("last_response_reasoning", ""),
+            response_reasoning=state.get("last_response_reasoning", "") if announcement_made else "",
         )
 
         # Check if all responders for the current announcement have been queried

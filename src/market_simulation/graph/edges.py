@@ -53,9 +53,21 @@ def route_after_update_history(state: MarketState) -> Literal["check_round", "re
         logger.debug("route_after_update_history -> check_round (transaction made)")
         return "check_round"
 
-    # No announcement made (no agent could announce) - check round status
+    # No announcement made - check if other agents can still announce
+    # (announcement_made=False can mean either no eligible agents or a parse failure;
+    # in the latter case, other agents should still get a chance)
     if not state["announcement_made"]:
-        logger.debug("route_after_update_history -> check_round (no announcement)")
+        eligible = [
+            aid for aid in state["active_agent_ids"]
+            if aid not in state.get("announced_this_iteration", [])
+        ]
+        if eligible:
+            logger.debug(
+                f"route_after_update_history -> select_announcer "
+                f"(announcement failed but {len(eligible)} eligible agents remain)"
+            )
+            return "select_announcer"
+        logger.debug("route_after_update_history -> check_round (no eligible announcers)")
         return "check_round"
 
     # Check if more responders to query
