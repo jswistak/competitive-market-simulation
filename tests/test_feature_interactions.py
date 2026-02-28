@@ -55,8 +55,8 @@ from market_simulation.graph.history import (
     build_own_history_for_prompt,
 )
 from market_simulation.llm.response_schemas import (
-    AnnouncementResponse,
-    AcceptRejectResponse,
+    AnnouncementResponseWithReasoning,
+    AcceptRejectResponseWithReasoning,
 )
 
 
@@ -369,7 +369,7 @@ class TestPersonaPlusCoT:
         """Full integration: persona agent + structured output in announce node."""
         prompts = _make_prompt_config()
         mock_llm = MagicMock()
-        mock_llm.invoke_structured.return_value = AnnouncementResponse(
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(
             price=1.60, reasoning="My reservation is $2.00 and market is slow."
         )
         mock_llm.last_tool_log = []
@@ -392,7 +392,7 @@ class TestPersonaPlusCoT:
         """Full integration: persona agent + structured output in respond node."""
         prompts = _make_prompt_config()
         mock_llm = MagicMock()
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(
             accept=False, reasoning="Price is above my reservation."
         )
         mock_llm.last_tool_log = []
@@ -433,7 +433,7 @@ class TestCoTPlusHistorySummary:
         """Announce node with structured output and summary history mode."""
         prompts = _make_prompt_config()
         mock_llm = MagicMock()
-        mock_llm.invoke_structured.return_value = AnnouncementResponse(
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(
             price=1.50, reasoning="Prices are stable."
         )
         mock_llm.last_tool_log = []
@@ -464,7 +464,7 @@ class TestAllFeaturesDoubleAuction:
         """Announcement with persona, structured output, and summary history all enabled."""
         prompts = _make_prompt_config()
         mock_llm = MagicMock()
-        mock_llm.invoke_structured.return_value = AnnouncementResponse(
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(
             price=1.40,
             reasoning="As a cautious buyer, with only 1 transaction completed at $1.50, I should bid conservatively.",
         )
@@ -510,7 +510,7 @@ class TestAllFeaturesDoubleAuction:
         """Response with persona, structured output, and summary history all enabled."""
         prompts = _make_prompt_config()
         mock_llm = MagicMock()
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(
             accept=True, reasoning="Price is reasonable."
         )
         mock_llm.last_tool_log = []

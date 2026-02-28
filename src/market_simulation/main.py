@@ -353,7 +353,11 @@ def visualize(
             return "1.5"
 
         def invoke_structured(self, prompt, schema, callbacks=None):
-            return schema(price=1.5, reasoning="mock")
+            # Build kwargs from schema fields with sensible defaults
+            defaults = {"price": 1.5, "accept": True, "bid": 1.5,
+                        "action": "bid", "reasoning": "mock"}
+            kwargs = {k: defaults[k] for k in schema.model_fields if k in defaults}
+            return schema(**kwargs)
 
     mock_llm = MockLLM()
     prompts = PromptConfig()

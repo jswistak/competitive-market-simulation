@@ -46,7 +46,6 @@ prompts:
     5. Choose the price that maximizes expected profit
 
 
-
   general:
     main_template: |
       You are a {role} participating in a market for a good you need to {verb}. Your task is to {verb} a unit of the good at the {preference} possible price but not {condition} your reservation price.
@@ -77,8 +76,6 @@ prompts:
       3. Update beliefs based on observed market actions (e.g., bids reveal valuation lower bounds)
       4. Compute expected profit for candidate prices
       5. Choose the price that maximizes expected profit
-
-  
 
       Market history:
       {market_history}
