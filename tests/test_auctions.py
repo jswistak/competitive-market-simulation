@@ -37,8 +37,11 @@ from market_simulation.graph.auctions.base import (
 )
 from market_simulation.llm.response_schemas import (
     BidResponse,
+    BidResponseWithReasoning,
     EnglishBidResponse,
+    EnglishBidResponseWithReasoning,
     AcceptRejectResponse,
+    AcceptRejectResponseWithReasoning,
 )
 from market_simulation.agents.factory import (
     create_bidders,
@@ -407,7 +410,7 @@ class TestCreateAuctionInitialState:
 
 class TestCollectBidNode:
     def test_collects_bid(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke_structured.return_value = BidResponse(bid=3.0, reasoning="")
+        mock_llm.invoke_structured.return_value = BidResponseWithReasoning(bid=3.0, reasoning="")
         state = _make_sealed_state(sample_bidders)
         node = make_collect_bid_node(mock_llm, auction_prompts)
         result = node(state, {})
@@ -416,7 +419,7 @@ class TestCollectBidNode:
         assert result["current_bidder_index"] == 1
 
     def test_all_collected_flag(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke_structured.return_value = BidResponse(bid=5.0, reasoning="")
+        mock_llm.invoke_structured.return_value = BidResponseWithReasoning(bid=5.0, reasoning="")
         state = _make_sealed_state(sample_bidders)
         state["current_bidder_index"] = 2  # Last bidder
         state["bids"] = [
@@ -436,14 +439,14 @@ class TestCollectBidNode:
 
     def test_constraint_violation_logged(self, sample_bidders, auction_prompts, mock_llm):
         # Bidder 0 has value 0.0, bidding 5.0 is a violation
-        mock_llm.invoke_structured.return_value = BidResponse(bid=5.0, reasoning="")
+        mock_llm.invoke_structured.return_value = BidResponseWithReasoning(bid=5.0, reasoning="")
         state = _make_sealed_state(sample_bidders)
         node = make_collect_bid_node(mock_llm, auction_prompts)
         result = node(state, {})
         assert result["constraint_violations"] == 1
 
     def test_no_violation_within_value(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke_structured.return_value = BidResponse(bid=4.0, reasoning="")
+        mock_llm.invoke_structured.return_value = BidResponseWithReasoning(bid=4.0, reasoning="")
         state = _make_sealed_state(sample_bidders)
         state["current_bidder_index"] = 1  # Bidder with value 5.0
         node = make_collect_bid_node(mock_llm, auction_prompts)
@@ -618,7 +621,7 @@ class TestSealedBidEdges:
 
 class TestSolicitBidNode:
     def test_valid_bid(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke_structured.return_value = EnglishBidResponse(action="bid", bid=1.0, reasoning="")
+        mock_llm.invoke_structured.return_value = EnglishBidResponseWithReasoning(action="bid", bid=1.0, reasoning="")
         state = _make_english_state(sample_bidders)
         state["standing_bid"] = 0.0
         node = make_solicit_bid_node(mock_llm, auction_prompts)
@@ -629,7 +632,7 @@ class TestSolicitBidNode:
         assert len(result["bids"]) == 1
 
     def test_pass_drops_bidder(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke_structured.return_value = EnglishBidResponse(action="pass", bid=None, reasoning="")
+        mock_llm.invoke_structured.return_value = EnglishBidResponseWithReasoning(action="pass", bid=None, reasoning="")
         state = _make_english_state(sample_bidders)
         node = make_solicit_bid_node(mock_llm, auction_prompts)
         result = node(state, {})
@@ -637,7 +640,7 @@ class TestSolicitBidNode:
         assert len(result["active_bidder_ids"]) == 2
 
     def test_bid_below_min_treated_as_pass(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke_structured.return_value = EnglishBidResponse(action="bid", bid=0.2, reasoning="")
+        mock_llm.invoke_structured.return_value = EnglishBidResponseWithReasoning(action="bid", bid=0.2, reasoning="")
         state = _make_english_state(sample_bidders)
         state["standing_bid"] = 5.0  # min_bid = 5.5
         node = make_solicit_bid_node(mock_llm, auction_prompts)
@@ -646,7 +649,7 @@ class TestSolicitBidNode:
 
     def test_constraint_violation_above_value(self, sample_bidders, auction_prompts, mock_llm):
         # Bidder 0 has value 0.0, bid of 1.0 exceeds
-        mock_llm.invoke_structured.return_value = EnglishBidResponse(action="bid", bid=1.0, reasoning="")
+        mock_llm.invoke_structured.return_value = EnglishBidResponseWithReasoning(action="bid", bid=1.0, reasoning="")
         state = _make_english_state(sample_bidders)
         node = make_solicit_bid_node(mock_llm, auction_prompts)
         result = node(state, {})
@@ -792,7 +795,7 @@ class TestAnnouncePriceNode:
 
 class TestSolicitAcceptanceNode:
     def test_accept(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=True, reasoning="")
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
         state = _make_dutch_state(sample_bidders)
         state["current_price"] = 5.0
         state["current_bidder_index"] = 1  # Bidder 1, value=5.0
@@ -803,7 +806,7 @@ class TestSolicitAcceptanceNode:
         assert len(result["bids"]) == 1
 
     def test_reject(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=False, reasoning="")
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
         state = _make_dutch_state(sample_bidders)
         state["current_bidder_index"] = 0
         node = make_solicit_acceptance_node(mock_llm, auction_prompts)
@@ -812,7 +815,7 @@ class TestSolicitAcceptanceNode:
         assert result["current_bidder_index"] == 1
 
     def test_all_queried(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=False, reasoning="")
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
         state = _make_dutch_state(sample_bidders)
         state["current_bidder_index"] = 2  # Last bidder
         node = make_solicit_acceptance_node(mock_llm, auction_prompts)
@@ -820,7 +823,7 @@ class TestSolicitAcceptanceNode:
         assert result["all_queried_at_price"] is True
 
     def test_constraint_violation(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=True, reasoning="")
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
         state = _make_dutch_state(sample_bidders)
         state["current_price"] = 12.0
         state["current_bidder_index"] = 0  # Value=0.0
@@ -949,9 +952,9 @@ class TestSealedBidFullGraph:
         from market_simulation.graph.auctions.sealed_bid import build_sealed_bid_graph
 
         llm = _SequentialMockLLM([
-            BidResponse(bid=1.0, reasoning=""),
-            BidResponse(bid=3.0, reasoning=""),
-            BidResponse(bid=6.0, reasoning=""),
+            BidResponseWithReasoning(bid=1.0, reasoning=""),
+            BidResponseWithReasoning(bid=3.0, reasoning=""),
+            BidResponseWithReasoning(bid=6.0, reasoning=""),
         ])
         ac = AuctionConfig(n_rounds=2, bidders=BiddersConfig(num=3, value_min=0.0, value_max=10.0))
         ec = ExperimentConfig(auction_type="fpsb", auction=ac)
@@ -969,9 +972,9 @@ class TestSealedBidFullGraph:
         from market_simulation.graph.auctions.sealed_bid import build_sealed_bid_graph
 
         llm = _SequentialMockLLM([
-            BidResponse(bid=1.0, reasoning=""),
-            BidResponse(bid=4.0, reasoning=""),
-            BidResponse(bid=7.0, reasoning=""),
+            BidResponseWithReasoning(bid=1.0, reasoning=""),
+            BidResponseWithReasoning(bid=4.0, reasoning=""),
+            BidResponseWithReasoning(bid=7.0, reasoning=""),
         ])
         ac = AuctionConfig(n_rounds=1, bidders=BiddersConfig(num=3, value_min=0.0, value_max=10.0))
         ec = ExperimentConfig(auction_type="spsb", auction=ac)
@@ -1004,8 +1007,8 @@ class TestEnglishFullGraph:
                 standing = float(m2.group(1)) if m2 else 0.0
                 min_bid = standing + 0.5
                 if min_bid > pv * 0.9:
-                    return EnglishBidResponse(action="pass", bid=None, reasoning="")
-                return EnglishBidResponse(action="bid", bid=min_bid, reasoning="")
+                    return EnglishBidResponseWithReasoning(action="pass", bid=None, reasoning="")
+                return EnglishBidResponseWithReasoning(action="bid", bid=min_bid, reasoning="")
 
         ac = AuctionConfig(
             n_rounds=1,
@@ -1036,7 +1039,7 @@ class TestDutchFullGraph:
                 pv = float(m.group(1)) if m else 0.0
                 m2 = re.search(r"Price is (\d+\.?\d*)", prompt)
                 cp = float(m2.group(1)) if m2 else 999.0
-                return AcceptRejectResponse(accept=(cp <= pv), reasoning="")
+                return AcceptRejectResponseWithReasoning(accept=(cp <= pv), reasoning="")
 
         ac = AuctionConfig(
             n_rounds=1,
@@ -1071,8 +1074,8 @@ class TestOpenOutcryFullGraph:
                 standing = float(m2.group(1)) if m2 else 0.0
                 min_bid = standing + 0.5
                 if min_bid > pv * 0.9:
-                    return EnglishBidResponse(action="pass", bid=None, reasoning="")
-                return EnglishBidResponse(action="bid", bid=min_bid, reasoning="")
+                    return EnglishBidResponseWithReasoning(action="pass", bid=None, reasoning="")
+                return EnglishBidResponseWithReasoning(action="bid", bid=min_bid, reasoning="")
 
         ac = AuctionConfig(
             n_rounds=1,

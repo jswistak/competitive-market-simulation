@@ -21,7 +21,9 @@ from market_simulation.graph.nodes.control import (
 )
 from market_simulation.llm.response_schemas import (
     AnnouncementResponse,
+    AnnouncementResponseWithReasoning,
     AcceptRejectResponse,
+    AcceptRejectResponseWithReasoning,
 )
 
 
@@ -109,7 +111,7 @@ class TestAnnounceNode:
 
     def test_none_price_means_no_announcement(self, base_market_state, mock_llm, prompt_config):
         """Structured output with price=None is a valid response meaning no announcement."""
-        mock_llm.invoke_structured.return_value = AnnouncementResponse(price=None, reasoning="")
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=None, reasoning="")
         state = {**base_market_state, "announcing_agent_id": 0}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
@@ -152,7 +154,7 @@ class TestAnnounceNode:
 
     def test_buyer_above_reservation_increments_violations(self, base_market_state, mock_llm, prompt_config):
         # Buyer 0 has reservation_price=2.0, announcing $3.00 is a violation
-        mock_llm.invoke_structured.return_value = AnnouncementResponse(price=3.00, reasoning="")
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=3.00, reasoning="")
         state = {**base_market_state, "announcing_agent_id": 0}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
@@ -163,7 +165,7 @@ class TestAnnounceNode:
 
     def test_seller_below_reservation_increments_violations(self, base_market_state, mock_llm, prompt_config):
         # Seller 3 has reservation_price=1.0, announcing $0.50 is a violation
-        mock_llm.invoke_structured.return_value = AnnouncementResponse(price=0.50, reasoning="")
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=0.50, reasoning="")
         state = {**base_market_state, "announcing_agent_id": 3}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
@@ -174,7 +176,7 @@ class TestAnnounceNode:
 
     def test_no_violation_when_within_bounds(self, base_market_state, mock_llm, prompt_config):
         # Buyer 0 has reservation_price=2.0, announcing $1.50 is fine
-        mock_llm.invoke_structured.return_value = AnnouncementResponse(price=1.50, reasoning="")
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=1.50, reasoning="")
         state = {**base_market_state, "announcing_agent_id": 0}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
@@ -184,7 +186,7 @@ class TestAnnounceNode:
 
     def test_violation_counter_accumulates(self, base_market_state, mock_llm, prompt_config):
         # Start with 2 existing violations
-        mock_llm.invoke_structured.return_value = AnnouncementResponse(price=3.00, reasoning="")
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=3.00, reasoning="")
         state = {**base_market_state, "announcing_agent_id": 0, "constraint_violations": 2}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
@@ -193,7 +195,7 @@ class TestAnnounceNode:
 
     def test_none_price_adds_to_announced_this_iteration(self, base_market_state, mock_llm, prompt_config):
         """price=None should still mark agent as having announced to prevent infinite loops."""
-        mock_llm.invoke_structured.return_value = AnnouncementResponse(price=None, reasoning="")
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=None, reasoning="")
         state = {**base_market_state, "announcing_agent_id": 0, "announced_this_iteration": []}
         node = make_announce_node(mock_llm, prompt_config)
         result = node(state, _make_config())
@@ -305,7 +307,7 @@ class TestRespondNode:
     """Tests for respond node."""
 
     def test_accept_response(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=True, reasoning="")
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],
@@ -322,7 +324,7 @@ class TestRespondNode:
         assert result["responding_agent_id"] == 3
 
     def test_reject_response(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=False, reasoning="")
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],
@@ -338,7 +340,7 @@ class TestRespondNode:
         assert result["response_accepted"] is False
 
     def test_increments_responder_index(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=False, reasoning="")
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3, 4, 5],
@@ -387,7 +389,7 @@ class TestRespondNode:
         self, base_market_state, mock_llm, prompt_config
     ):
         # Seller 3 has reservation_price=1.0, accepting buy at $0.50 is a violation
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=True, reasoning="")
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],
@@ -406,7 +408,7 @@ class TestRespondNode:
         self, base_market_state, mock_llm, prompt_config
     ):
         # Buyer 0 has reservation_price=2.0, accepting sell at $3.00 is a violation
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=True, reasoning="")
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [0],
@@ -423,7 +425,7 @@ class TestRespondNode:
 
     def test_no_violation_on_reject(self, base_market_state, mock_llm, prompt_config):
         # Rejecting a bad price is not a violation
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=False, reasoning="")
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],
@@ -440,7 +442,7 @@ class TestRespondNode:
 
     def test_no_violation_when_accept_within_bounds(self, base_market_state, mock_llm, prompt_config):
         # Seller 3 (reservation=1.0) accepting $1.50 is fine
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=True, reasoning="")
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],
@@ -458,7 +460,7 @@ class TestRespondNode:
     def test_clear_reject_does_not_increment_parse_failures(
         self, base_market_state, mock_llm, prompt_config
     ):
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=False, reasoning="")
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
         state = {
             **base_market_state,
             "potential_responder_ids": [3],

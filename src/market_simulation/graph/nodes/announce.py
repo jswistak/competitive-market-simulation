@@ -9,7 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from ..state import MarketState
 from ..history import build_market_history_for_prompt, build_own_history_for_prompt
 from ...llm.providers.base import LLMProvider
-from ...llm.response_schemas import AnnouncementResponse
+from ...llm.response_schemas import AnnouncementResponse, AnnouncementResponseWithReasoning
 from ...config.schema import PromptConfig
 
 logger = logging.getLogger(__name__)
@@ -54,6 +54,7 @@ def make_announce_node(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    response_schema: type[AnnouncementResponse] = AnnouncementResponseWithReasoning,
 ) -> Callable[[MarketState, RunnableConfig], dict]:
     """Create node that handles agent price announcements.
 
@@ -62,6 +63,7 @@ def make_announce_node(
         prompts: Prompt configuration.
         callbacks_factory: Optional factory for tracing callbacks (deprecated,
             prefer passing callbacks via graph config).
+        response_schema: Pydantic schema for structured output.
 
     Returns:
         Node function that generates price announcement.
@@ -119,9 +121,9 @@ def make_announce_node(
             callbacks = callbacks_factory()
 
         try:
-            response = llm.invoke_structured(prompt, AnnouncementResponse, callbacks=callbacks)
+            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
             price = response.price
-            reasoning = response.reasoning
+            reasoning = getattr(response, 'reasoning', '')
             logger.debug(
                 f"Structured announcement for agent {agent_id}: price={price}, reasoning='{reasoning[:100]}...'"
             )

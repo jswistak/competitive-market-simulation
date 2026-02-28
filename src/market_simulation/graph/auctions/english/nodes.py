@@ -13,7 +13,7 @@ from langchain_core.runnables import RunnableConfig
 
 from ...state import EnglishAuctionState, BidRecord, AuctionResult
 from ....llm.providers.base import LLMProvider
-from ....llm.response_schemas import EnglishBidResponse
+from ....llm.response_schemas import EnglishBidResponse, EnglishBidResponseWithReasoning
 from ....config.schema import AuctionPromptConfig
 from ..base import render_auction_prompt
 
@@ -29,6 +29,7 @@ def make_solicit_bid_node(
     llm: LLMProvider,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    response_schema: type[EnglishBidResponse] = EnglishBidResponseWithReasoning,
 ) -> Callable[[EnglishAuctionState, RunnableConfig], dict]:
     """Create node that asks the current active bidder for a bid or pass."""
 
@@ -76,10 +77,11 @@ def make_solicit_bid_node(
             callbacks = callbacks_factory()
 
         try:
-            response = llm.invoke_structured(prompt, EnglishBidResponse, callbacks=callbacks)
+            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            reasoning = getattr(response, 'reasoning', '')
             logger.debug(
                 f"Bidder {bidder_id} structured response: action={response.action}, "
-                f"bid={response.bid}, reasoning='{response.reasoning[:100]}...'"
+                f"bid={response.bid}, reasoning='{reasoning[:100]}...'"
             )
 
             # Capture tool log

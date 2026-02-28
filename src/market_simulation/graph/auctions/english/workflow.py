@@ -28,6 +28,7 @@ from .edges import (
     route_after_update_history,
 )
 from ....llm.providers.base import LLMProvider
+from ....llm.response_schemas import get_response_schemas
 from ....config.schema import AuctionPromptConfig
 
 
@@ -36,6 +37,7 @@ def build_english_graph(
     llm: LLMProvider,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    include_reasoning: bool = True,
 ) -> StateGraph:
     """Build an English (ascending) auction LangGraph workflow.
 
@@ -44,14 +46,16 @@ def build_english_graph(
         llm: LLM provider for bidder interactions.
         prompts: Auction prompt configuration.
         callbacks_factory: Optional factory for tracing callbacks.
+        include_reasoning: Whether to include reasoning field in LLM responses.
 
     Returns:
         Compiled StateGraph ready for execution.
     """
+    schemas = get_response_schemas(include_reasoning)
     builder = StateGraph(EnglishAuctionState)
 
     # Nodes
-    builder.add_node("solicit_bid", make_solicit_bid_node(llm, prompts, callbacks_factory))
+    builder.add_node("solicit_bid", make_solicit_bid_node(llm, prompts, callbacks_factory, response_schema=schemas.english_bid))
     builder.add_node("check_auction_end", make_check_auction_end_node())
     builder.add_node("reset_cycle", make_reset_cycle_node())
     builder.add_node("settle", make_settle_english_node())

@@ -116,6 +116,7 @@ class ExperimentConfig(BaseModel):
     """Experiment parameters."""
 
     auction_type: AuctionType = AuctionType.DOUBLE_AUCTION
+    include_reasoning: bool = True
 
     n_rounds: int = 5
     n_iterations: int = 10

@@ -14,7 +14,7 @@ from langchain_core.runnables import RunnableConfig
 
 from ...state import DutchAuctionState, BidRecord, AuctionResult
 from ....llm.providers.base import LLMProvider
-from ....llm.response_schemas import AcceptRejectResponse
+from ....llm.response_schemas import AcceptRejectResponse, AcceptRejectResponseWithReasoning
 from ....config.schema import AuctionPromptConfig
 from ..base import render_auction_prompt
 
@@ -71,6 +71,7 @@ def make_solicit_acceptance_node(
     llm: LLMProvider,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    response_schema: type[AcceptRejectResponse] = AcceptRejectResponseWithReasoning,
 ) -> Callable[[DutchAuctionState, RunnableConfig], dict]:
     """Create node that asks the current bidder to accept or reject the price."""
 
@@ -102,10 +103,11 @@ def make_solicit_acceptance_node(
             callbacks = callbacks_factory()
 
         try:
-            response = llm.invoke_structured(prompt, AcceptRejectResponse, callbacks=callbacks)
+            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            reasoning = getattr(response, 'reasoning', '')
             logger.debug(
                 f"Bidder {bidder['id']} structured response: accept={response.accept}, "
-                f"reasoning='{response.reasoning[:100]}...'"
+                f"reasoning='{reasoning[:100]}...'"
             )
 
             # Capture tool log

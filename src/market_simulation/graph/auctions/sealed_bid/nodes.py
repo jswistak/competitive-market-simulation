@@ -7,7 +7,7 @@ from langchain_core.runnables import RunnableConfig
 
 from ...state import SealedBidState, BidRecord, AuctionResult
 from ....llm.providers.base import LLMProvider
-from ....llm.response_schemas import BidResponse
+from ....llm.response_schemas import BidResponse, BidResponseWithReasoning
 from ....config.schema import AuctionPromptConfig
 from ..base import render_auction_prompt, get_bidder_by_id
 
@@ -18,6 +18,7 @@ def make_collect_bid_node(
     llm: LLMProvider,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    response_schema: type[BidResponse] = BidResponseWithReasoning,
 ) -> Callable[[SealedBidState, RunnableConfig], dict]:
     """Create node that collects a bid from the current bidder.
 
@@ -52,11 +53,12 @@ def make_collect_bid_node(
             callbacks = callbacks_factory()
 
         try:
-            response = llm.invoke_structured(prompt, BidResponse, callbacks=callbacks)
+            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
             bid_amount = response.bid
+            reasoning = getattr(response, 'reasoning', '')
             logger.debug(
                 f"Bidder {bidder['id']} structured bid: {bid_amount}, "
-                f"reasoning: '{response.reasoning[:100]}...'"
+                f"reasoning: '{reasoning[:100]}...'"
             )
 
             # Capture tool usage

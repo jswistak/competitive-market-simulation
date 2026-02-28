@@ -9,7 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from ..state import MarketState
 from ..history import build_market_history_for_prompt, build_own_history_for_prompt
 from ...llm.providers.base import LLMProvider
-from ...llm.response_schemas import AcceptRejectResponse
+from ...llm.response_schemas import AcceptRejectResponse, AcceptRejectResponseWithReasoning
 from ...config.schema import PromptConfig
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,7 @@ def make_respond_node(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    response_schema: type[AcceptRejectResponse] = AcceptRejectResponseWithReasoning,
 ) -> Callable[[MarketState, RunnableConfig], dict]:
     """Create node that handles agent responses to announcements.
 
@@ -74,6 +75,7 @@ def make_respond_node(
         prompts: Prompt configuration.
         callbacks_factory: Optional factory for tracing callbacks (deprecated,
             prefer passing callbacks via graph config).
+        response_schema: Pydantic schema for structured output.
 
     Returns:
         Node function that generates response.
@@ -138,9 +140,9 @@ def make_respond_node(
             callbacks = callbacks_factory()
 
         try:
-            response = llm.invoke_structured(prompt, AcceptRejectResponse, callbacks=callbacks)
+            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
             accepted = response.accept
-            reasoning = response.reasoning
+            reasoning = getattr(response, 'reasoning', '')
             logger.debug(
                 f"Structured response for agent {responder_id}: accept={accepted}, reasoning='{reasoning[:100]}...'"
             )

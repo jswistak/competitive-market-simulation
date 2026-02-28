@@ -193,6 +193,7 @@ def run(
         graph = build_auction_graph(
             cfg.experiment.auction_type, llm, cfg.prompts.auction,
             random_seed=auction_config.random_seed,
+            include_reasoning=cfg.experiment.include_reasoning,
         )
         n_bidders = auction_config.bidders.num
         n_rounds = auction_config.n_rounds
@@ -219,7 +220,7 @@ def run(
         )
     else:
         logger.info("No auction type specified — defaulting to double-auction mode")
-        graph = build_market_graph(llm, cfg.prompts)
+        graph = build_market_graph(llm, cfg.prompts, include_reasoning=cfg.experiment.include_reasoning)
         max_nodes_per_iteration = 10  # approximate
         recursion_limit = (
             cfg.experiment.n_rounds

@@ -4,7 +4,9 @@ from unittest.mock import MagicMock
 
 from market_simulation.llm.response_schemas import (
     AnnouncementResponse,
+    AnnouncementResponseWithReasoning,
     AcceptRejectResponse,
+    AcceptRejectResponseWithReasoning,
 )
 from market_simulation.graph.nodes.announce import make_announce_node
 from market_simulation.graph.nodes.respond import make_respond_node
@@ -68,7 +70,7 @@ class TestStructuredOutputReasoning:
     def test_announce_captures_reasoning(self, base_market_state, prompt_config):
         """announce node should populate last_announcement_reasoning from structured response."""
         mock_llm = MagicMock()
-        mock_llm.invoke_structured.return_value = AnnouncementResponse(
+        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(
             price=1.75,
             reasoning="My reservation price is $2.00 and the market seems quiet. I should bid conservatively.",
         )
@@ -89,7 +91,7 @@ class TestStructuredOutputReasoning:
     def test_respond_captures_reasoning(self, base_market_state, prompt_config):
         """respond node should populate last_response_reasoning from structured response."""
         mock_llm = MagicMock()
-        mock_llm.invoke_structured.return_value = AcceptRejectResponse(
+        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(
             accept=True,
             reasoning="The offered price of $1.50 is above my reservation price of $1.00. This is profitable.",
         )
@@ -141,7 +143,7 @@ class TestStructuredOutputReasoning:
         both reasoning strings flow into an IterationRecord."""
         # -- Step 1: announce --
         announce_llm = MagicMock()
-        announce_llm.invoke_structured.return_value = AnnouncementResponse(
+        announce_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(
             price=1.60,
             reasoning="Given my reservation of $2.00 I should bid below.",
         )
@@ -158,7 +160,7 @@ class TestStructuredOutputReasoning:
 
         # -- Step 2: respond --
         respond_llm = MagicMock()
-        respond_llm.invoke_structured.return_value = AcceptRejectResponse(
+        respond_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(
             accept=True,
             reasoning="The bid of $1.60 is above my cost of $1.00. Good deal.",
         )

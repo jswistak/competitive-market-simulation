@@ -194,10 +194,10 @@ def mock_llm():
     Default: returns AnnouncementResponse(price=1.50, reasoning="").
     Tests should override mock_llm.invoke_structured.return_value as needed.
     """
-    from market_simulation.llm.response_schemas import AnnouncementResponse
+    from market_simulation.llm.response_schemas import AnnouncementResponseWithReasoning
 
     llm = MagicMock()
-    llm.invoke_structured.return_value = AnnouncementResponse(price=1.50, reasoning="")
+    llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=1.50, reasoning="")
     llm.invoke.return_value = "1.50"  # Keep for backwards compat if any test still uses invoke
     llm.provider_name = "mock"
     llm.model_name = "mock-model"
