@@ -52,7 +52,7 @@ prompts:
       {action_prompt}
 
     dutch_accept_prompt: |
-      The current price is {current_price}. Do you accept this price? Answer yes or no only.
+      The current price is {current_price}. Do you accept this price?
 
     value_explanation: |
       STRATEGY NOTE: Waiting for a lower price increases your profit if you win,

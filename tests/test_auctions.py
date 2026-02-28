@@ -1,7 +1,7 @@
 """Comprehensive tests for all auction types.
 
 Tests cover:
-  - Base utilities (extract_bid, extract_yes_no, render_auction_prompt, get_bidder_by_id)
+  - Base utilities (render_auction_prompt, get_bidder_by_id)
   - Config schema (AuctionType, AuctionConfig, BiddersConfig)
   - Agent factory (create_bidders, create_auction_initial_state)
   - Sealed-bid nodes + edges + full graph (FPSB, SPSB, All-Pay)
@@ -32,10 +32,13 @@ from market_simulation.graph.state import (
     OpenOutcryState,
 )
 from market_simulation.graph.auctions.base import (
-    extract_bid,
-    extract_yes_no,
     render_auction_prompt,
     get_bidder_by_id,
+)
+from market_simulation.llm.response_schemas import (
+    BidResponse,
+    EnglishBidResponse,
+    AcceptRejectResponse,
 )
 from market_simulation.agents.factory import (
     create_bidders,
@@ -205,76 +208,6 @@ def _make_dutch_state(bidders, round_num=1, max_rounds=2):
 # ============================================================
 # Base utilities
 # ============================================================
-
-
-class TestExtractBid:
-    def test_plain_number(self):
-        assert extract_bid("5.00") == 5.0
-
-    def test_integer(self):
-        assert extract_bid("7") == 7.0
-
-    def test_dollar_prefix(self):
-        assert extract_bid("$3.27") == 3.27
-
-    def test_embedded_dollar(self):
-        assert extract_bid("I bid $4.50 for this") == 4.50
-
-    def test_bare_decimal(self):
-        assert extract_bid("My bid is 2.75 dollars") == 2.75
-
-    def test_comma_separated(self):
-        assert extract_bid("1,000.50") == 1000.50
-
-    def test_empty(self):
-        assert extract_bid("") is None
-
-    def test_none(self):
-        assert extract_bid(None) is None
-
-    def test_no_number(self):
-        assert extract_bid("I pass") is None
-
-    def test_whitespace(self):
-        assert extract_bid("  3.50  ") == 3.50
-
-    def test_zero(self):
-        assert extract_bid("0") == 0.0
-
-    def test_zero_decimal(self):
-        assert extract_bid("0.00") == 0.0
-
-
-class TestExtractYesNo:
-    def test_yes(self):
-        assert extract_yes_no("yes") is True
-
-    def test_yes_period(self):
-        assert extract_yes_no("yes.") is True
-
-    def test_yes_uppercase(self):
-        assert extract_yes_no("Yes") is True
-
-    def test_yes_in_sentence(self):
-        assert extract_yes_no("I say yes to this") is True
-
-    def test_no(self):
-        assert extract_yes_no("no") is False
-
-    def test_no_sentence(self):
-        assert extract_yes_no("No, I reject") is False
-
-    def test_yesterday_not_yes(self):
-        assert extract_yes_no("yesterday") is False
-
-    def test_empty(self):
-        assert extract_yes_no("") is False
-
-    def test_none(self):
-        assert extract_yes_no(None) is False
-
-    def test_whitespace_only(self):
-        assert extract_yes_no("   ") is False
 
 
 class TestRenderAuctionPrompt:
@@ -474,7 +407,7 @@ class TestCreateAuctionInitialState:
 
 class TestCollectBidNode:
     def test_collects_bid(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke.return_value = "3.00"
+        mock_llm.invoke_structured.return_value = BidResponse(bid=3.0, reasoning="")
         state = _make_sealed_state(sample_bidders)
         node = make_collect_bid_node(mock_llm, auction_prompts)
         result = node(state, {})
@@ -483,7 +416,7 @@ class TestCollectBidNode:
         assert result["current_bidder_index"] == 1
 
     def test_all_collected_flag(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke.return_value = "5.00"
+        mock_llm.invoke_structured.return_value = BidResponse(bid=5.0, reasoning="")
         state = _make_sealed_state(sample_bidders)
         state["current_bidder_index"] = 2  # Last bidder
         state["bids"] = [
@@ -494,24 +427,23 @@ class TestCollectBidNode:
         result = node(state, {})
         assert result["all_bids_collected"] is True
 
-    def test_parse_failure_records_zero(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke.return_value = "I don't want to bid"
+    def test_llm_exception_records_zero(self, sample_bidders, auction_prompts, mock_llm):
+        mock_llm.invoke_structured.side_effect = Exception("LLM failure")
         state = _make_sealed_state(sample_bidders)
         node = make_collect_bid_node(mock_llm, auction_prompts)
         result = node(state, {})
         assert result["bids"][0]["bid_amount"] == 0.0
-        assert result["parse_failures"] == 1
 
     def test_constraint_violation_logged(self, sample_bidders, auction_prompts, mock_llm):
         # Bidder 0 has value 0.0, bidding 5.0 is a violation
-        mock_llm.invoke.return_value = "5.00"
+        mock_llm.invoke_structured.return_value = BidResponse(bid=5.0, reasoning="")
         state = _make_sealed_state(sample_bidders)
         node = make_collect_bid_node(mock_llm, auction_prompts)
         result = node(state, {})
         assert result["constraint_violations"] == 1
 
     def test_no_violation_within_value(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke.return_value = "4.00"
+        mock_llm.invoke_structured.return_value = BidResponse(bid=4.0, reasoning="")
         state = _make_sealed_state(sample_bidders)
         state["current_bidder_index"] = 1  # Bidder with value 5.0
         node = make_collect_bid_node(mock_llm, auction_prompts)
@@ -686,7 +618,7 @@ class TestSealedBidEdges:
 
 class TestSolicitBidNode:
     def test_valid_bid(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke.return_value = "1.00"
+        mock_llm.invoke_structured.return_value = EnglishBidResponse(action="bid", bid=1.0, reasoning="")
         state = _make_english_state(sample_bidders)
         state["standing_bid"] = 0.0
         node = make_solicit_bid_node(mock_llm, auction_prompts)
@@ -697,7 +629,7 @@ class TestSolicitBidNode:
         assert len(result["bids"]) == 1
 
     def test_pass_drops_bidder(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke.return_value = "pass"
+        mock_llm.invoke_structured.return_value = EnglishBidResponse(action="pass", bid=None, reasoning="")
         state = _make_english_state(sample_bidders)
         node = make_solicit_bid_node(mock_llm, auction_prompts)
         result = node(state, {})
@@ -705,7 +637,7 @@ class TestSolicitBidNode:
         assert len(result["active_bidder_ids"]) == 2
 
     def test_bid_below_min_treated_as_pass(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke.return_value = "0.20"
+        mock_llm.invoke_structured.return_value = EnglishBidResponse(action="bid", bid=0.2, reasoning="")
         state = _make_english_state(sample_bidders)
         state["standing_bid"] = 5.0  # min_bid = 5.5
         node = make_solicit_bid_node(mock_llm, auction_prompts)
@@ -714,7 +646,7 @@ class TestSolicitBidNode:
 
     def test_constraint_violation_above_value(self, sample_bidders, auction_prompts, mock_llm):
         # Bidder 0 has value 0.0, bid of 1.0 exceeds
-        mock_llm.invoke.return_value = "1.00"
+        mock_llm.invoke_structured.return_value = EnglishBidResponse(action="bid", bid=1.0, reasoning="")
         state = _make_english_state(sample_bidders)
         node = make_solicit_bid_node(mock_llm, auction_prompts)
         result = node(state, {})
@@ -860,7 +792,7 @@ class TestAnnouncePriceNode:
 
 class TestSolicitAcceptanceNode:
     def test_accept(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke.return_value = "yes"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=True, reasoning="")
         state = _make_dutch_state(sample_bidders)
         state["current_price"] = 5.0
         state["current_bidder_index"] = 1  # Bidder 1, value=5.0
@@ -871,7 +803,7 @@ class TestSolicitAcceptanceNode:
         assert len(result["bids"]) == 1
 
     def test_reject(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke.return_value = "no"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=False, reasoning="")
         state = _make_dutch_state(sample_bidders)
         state["current_bidder_index"] = 0
         node = make_solicit_acceptance_node(mock_llm, auction_prompts)
@@ -880,7 +812,7 @@ class TestSolicitAcceptanceNode:
         assert result["current_bidder_index"] == 1
 
     def test_all_queried(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke.return_value = "no"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=False, reasoning="")
         state = _make_dutch_state(sample_bidders)
         state["current_bidder_index"] = 2  # Last bidder
         node = make_solicit_acceptance_node(mock_llm, auction_prompts)
@@ -888,7 +820,7 @@ class TestSolicitAcceptanceNode:
         assert result["all_queried_at_price"] is True
 
     def test_constraint_violation(self, sample_bidders, auction_prompts, mock_llm):
-        mock_llm.invoke.return_value = "yes"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponse(accept=True, reasoning="")
         state = _make_dutch_state(sample_bidders)
         state["current_price"] = 12.0
         state["current_bidder_index"] = 0  # Value=0.0
@@ -995,7 +927,7 @@ class TestNextDutchRoundNode:
 
 
 class _SequentialMockLLM:
-    """Mock LLM that returns responses from a list in sequence."""
+    """Mock LLM that returns structured responses from a list in sequence."""
     def __init__(self, responses):
         self._responses = responses
         self._idx = 0
@@ -1006,12 +938,21 @@ class _SequentialMockLLM:
         self._idx += 1
         return resp
 
+    def invoke_structured(self, prompt, response_model, callbacks=None):
+        resp = self._responses[self._idx % len(self._responses)]
+        self._idx += 1
+        return resp
+
 
 class TestSealedBidFullGraph:
     def test_fpsb_two_rounds(self, auction_prompts):
         from market_simulation.graph.auctions.sealed_bid import build_sealed_bid_graph
 
-        llm = _SequentialMockLLM(["1.00", "3.00", "6.00"])
+        llm = _SequentialMockLLM([
+            BidResponse(bid=1.0, reasoning=""),
+            BidResponse(bid=3.0, reasoning=""),
+            BidResponse(bid=6.0, reasoning=""),
+        ])
         ac = AuctionConfig(n_rounds=2, bidders=BiddersConfig(num=3, value_min=0.0, value_max=10.0))
         ec = ExperimentConfig(auction_type="fpsb", auction=ac)
         state = create_auction_initial_state(ec, ac)
@@ -1027,7 +968,11 @@ class TestSealedBidFullGraph:
     def test_spsb_payment_differs(self, auction_prompts):
         from market_simulation.graph.auctions.sealed_bid import build_sealed_bid_graph
 
-        llm = _SequentialMockLLM(["1.00", "4.00", "7.00"])
+        llm = _SequentialMockLLM([
+            BidResponse(bid=1.0, reasoning=""),
+            BidResponse(bid=4.0, reasoning=""),
+            BidResponse(bid=7.0, reasoning=""),
+        ])
         ac = AuctionConfig(n_rounds=1, bidders=BiddersConfig(num=3, value_min=0.0, value_max=10.0))
         ec = ExperimentConfig(auction_type="spsb", auction=ac)
         state = create_auction_initial_state(ec, ac)
@@ -1051,7 +996,7 @@ class TestEnglishFullGraph:
         class SmartLLM:
             def __init__(self):
                 self.last_tool_log = []
-            def invoke(self, prompt, callbacks=None):
+            def invoke_structured(self, prompt, response_model, callbacks=None):
                 call_count["n"] += 1
                 m = re.search(r"value=(\d+\.?\d*)", prompt)
                 pv = float(m.group(1)) if m else 0.0
@@ -1059,8 +1004,8 @@ class TestEnglishFullGraph:
                 standing = float(m2.group(1)) if m2 else 0.0
                 min_bid = standing + 0.5
                 if min_bid > pv * 0.9:
-                    return "pass"
-                return str(min_bid)
+                    return EnglishBidResponse(action="pass", bid=None, reasoning="")
+                return EnglishBidResponse(action="bid", bid=min_bid, reasoning="")
 
         ac = AuctionConfig(
             n_rounds=1,
@@ -1086,12 +1031,12 @@ class TestDutchFullGraph:
         class DutchLLM:
             def __init__(self):
                 self.last_tool_log = []
-            def invoke(self, prompt, callbacks=None):
+            def invoke_structured(self, prompt, response_model, callbacks=None):
                 m = re.search(r"value=(\d+\.?\d*)", prompt)
                 pv = float(m.group(1)) if m else 0.0
                 m2 = re.search(r"Price is (\d+\.?\d*)", prompt)
                 cp = float(m2.group(1)) if m2 else 999.0
-                return "yes" if cp <= pv else "no"
+                return AcceptRejectResponse(accept=(cp <= pv), reasoning="")
 
         ac = AuctionConfig(
             n_rounds=1,
@@ -1119,15 +1064,15 @@ class TestOpenOutcryFullGraph:
         class OpenOutcryLLM:
             def __init__(self):
                 self.last_tool_log = []
-            def invoke(self, prompt, callbacks=None):
+            def invoke_structured(self, prompt, response_model, callbacks=None):
                 m = re.search(r"value=(\d+\.?\d*)", prompt)
                 pv = float(m.group(1)) if m else 0.0
                 m2 = re.search(r"standing=(\d+\.?\d*)", prompt)
                 standing = float(m2.group(1)) if m2 else 0.0
                 min_bid = standing + 0.5
                 if min_bid > pv * 0.9:
-                    return "pass"
-                return str(min_bid)
+                    return EnglishBidResponse(action="pass", bid=None, reasoning="")
+                return EnglishBidResponse(action="bid", bid=min_bid, reasoning="")
 
         ac = AuctionConfig(
             n_rounds=1,

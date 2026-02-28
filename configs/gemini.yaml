@@ -63,10 +63,10 @@ prompts:
       condition: below
 
     response_prompt: |
-      Someone is offering to buy at ${price:.2f}. Do you sell? Only answer with a yes or no.
+      Someone is offering to buy at ${price:.2f}. Do you sell?
 
     announcement_prompt: |
-      Do you want to announce an offer to sell? If so, what is your asking price? Answer only with a number.
+      Do you want to announce an offer to sell? If so, what is your asking price?
 
   buyer:
     main_keywords:
@@ -76,7 +76,7 @@ prompts:
       condition: above
 
     response_prompt: |
-      Someone is offering to sell at ${price:.2f}. Do you buy? Only answer with a yes or no.
+      Someone is offering to sell at ${price:.2f}. Do you buy?
 
     announcement_prompt: |
-      Do you want to announce a bid to buy? If so, what is your bid price? Answer only with a number.
+      Do you want to announce a bid to buy? If so, what is your bid price?

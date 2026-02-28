@@ -46,7 +46,7 @@ prompts:
       {action_prompt}
 
     bid_prompt: |
-      Submit your bid. Answer with a single number only.
+      Submit your bid.
 
     value_explanation: |
       STRATEGY NOTE: Since you pay your own bid, bidding exactly your value gives zero profit.

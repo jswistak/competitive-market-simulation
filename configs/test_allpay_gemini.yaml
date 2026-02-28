@@ -47,7 +47,7 @@ prompts:
       {action_prompt}
 
     bid_prompt: |
-      Submit your bid. Answer with a single number only.
+      Submit your bid.
 
     value_explanation: |
       STRATEGY NOTE: You pay your bid regardless of whether you win.

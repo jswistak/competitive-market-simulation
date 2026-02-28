@@ -4,7 +4,7 @@ Verifies that features from PRs #2–#5 compose correctly:
   - PR #2: Auction types (FPSB, SPSB, English, Dutch, All-Pay, Open-Outcry)
   - PR #3: Agent personas (PersonaConfig, {persona} placeholder)
   - PR #4: Market history summary (HistoryConfig, full/summary modes)
-  - PR #5: Chain-of-thought (ChainOfThoughtConfig, answer_tag extraction)
+  - PR #5: Structured output (AnnouncementResponse, AcceptRejectResponse)
 """
 
 import pytest
@@ -24,7 +24,6 @@ from market_simulation.config.schema import (
     AgentPromptConfig,
     AgentKeywords,
     SimulationConfig,
-    ChainOfThoughtConfig,
 )
 from market_simulation.agents.factory import (
     create_agents,
@@ -42,22 +41,22 @@ from market_simulation.graph.state import (
 )
 from market_simulation.graph.auctions.base import (
     render_auction_prompt,
-    extract_bid,
-    extract_yes_no,
 )
 from market_simulation.graph.nodes.announce import (
     _render_announcement_prompt,
-    _extract_price,
     make_announce_node,
 )
 from market_simulation.graph.nodes.respond import (
     _render_response_prompt,
-    _extract_response,
     make_respond_node,
 )
 from market_simulation.graph.history import (
     build_market_history_for_prompt,
     build_own_history_for_prompt,
+)
+from market_simulation.llm.response_schemas import (
+    AnnouncementResponse,
+    AcceptRejectResponse,
 )
 
 
@@ -359,32 +358,23 @@ class TestPersonaPlusHistorySummary:
 
 
 # ===========================================================================
-# 3. Persona + CoT in double-auction
+# 3. Persona + Structured output in double-auction
 # ===========================================================================
 
 
 class TestPersonaPlusCoT:
-    """Verify persona and CoT compose in the double-auction announce/respond flow."""
+    """Verify persona and structured output compose in the double-auction announce/respond flow."""
 
-    def test_cot_extraction_unaffected_by_persona_text(self):
-        """Persona text containing 'ANSWER:' should not interfere with CoT parsing."""
-        # The persona is injected into the PROMPT, not the LLM RESPONSE.
-        # So CoT parsing on the response should be completely independent.
-        response = "I think $3.00 is fair. ANSWER: 2.50"
-        price, reasoning = _extract_price(response, answer_tag="ANSWER:")
-        assert price == 2.50
-        assert "$3.00" in reasoning
-
-    def test_announce_node_with_persona_and_cot(self):
-        """Full integration: persona agent + CoT extraction in announce node."""
+    def test_announce_node_with_persona_and_structured_output(self):
+        """Full integration: persona agent + structured output in announce node."""
         prompts = _make_prompt_config()
         mock_llm = MagicMock()
-        mock_llm.invoke.return_value = (
-            "My reservation is $2.00 and market is slow. ANSWER: 1.60"
+        mock_llm.invoke_structured.return_value = AnnouncementResponse(
+            price=1.60, reasoning="My reservation is $2.00 and market is slow."
         )
         mock_llm.last_tool_log = []
 
-        node = make_announce_node(mock_llm, prompts, answer_tag="ANSWER:")
+        node = make_announce_node(mock_llm, prompts)
         agents = [
             AgentState(
                 id=0, type="buyer", reservation_price=2.0, active=True,
@@ -398,16 +388,16 @@ class TestPersonaPlusCoT:
         assert result["announced_price"] == 1.60
         assert result["announcement_made"] is True
 
-    def test_respond_node_with_persona_and_cot(self):
-        """Full integration: persona agent + CoT extraction in respond node."""
+    def test_respond_node_with_persona_and_structured_output(self):
+        """Full integration: persona agent + structured output in respond node."""
         prompts = _make_prompt_config()
         mock_llm = MagicMock()
-        mock_llm.invoke.return_value = (
-            "Price is above my reservation. ANSWER: no"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponse(
+            accept=False, reasoning="Price is above my reservation."
         )
         mock_llm.last_tool_log = []
 
-        node = make_respond_node(mock_llm, prompts, answer_tag="ANSWER:")
+        node = make_respond_node(mock_llm, prompts)
         agents = [
             AgentState(
                 id=0, type="buyer", reservation_price=2.0, active=True,
@@ -432,29 +422,23 @@ class TestPersonaPlusCoT:
 
 
 # ===========================================================================
-# 4. CoT + History summary in double-auction
+# 4. Structured output + History summary in double-auction
 # ===========================================================================
 
 
 class TestCoTPlusHistorySummary:
-    """Verify CoT and history summary compose correctly."""
+    """Verify structured output and history summary compose correctly."""
 
-    def test_cot_extraction_independent_of_history_mode(self):
-        """CoT extraction works on the LLM response, not the prompt.
-        History mode only affects the prompt, so CoT should work identically."""
-        response = "The summary shows prices rising. ANSWER: 2.00"
-        price, reasoning = _extract_price(response, answer_tag="ANSWER:")
-        assert price == 2.00
-        assert "rising" in reasoning
-
-    def test_announce_with_cot_and_summary_history(self):
-        """Announce node with CoT enabled and summary history mode."""
+    def test_announce_with_structured_output_and_summary_history(self):
+        """Announce node with structured output and summary history mode."""
         prompts = _make_prompt_config()
         mock_llm = MagicMock()
-        mock_llm.invoke.return_value = "Prices are stable. ANSWER: 1.50"
+        mock_llm.invoke_structured.return_value = AnnouncementResponse(
+            price=1.50, reasoning="Prices are stable."
+        )
         mock_llm.last_tool_log = []
 
-        node = make_announce_node(mock_llm, prompts, answer_tag="ANSWER:")
+        node = make_announce_node(mock_llm, prompts)
         agents = [
             AgentState(
                 id=0, type="buyer", reservation_price=2.0, active=True,
@@ -469,24 +453,24 @@ class TestCoTPlusHistorySummary:
 
 
 # ===========================================================================
-# 5. All four features: Persona + CoT + History + Double-Auction
+# 5. All features: Persona + Structured output + History + Double-Auction
 # ===========================================================================
 
 
 class TestAllFeaturesDoubleAuction:
-    """Verify all four features compose correctly in a double-auction scenario."""
+    """Verify all features compose correctly in a double-auction scenario."""
 
     def test_full_announce_with_all_features(self):
-        """Announcement with persona, CoT, and summary history all enabled."""
+        """Announcement with persona, structured output, and summary history all enabled."""
         prompts = _make_prompt_config()
         mock_llm = MagicMock()
-        mock_llm.invoke.return_value = (
-            "As a cautious buyer, with only 1 transaction completed "
-            "at $1.50, I should bid conservatively. ANSWER: 1.40"
+        mock_llm.invoke_structured.return_value = AnnouncementResponse(
+            price=1.40,
+            reasoning="As a cautious buyer, with only 1 transaction completed at $1.50, I should bid conservatively.",
         )
         mock_llm.last_tool_log = []
 
-        node = make_announce_node(mock_llm, prompts, answer_tag="ANSWER:")
+        node = make_announce_node(mock_llm, prompts)
         agents = [
             AgentState(
                 id=0, type="buyer", reservation_price=2.0, active=True,
@@ -523,13 +507,15 @@ class TestAllFeaturesDoubleAuction:
         assert result["announcement_made"] is True
 
     def test_full_respond_with_all_features(self):
-        """Response with persona, CoT, and summary history all enabled."""
+        """Response with persona, structured output, and summary history all enabled."""
         prompts = _make_prompt_config()
         mock_llm = MagicMock()
-        mock_llm.invoke.return_value = "Price is reasonable. ANSWER: yes"
+        mock_llm.invoke_structured.return_value = AcceptRejectResponse(
+            accept=True, reasoning="Price is reasonable."
+        )
         mock_llm.last_tool_log = []
 
-        node = make_respond_node(mock_llm, prompts, answer_tag="ANSWER:")
+        node = make_respond_node(mock_llm, prompts)
         agents = [
             AgentState(
                 id=0, type="buyer", reservation_price=2.0, active=True,
@@ -566,13 +552,11 @@ class TestConfigCrossCompatibility:
             experiment=ExperimentConfig(
                 history=HistoryConfig(mode="summary", own_history_mode="summary"),
             ),
-            chain_of_thought=ChainOfThoughtConfig(enabled=True, answer_tag="ANSWER:"),
             personas=PersonaConfig(
                 buyer_default="Aggressive buyer.",
                 seller_default="Cautious seller.",
             ),
         )
-        assert cfg.chain_of_thought.enabled is True
         assert cfg.experiment.history.mode == "summary"
         assert cfg.personas.buyer_default == "Aggressive buyer."
 
@@ -593,17 +577,14 @@ class TestConfigCrossCompatibility:
         assert cfg.experiment.auction_type == AuctionType.ENGLISH
         assert cfg.personas.bidder_default == "Rational bidder."
 
-    def test_auction_config_with_cot_and_personas(self):
-        """Config loads — even though CoT isn't used in auction graph yet."""
+    def test_auction_config_with_personas_strategic(self):
         cfg = SimulationConfig(
             experiment=ExperimentConfig(
                 auction_type=AuctionType.FPSB,
                 auction=AuctionConfig(),
             ),
-            chain_of_thought=ChainOfThoughtConfig(enabled=True),
             personas=PersonaConfig(bidder_default="Strategic."),
         )
-        assert cfg.chain_of_thought.enabled is True
         assert cfg.personas.bidder_default == "Strategic."
 
     def test_double_auction_with_all_features_config(self):
@@ -616,7 +597,6 @@ class TestConfigCrossCompatibility:
                     summary_last_n_events=5,
                 ),
             ),
-            chain_of_thought=ChainOfThoughtConfig(enabled=True, answer_tag="FINAL:"),
             personas=PersonaConfig(
                 buyer_default="Aggressive.",
                 seller_default="Conservative.",
@@ -624,7 +604,6 @@ class TestConfigCrossCompatibility:
             ),
         )
         assert cfg.experiment.history.mode == "summary"
-        assert cfg.chain_of_thought.answer_tag == "FINAL:"
         assert cfg.personas.buyers[0] == "Wild card."
 
 
@@ -751,61 +730,7 @@ class TestAuctionPromptWithHistoryAndPersona:
 
 
 # ===========================================================================
-# 9. Edge cases: CoT answer tag in various contexts
-# ===========================================================================
-
-
-class TestCoTEdgeCases:
-    """Edge cases where CoT interacts with other features."""
-
-    def test_cot_tag_in_history_text_doesnt_affect_extraction(self):
-        """If market_history contains 'ANSWER:', it shouldn't affect CoT
-        since history is in the PROMPT, not the LLM response."""
-        response = "I'll bid low. ANSWER: 1.00"
-        price, reasoning = _extract_price(response, answer_tag="ANSWER:")
-        assert price == 1.00
-
-    def test_multiple_answer_tags_uses_last_one(self):
-        """rfind should pick the last ANSWER: tag."""
-        response = "ANSWER: maybe not sure. Let me reconsider. ANSWER: 3.50"
-        price, reasoning = _extract_price(response, answer_tag="ANSWER:")
-        assert price == 3.50
-        assert "maybe not sure" in reasoning
-
-    def test_cot_with_custom_tag(self):
-        """Custom answer tag should work."""
-        response = "Thinking... FINAL: 2.00"
-        price, reasoning = _extract_price(response, answer_tag="FINAL:")
-        assert price == 2.00
-
-    def test_respond_cot_with_ambiguous_reasoning(self):
-        """Reasoning containing 'yes' should not affect final answer."""
-        response = "Yesterday was a yes day but today I'm cautious. ANSWER: no"
-        accepted, reasoning = _extract_response(response, answer_tag="ANSWER:")
-        assert accepted is False
-        assert "Yesterday" in reasoning
-
-    def test_auction_extract_bid_no_cot_support(self):
-        """Auction extract_bid doesn't support CoT — document this behavior.
-        A CoT response would be parsed differently than expected."""
-        response = "I think $3.00 is fair. ANSWER: 2.50"
-        # Without CoT, extract_bid picks up $3.00 (stage 2: $-prefix)
-        # or $2.50 (also $-prefix, whichever is last)
-        result = extract_bid(response)
-        # extract_bid doesn't have answer_tag support, so it just parses normally
-        assert result is not None  # It will find a number
-
-    def test_auction_extract_yes_no_no_cot_support(self):
-        """Auction extract_yes_no doesn't support CoT — document behavior."""
-        response = "I should say yes because price is low. ANSWER: no"
-        # Without CoT scoping, extract_yes_no searches the ENTIRE response
-        # and will find "yes" in the reasoning
-        result = extract_yes_no(response)
-        assert result is True  # This is a known limitation — finds "yes" in reasoning
-
-
-# ===========================================================================
-# 10. History summary edge cases with auction-like data
+# 9. History summary edge cases with auction-like data
 # ===========================================================================
 
 

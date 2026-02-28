@@ -184,18 +184,6 @@ class PersonaConfig(BaseModel):
     bidders: dict[int, str] = Field(default_factory=dict)
 
 
-class ChainOfThoughtConfig(BaseModel):
-    """Chain-of-thought reasoning configuration for agents.
-
-    Note: When CoT is enabled, set ``llm.max_tokens`` to an appropriately
-    high value (e.g. 500+) in the YAML config so the model has room for
-    reasoning before the answer tag.
-    """
-
-    enabled: bool = False
-    answer_tag: str = "ANSWER:"
-
-
 class SimulationConfig(BaseModel):
     """Complete simulation configuration."""
 
@@ -204,5 +192,4 @@ class SimulationConfig(BaseModel):
     tracing: TracingConfig = Field(default_factory=TracingConfig)
     prompts: PromptConfig = Field(default_factory=PromptConfig)
     tools: ToolConfig = Field(default_factory=ToolConfig)
-    chain_of_thought: ChainOfThoughtConfig = Field(default_factory=ChainOfThoughtConfig)
     personas: PersonaConfig = Field(default_factory=PersonaConfig)

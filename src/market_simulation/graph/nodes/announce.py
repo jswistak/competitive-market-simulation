@@ -1,6 +1,5 @@
 """Announcement-related graph nodes."""
 
-import re
 import random
 import logging
 from typing import Callable, Any
@@ -10,6 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from ..state import MarketState
 from ..history import build_market_history_for_prompt, build_own_history_for_prompt
 from ...llm.providers.base import LLMProvider
+from ...llm.response_schemas import AnnouncementResponse
 from ...config.schema import PromptConfig
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,6 @@ def make_announce_node(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
-    answer_tag: str | None = None,
 ) -> Callable[[MarketState, RunnableConfig], dict]:
     """Create node that handles agent price announcements.
 
@@ -120,11 +119,12 @@ def make_announce_node(
             callbacks = callbacks_factory()
 
         try:
-            response = llm.invoke(prompt, callbacks=callbacks)
+            response = llm.invoke_structured(prompt, AnnouncementResponse, callbacks=callbacks)
+            price = response.price
+            reasoning = response.reasoning
             logger.debug(
-                f"Raw LLM announcement response for agent {agent_id}: '{response}'"
+                f"Structured announcement for agent {agent_id}: price={price}, reasoning='{reasoning[:100]}...'"
             )
-            price, reasoning = _extract_price(response, answer_tag=answer_tag)
 
             # Capture tool usage log if available
             tool_log_entries = getattr(llm, "last_tool_log", [])
@@ -142,16 +142,14 @@ def make_announce_node(
             ]
 
             if price is None:
-                logger.warning(
-                    f"Could not parse price from agent {agent_id} "
-                    f"(R{state['round']}/I{state['iteration']}): '{response}'"
+                logger.info(
+                    f"Agent {agent_id} chose not to announce "
+                    f"(R{state['round']}/I{state['iteration']})"
                 )
                 return {
                     "announcement_made": False,
                     "announced_price": None,
-                    "last_error": f"Could not parse price: {response}",
                     "tool_usage_log": tool_usage_log,
-                    "parse_failures": state.get("parse_failures", 0) + 1,
                     "announced_this_iteration": state.get(
                         "announced_this_iteration", []
                     )
@@ -257,83 +255,3 @@ def _render_announcement_prompt(
     return result.replace("<<PERSONA>>", persona_text)
 
 
-def _extract_price(
-    response: str, answer_tag: str | None = None
-) -> tuple[float | None, str]:
-    """Extract price from LLM response.
-
-    Handles both plain numbers and longer tool-augmented responses
-    where the number may be embedded in reasoning text.
-
-    Args:
-        response: Raw LLM response text.
-        answer_tag: Optional tag to split reasoning from answer (e.g. "ANSWER:").
-
-    Returns:
-        Tuple of (price, reasoning_text). reasoning_text is "" if no CoT detected.
-
-    Extraction priority:
-      0. If answer_tag provided, look for tagged answer first
-      1. Plain float parse (after stripping $ and ,)
-      2. Last $-prefixed number (e.g. "$3.27")
-      3. Last bare decimal number (e.g. "1.50") — requires decimal point
-         to avoid extracting round/iteration numbers like "round 1"
-    """
-    if not response or not response.strip():
-        return None, ""
-
-    reasoning = ""
-
-    # Stage 0: If answer_tag provided, try to split reasoning from answer
-    if answer_tag:
-        tag_idx = response.upper().rfind(answer_tag.upper())
-        if tag_idx != -1:
-            reasoning = response[:tag_idx].strip()
-            answer_part = response[tag_idx + len(answer_tag) :].strip()
-            clean = answer_part.replace("$", "").replace(",", "").split()[0] if answer_part else ""
-            if re.fullmatch(r"\d+\.?\d*", clean):
-                return float(clean), reasoning
-            # Tag was found but answer_part didn't parse as a valid number.
-            # Do NOT fall through to search the full response (which includes
-            # reasoning) -- prices mentioned in reasoning could be extracted
-            # as the announced price.
-            logger.warning(
-                f"Answer tag found but could not parse price from answer portion: "
-                f"'{answer_part}'"
-            )
-            return None, reasoning
-
-    # Stage 1: plain parse (most common case without tools)
-    # Validate format to reject negative numbers and scientific notation
-    clean = response.strip().replace("$", "").replace(",", "")
-    if re.fullmatch(r"\d+\.?\d*", clean):
-        return float(clean), reasoning
-
-    # Stage 2: prefer $-prefixed numbers (most reliable signal)
-    dollar_matches = re.findall(r"\$([\d]+\.?\d*)", response)
-    if dollar_matches:
-        try:
-            extracted = float(dollar_matches[-1])
-            logger.warning(
-                f"Price extracted via Stage 2 ($-prefix fallback). "
-                f"Response ({len(response)} chars): '{response}', extracted: {extracted}"
-            )
-            return extracted, reasoning
-        except ValueError:
-            pass
-
-    # Stage 3: bare decimal numbers only (require decimal point to avoid
-    # extracting round/iteration numbers like "round 1")
-    bare_matches = re.findall(r"(?<![\w\-])(\d+\.\d+)(?!\w)", response)
-    if bare_matches:
-        try:
-            extracted = float(bare_matches[-1])
-            logger.warning(
-                f"Price extracted via Stage 3 (bare-decimal fallback). "
-                f"Response ({len(response)} chars): '{response}', extracted: {extracted}"
-            )
-            return extracted, reasoning
-        except ValueError:
-            pass
-
-    return None, reasoning

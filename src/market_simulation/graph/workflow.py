@@ -31,7 +31,6 @@ def build_market_graph(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
-    answer_tag: str | None = None,
 ) -> StateGraph:
     """Build the market simulation LangGraph workflow.
 
@@ -47,9 +46,9 @@ def build_market_graph(
 
     # Add nodes
     builder.add_node("select_announcer", make_select_announcer_node())
-    builder.add_node("announce", make_announce_node(llm, prompts, callbacks_factory, answer_tag=answer_tag))
+    builder.add_node("announce", make_announce_node(llm, prompts, callbacks_factory))
     builder.add_node("select_responders", make_select_responders_node())
-    builder.add_node("respond", make_respond_node(llm, prompts, callbacks_factory, answer_tag=answer_tag))
+    builder.add_node("respond", make_respond_node(llm, prompts, callbacks_factory))
     builder.add_node("record_transaction", make_record_transaction_node())
     builder.add_node("check_iteration", make_check_iteration_node())
     builder.add_node("update_history", make_update_history_node())
@@ -98,7 +97,6 @@ def build_iteration_graph(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
-    answer_tag: str | None = None,
 ) -> StateGraph:
     """Build a simpler single-iteration graph for testing.
 
@@ -114,9 +112,9 @@ def build_iteration_graph(
 
     # Add nodes
     builder.add_node("select_announcer", make_select_announcer_node())
-    builder.add_node("announce", make_announce_node(llm, prompts, callbacks_factory, answer_tag=answer_tag))
+    builder.add_node("announce", make_announce_node(llm, prompts, callbacks_factory))
     builder.add_node("select_responders", make_select_responders_node())
-    builder.add_node("respond", make_respond_node(llm, prompts, callbacks_factory, answer_tag=answer_tag))
+    builder.add_node("respond", make_respond_node(llm, prompts, callbacks_factory))
     builder.add_node("record_transaction", make_record_transaction_node())
     builder.add_node("check_iteration", make_check_iteration_node())
     builder.add_node("update_history", make_update_history_node())
