@@ -15,7 +15,7 @@ llm:
   provider: anthropic
   model: claude-3-5-haiku-latest
   temperature: 0.0
-  max_tokens: 10
+  max_tokens: 150
   max_tokens_with_tools: 1024
   max_retries: 5
 
@@ -45,7 +45,6 @@ prompts:
     4. Compute expected profit for candidate prices
     5. Choose the price that maximizes expected profit
 
-    Your final answer must still be just a number (for price announcements) or yes/no (for responses).
 
   general:
     main_template: |
@@ -54,7 +53,7 @@ prompts:
       Under no condition can you {verb} {condition} your reservation price.
       However, {verb}ing at a price equal to your reservation price is acceptable and preferred than not {verb}ing at all.
 
-      There are 11 buyers and 11 sellers in the room (including you).
+      There are {N_BUYERS} buyers and {N_SELLERS} sellers in the room (including you).
       Any buyer or seller is free at any time to raise his hand and make a verbal offer to buy/sell.
       Any buyer or seller is free to accept an offer, in which case a binding contract has been formed, the transaction occurs and the buyer and seller drop out of the market (no longer permitted to do anything for the remainder of that round).
 
@@ -78,8 +77,6 @@ prompts:
       4. Compute expected profit for candidate prices
       5. Choose the price that maximizes expected profit
 
-      Your final answer must still be just a number (for price announcements) or yes/no (for responses).
-
       Market history:
       {market_history}
 
@@ -94,7 +91,7 @@ prompts:
       In round {round} at iteration {iteration}, your offer to {announcement_type} for ${price:.2f} was {outcome}.
 
     response_history_template: |
-      In round {round} at iteration {iteration}, you {outcome} an offer to {opposite_announcement_type} for ${price:.2f}.
+      In round {round} at iteration {iteration}, you {outcome} a {opposite_announcement_type} offer for ${price:.2f}.
 
   seller:
     main_keywords:
@@ -104,10 +101,10 @@ prompts:
       condition: below
 
     response_prompt: |
-      Someone is offering to buy at ${price:.2f}. Do you sell? Only answer with a yes or no.
+      Someone is offering to buy at ${price:.2f}. Do you sell?
 
     announcement_prompt: |
-      Do you want to announce an offer to sell? If so, what is your asking price? Answer only with a number.
+      Do you want to announce an offer to sell? If so, what is your asking price?
 
   buyer:
     main_keywords:
@@ -117,7 +114,7 @@ prompts:
       condition: above
 
     response_prompt: |
-      Someone is offering to sell at ${price:.2f}. Do you buy? Only answer with a yes or no.
+      Someone is offering to sell at ${price:.2f}. Do you buy?
 
     announcement_prompt: |
-      Do you want to announce a bid to buy? If so, what is your bid price? Answer only with a number.
+      Do you want to announce a bid to buy? If so, what is your bid price?

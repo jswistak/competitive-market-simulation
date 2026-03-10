@@ -1,6 +1,5 @@
 """Announcement-related graph nodes."""
 
-import re
 import random
 import logging
 from typing import Callable, Any
@@ -8,7 +7,9 @@ from typing import Callable, Any
 from langchain_core.runnables import RunnableConfig
 
 from ..state import MarketState
+from ..history import build_market_history_for_prompt, build_own_history_for_prompt
 from ...llm.providers.base import LLMProvider
+from ...llm.response_schemas import AnnouncementResponse, AnnouncementResponseWithReasoning
 from ...config.schema import PromptConfig
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ def make_announce_node(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    response_schema: type[AnnouncementResponse] = AnnouncementResponseWithReasoning,
 ) -> Callable[[MarketState, RunnableConfig], dict]:
     """Create node that handles agent price announcements.
 
@@ -61,6 +63,7 @@ def make_announce_node(
         prompts: Prompt configuration.
         callbacks_factory: Optional factory for tracing callbacks (deprecated,
             prefer passing callbacks via graph config).
+        response_schema: Pydantic schema for structured output.
 
     Returns:
         Node function that generates price announcement.
@@ -82,7 +85,11 @@ def make_announce_node(
 
         if agent is None:
             logger.error(f"Agent {agent_id} not found")
-            return {"announcement_made": False, "announced_price": None, "last_error": f"Agent {agent_id} not found"}
+            return {
+                "announcement_made": False,
+                "announced_price": None,
+                "last_error": f"Agent {agent_id} not found",
+            }
 
         # Determine agent type and get appropriate config
         agent_type = agent["type"]
@@ -103,6 +110,10 @@ def make_announce_node(
             agent_prompts=agent_prompts,
         )
 
+        logger.debug(
+            f"Announcement prompt for agent {agent_id} (truncated): '{prompt[:200]}...'"
+        )
+
         # Get callbacks from config (propagated from graph.invoke)
         # Falls back to callbacks_factory for backwards compatibility
         callbacks = config.get("callbacks", []) if config else []
@@ -110,8 +121,12 @@ def make_announce_node(
             callbacks = callbacks_factory()
 
         try:
-            response = llm.invoke(prompt, callbacks=callbacks)
-            price = _extract_price(response)
+            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            price = response.price
+            reasoning = getattr(response, 'reasoning', '')
+            logger.debug(
+                f"Structured announcement for agent {agent_id}: price={price}, reasoning='{reasoning[:100]}...'"
+            )
 
             # Capture tool usage log if available
             tool_log_entries = getattr(llm, "last_tool_log", [])
@@ -129,34 +144,73 @@ def make_announce_node(
             ]
 
             if price is None:
-                logger.warning(f"Could not parse price from response: {response}")
+                logger.info(
+                    f"Agent {agent_id} chose not to announce "
+                    f"(R{state['round']}/I{state['iteration']})"
+                )
                 return {
                     "announcement_made": False,
                     "announced_price": None,
-                    "last_error": f"Could not parse price: {response}",
                     "tool_usage_log": tool_usage_log,
+                    "announced_this_iteration": state.get(
+                        "announced_this_iteration", []
+                    )
+                    + [agent_id],
+                    "last_announcement_reasoning": reasoning,
                 }
 
+            # Check for reservation price constraint violation (log only)
+            reservation = agent["reservation_price"]
+            violation = False
+            if agent_type == "buyer" and price > reservation:
+                logger.warning(
+                    f"CONSTRAINT VIOLATION: Buyer {agent_id} announced ${price:.2f} "
+                    f"above reservation ${reservation:.2f}"
+                )
+                violation = True
+            elif agent_type == "seller" and price < reservation:
+                logger.warning(
+                    f"CONSTRAINT VIOLATION: Seller {agent_id} announced ${price:.2f} "
+                    f"below reservation ${reservation:.2f}"
+                )
+                violation = True
+
             announcement_type = "buy" if agent_type == "buyer" else "sell"
-            logger.info(f"Agent {agent_id} ({agent_type}) announced {announcement_type} at ${price:.2f}")
+            logger.info(
+                f"Agent {agent_id} ({agent_type}, reservation=${reservation:.2f}) "
+                f"announced {announcement_type} at ${price:.2f}"
+            )
 
             # Track that this agent has announced this iteration
-            announced_this_iteration = state.get("announced_this_iteration", []) + [agent_id]
+            announced_this_iteration = state.get("announced_this_iteration", []) + [
+                agent_id
+            ]
 
-            return {
+            result = {
                 "announced_price": price,
                 "announcement_type": announcement_type,
                 "announcement_made": True,
                 "announced_this_iteration": announced_this_iteration,
                 "tool_usage_log": tool_usage_log,
+                "last_announcement_reasoning": reasoning,
             }
+            if violation:
+                result["constraint_violations"] = (
+                    state.get("constraint_violations", 0) + 1
+                )
+            return result
 
         except Exception as e:
-            logger.error(f"LLM call failed: {e}")
+            logger.error(
+                f"LLM call failed for agent {agent_id} (R{state['round']}/I{state['iteration']}): {e}"
+            )
             return {
                 "announcement_made": False,
                 "announced_price": None,
                 "last_error": str(e),
+                "announced_this_iteration": state.get("announced_this_iteration", [])
+                + [agent_id],
+                "last_announcement_reasoning": "",
             }
 
     return announce
@@ -179,41 +233,27 @@ def _render_announcement_prompt(
         "reservation_price": agent["reservation_price"],
         "N_ROUNDS": state["max_rounds"],
         "N_ITER": state["max_iterations"],
-        "market_history": state["market_history_text"],
-        "own_history": agent["own_history_prompt"],
+        "N_BUYERS": sum(1 for a in state["agents"] if a["type"] == "buyer"),
+        "N_SELLERS": sum(1 for a in state["agents"] if a["type"] == "seller"),
+        "market_history": build_market_history_for_prompt(
+            state,
+            mode=state.get("history_mode", "full"),
+            last_n_events=state.get("history_summary_last_n", 3),
+        ),
+        "own_history": build_own_history_for_prompt(
+            agent,
+            mode=state.get("own_history_mode", "full"),
+        ),
         "round": state["round"],
         "iteration": state["iteration"],
         "action_prompt": agent_prompts.announcement_prompt,
+        "persona": agent.get("persona", ""),
     }
 
-    return prompts.general.main_template.format(**template_vars)
+    # Use sentinel replacement for persona to avoid str.format() issues with curly braces
+    persona_text = template_vars.pop("persona")
+    template = prompts.general.main_template.replace("{persona}", "<<PERSONA>>")
+    result = template.format(**template_vars)
+    return result.replace("<<PERSONA>>", persona_text)
 
 
-def _extract_price(response: str) -> float | None:
-    """Extract price from LLM response.
-
-    Handles both plain numbers and longer tool-augmented responses
-    where the number may be embedded in reasoning text.
-    """
-    # Try plain parse first (most common case without tools)
-    try:
-        clean = response.strip().replace("$", "").replace(",", "")
-        return float(clean)
-    except ValueError:
-        pass
-
-    # Fallback: find numbers in the response (for tool-augmented responses)
-    matches = re.findall(r"\$?([\d]+\.?\d*)", response)
-    if matches:
-        # Take the last number as the final answer
-        try:
-            extracted = float(matches[-1])
-            logger.critical(
-                f"Price extracted via regex fallback (not plain parse). "
-                f"Response: '{response}', extracted: {extracted}, all matches: {matches}"
-            )
-            return extracted
-        except ValueError:
-            pass
-
-    return None

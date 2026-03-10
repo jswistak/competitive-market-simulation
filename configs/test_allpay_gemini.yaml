@@ -1,0 +1,56 @@
+experiment:
+  auction_type: all_pay
+  auction:
+    n_rounds: 2
+    n_simulations: 2
+    bidders:
+      num: 4
+      value_min: 0.0
+      value_max: 10.0
+      distribution: linspace
+
+llm:
+  provider: gemini
+  model: gemini-3-flash-preview
+  temperature: 0.0
+  max_tokens: 1024
+  max_retries: 5
+
+tracing:
+  enabled: false
+
+prompts:
+  auction:
+    system_template: |
+      You are Bidder {bidder_id} in an All-Pay auction.
+
+      RULES:
+      - There are {n_bidders} bidders. Each has a private value for the item, known only to them.
+      - All bidders simultaneously submit one sealed bid. No one sees others' bids.
+      - The highest bidder wins the item.
+      - EVERY bidder pays their bid, whether they win or lose.
+      - If you win: your profit = your private value - your bid.
+      - If you lose: your profit = -your bid (you lose what you bid).
+
+      {value_explanation}
+
+      Your private value for the item is {private_value}.
+
+      There will be {max_rounds} rounds. This is round {round}/{max_rounds}.
+
+      Market history:
+      {market_history}
+
+      Your history:
+      {own_history}
+
+      {action_prompt}
+
+    bid_prompt: |
+      Submit your bid.
+
+    value_explanation: |
+      STRATEGY NOTE: You pay your bid regardless of whether you win.
+      Bidding high increases your chance of winning but also your cost.
+      Bidding zero guarantees zero loss but also zero chance of winning.
+      You should NEVER bid above your private value, as even winning would be a net loss.

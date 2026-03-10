@@ -24,28 +24,33 @@ def make_update_history_node() -> Callable[[MarketState], dict]:
         announcement_made = state["announcement_made"]
         transaction_made = state["transaction_made"]
 
-        # Get reservation prices for record
+        # Get reservation prices for record (only when relevant)
         announcing_rp = None
         responding_rp = None
 
-        for agent in state["agents"]:
-            if agent["id"] == state["announcing_agent_id"]:
-                announcing_rp = agent["reservation_price"]
-            if agent["id"] == state["responding_agent_id"]:
-                responding_rp = agent["reservation_price"]
+        if announcement_made:
+            for agent in state["agents"]:
+                if agent["id"] == state["announcing_agent_id"]:
+                    announcing_rp = agent["reservation_price"]
+                if agent["id"] == state["responding_agent_id"]:
+                    responding_rp = agent["reservation_price"]
 
         # Create iteration record
+        # When announcement_made=False, clear fields that may be stale from
+        # a previous announcement cycle within the same iteration
         record = IterationRecord(
             round=round_num,
             iteration=iteration,
-            price=price,
+            price=price if announcement_made else None,
             announcement_made=announcement_made,
             transaction_made=transaction_made,
-            announcement_type=announcement_type,
+            announcement_type=announcement_type if announcement_made else None,
             announcing_agent_id=state["announcing_agent_id"],
             announcing_agent_reservation_price=announcing_rp,
-            responding_agent_id=state["responding_agent_id"],
+            responding_agent_id=state["responding_agent_id"] if announcement_made else None,
             responding_agent_reservation_price=responding_rp,
+            announcement_reasoning=state.get("last_announcement_reasoning", ""),
+            response_reasoning=state.get("last_response_reasoning", "") if announcement_made else "",
         )
 
         # Check if all responders for the current announcement have been queried
@@ -134,7 +139,7 @@ def _update_agent_histories(state: MarketState) -> list[dict]:
             agent_copy["own_history_prompt"] = (
                 agent["own_history_prompt"]
                 + f"In round {state['round']} at iteration {state['iteration']}, "
-                f"you {outcome} an offer to {opp_type} for ${state['announced_price']:.2f}.\n"
+                f"you {outcome} a {opp_type} offer for ${state['announced_price']:.2f}.\n"
             )
 
         updated.append(agent_copy)
@@ -157,9 +162,11 @@ def make_check_iteration_node() -> Callable[[MarketState], dict]:
         # 3. No announcement was made
 
         if state["transaction_made"]:
+            logger.info(f"R{state['round']}/I{state['iteration']}: Iteration complete (transaction made)")
             return {"iteration_complete": True}
 
         if not state["announcement_made"]:
+            logger.info(f"R{state['round']}/I{state['iteration']}: Iteration complete (no announcement)")
             return {"iteration_complete": True}
 
         # Check if more responders to query
@@ -167,6 +174,10 @@ def make_check_iteration_node() -> Callable[[MarketState], dict]:
         total_responders = len(state["potential_responder_ids"])
 
         if responder_idx >= total_responders:
+            logger.info(
+                f"R{state['round']}/I{state['iteration']}: Iteration complete "
+                f"(all {total_responders} responders queried)"
+            )
             return {"iteration_complete": True}
 
         return {"iteration_complete": False}
@@ -210,7 +221,7 @@ def make_next_iteration_node() -> Callable[[MarketState], dict]:
     def next_iteration(state: MarketState) -> dict:
         """Advance to the next iteration."""
         new_iteration = state["iteration"] + 1
-        logger.info(f"Advancing to iteration {new_iteration}")
+        logger.info(f"R{state['round']}: Advancing to iteration {new_iteration}")
 
         return {
             "iteration": new_iteration,
@@ -225,6 +236,8 @@ def make_next_iteration_node() -> Callable[[MarketState], dict]:
             "potential_responder_ids": [],
             "current_responder_index": 0,
             "announced_this_iteration": [],  # Reset for new iteration
+            "last_announcement_reasoning": "",
+            "last_response_reasoning": "",
         }
 
     return next_iteration
@@ -243,10 +256,12 @@ def make_next_round_node() -> Callable[[MarketState], dict]:
         max_rounds = state["max_rounds"]
 
         if new_round > max_rounds:
-            logger.info("Simulation complete: all rounds finished")
+            tx_count = len(state.get("transactions", []))
+            logger.info(f"Simulation complete: all {max_rounds} rounds finished ({tx_count} total transactions)")
             return {"simulation_complete": True}
 
-        logger.info(f"Advancing to round {new_round}")
+        tx_in_round = sum(1 for t in state.get("transactions", []) if t["round"] == state["round"])
+        logger.info(f"Round {state['round']} completed with {tx_in_round} transaction(s). Advancing to round {new_round}")
 
         # Reactivate all agents for new round
         updated_agents = []
@@ -272,6 +287,8 @@ def make_next_round_node() -> Callable[[MarketState], dict]:
             "potential_responder_ids": [],
             "current_responder_index": 0,
             "announced_this_iteration": [],  # Reset for new round
+            "last_announcement_reasoning": "",
+            "last_response_reasoning": "",
         }
 
     return next_round

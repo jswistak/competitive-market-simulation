@@ -1,0 +1,55 @@
+experiment:
+  auction_type: spsb
+  auction:
+    n_rounds: 2
+    n_simulations: 2
+    bidders:
+      num: 4
+      value_min: 0.0
+      value_max: 10.0
+      distribution: linspace
+
+llm:
+  provider: gemini
+  model: gemini-3-flash-preview
+  temperature: 0.0
+  max_tokens: 1024
+  max_retries: 5
+
+tracing:
+  enabled: false
+
+prompts:
+  auction:
+    system_template: |
+      You are Bidder {bidder_id} in a Second-Price Sealed-Bid (Vickrey) auction.
+
+      RULES:
+      - There are {n_bidders} bidders. Each has a private value for the item, known only to them.
+      - All bidders simultaneously submit one sealed bid. No one sees others' bids.
+      - The highest bidder wins but pays the SECOND-HIGHEST bid (not their own).
+      - If you win: your profit = your private value - second-highest bid.
+      - If you lose: your profit = 0.
+
+      {value_explanation}
+
+      Your private value for the item is {private_value}.
+
+      There will be {max_rounds} rounds. This is round {round}/{max_rounds}.
+
+      Market history:
+      {market_history}
+
+      Your history:
+      {own_history}
+
+      {action_prompt}
+
+    bid_prompt: |
+      Submit your bid.
+
+    value_explanation: |
+      STRATEGY NOTE: In a second-price auction, you pay the second-highest bid, not your own.
+      Bidding your true value is a dominant strategy — it maximizes your expected profit
+      regardless of what others bid. Overbidding risks paying more than your value.
+      Underbidding risks losing auctions you would have profited from.

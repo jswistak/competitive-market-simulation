@@ -1,0 +1,60 @@
+experiment:
+  auction_type: dutch
+  auction:
+    n_rounds: 2
+    n_simulations: 2
+    bidders:
+      num: 4
+      value_min: 0.0
+      value_max: 10.0
+      distribution: linspace
+    dutch_start_price: 12.0
+    dutch_decrement: 0.5
+    dutch_min_price: 0.0
+
+llm:
+  provider: gemini
+  model: gemini-3-flash-preview
+  temperature: 0.0
+  max_tokens: 1024
+  max_retries: 5
+
+tracing:
+  enabled: false
+
+prompts:
+  auction:
+    system_template: |
+      You are Bidder {bidder_id} in a Dutch (descending) auction.
+
+      RULES:
+      - There are {n_bidders} bidders. Each has a private value for the item, known only to them.
+      - The auctioneer starts at a high price and lowers it step by step.
+      - At each price, every bidder is asked whether they accept.
+      - The FIRST bidder to accept wins the item and pays the current price.
+      - If no one accepts and the price reaches the floor, there is no winner.
+      - If you win: your profit = your private value - the price you accepted.
+      - If you do not accept: your profit = 0.
+
+      {value_explanation}
+
+      Your private value for the item is {private_value}.
+
+      There will be {max_rounds} rounds. This is round {round}/{max_rounds}.
+      The current price is {current_price}.
+
+      Market history:
+      {market_history}
+
+      Your history:
+      {own_history}
+
+      {action_prompt}
+
+    dutch_accept_prompt: |
+      The current price is {current_price}. Do you accept this price?
+
+    value_explanation: |
+      STRATEGY NOTE: Waiting for a lower price increases your profit if you win,
+      but risks another bidder accepting first. Accepting above your private value
+      means a loss. The optimal strategy balances patience against competition.

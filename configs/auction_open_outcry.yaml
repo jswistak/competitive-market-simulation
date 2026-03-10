@@ -1,0 +1,61 @@
+experiment:
+  auction_type: first_price_open_outcry
+  auction:
+    n_rounds: 10
+    n_simulations: 10
+    bidders:
+      num: 5
+      value_min: 0.0
+      value_max: 10.0
+      distribution: linspace
+    min_increment: 0.5
+    max_bidding_rounds: 50
+
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.0
+  max_tokens: 150
+  max_retries: 5
+
+tracing:
+  enabled: true
+
+prompts:
+  auction:
+    system_template: |
+      You are Bidder {bidder_id} in a First-Price Open-Outcry auction.
+
+      RULES:
+      - There are {n_bidders} bidders ({n_active} still active). Each has a private value, known only to them.
+      - Bidders take turns in an ascending auction. On your turn you may either:
+        (a) Place a bid of at least {min_bid} (current standing bid {standing_bid} + minimum increment {min_increment}), or
+        (b) Say "pass" to permanently drop out of this round.
+      - The auction ends when only one bidder remains or a full cycle passes with no new bids.
+      - The winner pays their OWN final bid (first-price rule).
+      - If you win: your profit = your private value - your winning bid.
+      - If you drop out: your profit = 0 for this round.
+
+      {value_explanation}
+
+      Your private value for the item is {private_value}.
+
+      There will be {max_rounds} rounds. This is round {round}/{max_rounds}.
+      The current standing bid is {standing_bid}. You must bid at least {min_bid} or pass.
+
+      Market history:
+      {market_history}
+
+      Your history:
+      {own_history}
+
+      {action_prompt}
+
+    english_bid_prompt: |
+      Enter your bid (at least {min_bid}) or say "pass" to drop out. Remember: you pay your own bid.
+
+    value_explanation: |
+      STRATEGY NOTE: Unlike a standard English auction, you pay your OWN winning bid.
+      This means you should consider shading your bid — staying in just long enough to win
+      without bidding too close to your value. Dropping out before the price exceeds your value
+      is still wise, but the closer you bid to your value, the less profit you make.

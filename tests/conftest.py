@@ -23,6 +23,7 @@ MAIN_TEMPLATE = (
     "You are a {role}. Verb: {verb}. Preference: {preference}. "
     "Condition: {condition}. Reservation: {reservation_price}. "
     "Rounds: {N_ROUNDS}. Iters: {N_ITER}. "
+    "Buyers: {N_BUYERS}. Sellers: {N_SELLERS}. "
     "Market: {market_history}. Own: {own_history}. "
     "Round {round}/{N_ROUNDS} Iter {iteration}/{N_ITER}. {action_prompt}"
 )
@@ -80,7 +81,7 @@ def llm_config():
         provider="openai",
         model="gpt-4o-mini",
         temperature=0.0,
-        max_tokens=10,
+        max_tokens=50,
         max_retries=3,
     )
 
@@ -115,6 +116,7 @@ def sample_buyer():
         active=True,
         own_history_prompt="",
         own_history_data=[],
+        persona="",
     )
 
 
@@ -127,6 +129,7 @@ def sample_seller():
         active=True,
         own_history_prompt="",
         own_history_data=[],
+        persona="",
     )
 
 
@@ -134,12 +137,12 @@ def sample_seller():
 def sample_agents():
     """Three buyers (ids 0-2) and three sellers (ids 3-5)."""
     return [
-        AgentState(id=0, type="buyer", reservation_price=2.0, active=True, own_history_prompt="", own_history_data=[]),
-        AgentState(id=1, type="buyer", reservation_price=1.5, active=True, own_history_prompt="", own_history_data=[]),
-        AgentState(id=2, type="buyer", reservation_price=1.0, active=True, own_history_prompt="", own_history_data=[]),
-        AgentState(id=3, type="seller", reservation_price=1.0, active=True, own_history_prompt="", own_history_data=[]),
-        AgentState(id=4, type="seller", reservation_price=1.5, active=True, own_history_prompt="", own_history_data=[]),
-        AgentState(id=5, type="seller", reservation_price=2.0, active=True, own_history_prompt="", own_history_data=[]),
+        AgentState(id=0, type="buyer", reservation_price=2.0, active=True, own_history_prompt="", own_history_data=[], persona=""),
+        AgentState(id=1, type="buyer", reservation_price=1.5, active=True, own_history_prompt="", own_history_data=[], persona=""),
+        AgentState(id=2, type="buyer", reservation_price=1.0, active=True, own_history_prompt="", own_history_data=[], persona=""),
+        AgentState(id=3, type="seller", reservation_price=1.0, active=True, own_history_prompt="", own_history_data=[], persona=""),
+        AgentState(id=4, type="seller", reservation_price=1.5, active=True, own_history_prompt="", own_history_data=[], persona=""),
+        AgentState(id=5, type="seller", reservation_price=2.0, active=True, own_history_prompt="", own_history_data=[], persona=""),
     ]
 
 
@@ -172,15 +175,30 @@ def base_market_state(sample_agents):
         round_complete=False,
         simulation_complete=False,
         tool_usage_log=[],
+        last_announcement_reasoning="",
+        last_response_reasoning="",
         last_error=None,
+        parse_failures=0,
+        constraint_violations=0,
+        history_mode="full",
+        history_summary_last_n=3,
+        own_history_mode="full",
     )
 
 
 @pytest.fixture
 def mock_llm():
-    """A mock LLM provider that returns configurable responses."""
+    """A mock LLM provider that returns configurable responses.
+
+    Uses invoke_structured which returns Pydantic model instances.
+    Default: returns AnnouncementResponse(price=1.50, reasoning="").
+    Tests should override mock_llm.invoke_structured.return_value as needed.
+    """
+    from market_simulation.llm.response_schemas import AnnouncementResponseWithReasoning
+
     llm = MagicMock()
-    llm.invoke.return_value = "1.50"
+    llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=1.50, reasoning="")
+    llm.invoke.return_value = "1.50"  # Keep for backwards compat if any test still uses invoke
     llm.provider_name = "mock"
     llm.model_name = "mock-model"
     llm.last_tool_log = []

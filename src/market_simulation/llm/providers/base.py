@@ -1,7 +1,10 @@
 """Base LLM provider interface."""
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any
+
+from pydantic import BaseModel as PydanticBaseModel
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
@@ -9,6 +12,27 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.callbacks import CallbackManager
 
 from ...config.schema import LLMConfig
+
+logger = logging.getLogger(__name__)
+
+
+def _normalize_content(content: Any) -> str:
+    """Normalize LLM response content to a plain string.
+
+    Newer Gemini models return content as a list of parts
+    instead of a plain string.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, str):
+                text_parts.append(part)
+            elif isinstance(part, dict) and "text" in part:
+                text_parts.append(part["text"])
+        return "".join(text_parts)
+    return str(content)
 
 
 class LLMProvider(ABC):
@@ -69,8 +93,55 @@ class LLMProvider(ABC):
         if callbacks:
             config["callbacks"] = callbacks
 
-        response = model.invoke([message], config=config, **self._max_tokens_kwargs(self.config.max_tokens))
-        return response.content
+        response = model.invoke(
+            [message], config=config, **self._max_tokens_kwargs(self.config.max_tokens)
+        )
+        content = _normalize_content(response.content)
+
+        if not content.strip():
+            metadata = getattr(response, "response_metadata", {}) or {}
+            finish_reason = metadata.get("finish_reason", "unknown")
+            log_msg = (
+                f"Empty response from LLM (finish_reason: {finish_reason}, "
+                f"model: {self.config.model}, max_tokens: {self.config.max_tokens})"
+            )
+            if finish_reason in ("length", "max_tokens"):
+                logger.error(
+                    f"TRUNCATED: {log_msg} — response was cut off by token limit, "
+                    f"consider increasing max_tokens"
+                )
+            else:
+                logger.warning(log_msg)
+
+        return content
+
+    def invoke_structured(
+        self,
+        prompt: str,
+        schema: type[PydanticBaseModel],
+        callbacks: list[Any] | None = None,
+    ) -> PydanticBaseModel:
+        """Invoke the model and return a structured Pydantic response.
+
+        Args:
+            prompt: The prompt text.
+            schema: Pydantic model class to parse the response into.
+            callbacks: Optional list of callbacks for tracing.
+
+        Returns:
+            An instance of the provided schema.
+        """
+        model = self.get_model()
+        structured_model = model.with_structured_output(schema)
+        message = HumanMessage(content=prompt)
+
+        config: dict[str, Any] = {}
+        if callbacks:
+            config["callbacks"] = callbacks
+
+        return structured_model.invoke(
+            [message], config=config, **self._max_tokens_kwargs(self.config.max_tokens)
+        )
 
     @property
     def model_name(self) -> str:

@@ -7,7 +7,9 @@ from typing import Callable, Any
 from langchain_core.runnables import RunnableConfig
 
 from ..state import MarketState
+from ..history import build_market_history_for_prompt, build_own_history_for_prompt
 from ...llm.providers.base import LLMProvider
+from ...llm.response_schemas import AcceptRejectResponse, AcceptRejectResponseWithReasoning
 from ...config.schema import PromptConfig
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,13 @@ def make_select_responders_node() -> Callable[[MarketState], dict]:
                 announcer_type = agent["type"]
                 break
 
+        if announcer_type is None:
+            logger.error(
+                f"Announcing agent {announcing_id} not found in agents list. "
+                f"Returning empty responders."
+            )
+            return {"potential_responder_ids": [], "current_responder_index": 0}
+
         # Get opposite type agents who are still active
         target_type = "seller" if announcer_type == "buyer" else "buyer"
 
@@ -57,6 +66,7 @@ def make_respond_node(
     llm: LLMProvider,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
+    response_schema: type[AcceptRejectResponse] = AcceptRejectResponseWithReasoning,
 ) -> Callable[[MarketState, RunnableConfig], dict]:
     """Create node that handles agent responses to announcements.
 
@@ -65,6 +75,7 @@ def make_respond_node(
         prompts: Prompt configuration.
         callbacks_factory: Optional factory for tracing callbacks (deprecated,
             prefer passing callbacks via graph config).
+        response_schema: Pydantic schema for structured output.
 
     Returns:
         Node function that generates response.
@@ -129,8 +140,12 @@ def make_respond_node(
             callbacks = callbacks_factory()
 
         try:
-            response = llm.invoke(prompt, callbacks=callbacks)
-            accepted = _extract_response(response)
+            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            accepted = response.accept
+            reasoning = getattr(response, 'reasoning', '')
+            logger.debug(
+                f"Structured response for agent {responder_id}: accept={accepted}, reasoning='{reasoning[:100]}...'"
+            )
 
             # Capture tool usage log if available
             tool_log_entries = getattr(llm, "last_tool_log", [])
@@ -147,18 +162,40 @@ def make_respond_node(
                 for entry in tool_log_entries
             ]
 
+            # Check for reservation price constraint violation (log only)
+            violation = False
+            if accepted:
+                reservation = responder["reservation_price"]
+                announced_price = state["announced_price"]
+                if agent_type == "buyer" and announced_price > reservation:
+                    logger.warning(
+                        f"CONSTRAINT VIOLATION: Buyer {responder_id} accepted buy at "
+                        f"${announced_price:.2f} above reservation ${reservation:.2f}"
+                    )
+                    violation = True
+                elif agent_type == "seller" and announced_price < reservation:
+                    logger.warning(
+                        f"CONSTRAINT VIOLATION: Seller {responder_id} accepted sell at "
+                        f"${announced_price:.2f} below reservation ${reservation:.2f}"
+                    )
+                    violation = True
+
             logger.info(
-                f"Agent {responder_id} ({agent_type}) {'accepted' if accepted else 'rejected'} "
-                f"offer at ${state['announced_price']:.2f}"
+                f"R{state['round']}/I{state['iteration']}: Agent {responder_id} ({agent_type}) "
+                f"{'accepted' if accepted else 'rejected'} offer at ${state['announced_price']:.2f}"
             )
 
-            return {
+            result = {
                 "responding_agent_id": responder_id,
                 "response_accepted": accepted,
                 "transaction_made": accepted,
                 "current_responder_index": current_idx + 1,
                 "tool_usage_log": tool_usage_log,
+                "last_response_reasoning": reasoning,
             }
+            if violation:
+                result["constraint_violations"] = state.get("constraint_violations", 0) + 1
+            return result
 
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
@@ -167,6 +204,7 @@ def make_respond_node(
                 "response_accepted": False,
                 "current_responder_index": current_idx + 1,
                 "last_error": str(e),
+                "last_response_reasoning": "",
             }
 
     return respond
@@ -192,16 +230,27 @@ def _render_response_prompt(
         "reservation_price": agent["reservation_price"],
         "N_ROUNDS": state["max_rounds"],
         "N_ITER": state["max_iterations"],
-        "market_history": state["market_history_text"],
-        "own_history": agent["own_history_prompt"],
+        "N_BUYERS": sum(1 for a in state["agents"] if a["type"] == "buyer"),
+        "N_SELLERS": sum(1 for a in state["agents"] if a["type"] == "seller"),
+        "market_history": build_market_history_for_prompt(
+            state,
+            mode=state.get("history_mode", "full"),
+            last_n_events=state.get("history_summary_last_n", 3),
+        ),
+        "own_history": build_own_history_for_prompt(
+            agent,
+            mode=state.get("own_history_mode", "full"),
+        ),
         "round": state["round"],
         "iteration": state["iteration"],
         "action_prompt": action_prompt,
+        "persona": agent.get("persona", ""),
     }
 
-    return prompts.general.main_template.format(**template_vars)
+    # Use sentinel replacement for persona to avoid str.format() issues with curly braces
+    persona_text = template_vars.pop("persona")
+    template = prompts.general.main_template.replace("{persona}", "<<PERSONA>>")
+    result = template.format(**template_vars)
+    return result.replace("<<PERSONA>>", persona_text)
 
 
-def _extract_response(response: str) -> bool:
-    """Extract yes/no response from LLM output."""
-    return "yes" in response.lower()
