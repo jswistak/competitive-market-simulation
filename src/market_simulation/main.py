@@ -14,9 +14,8 @@ from rich.progress import (
 )
 from rich.logging import RichHandler
 
-from .config import load_config, SimulationConfig
+from .config import load_config
 from .config.schema import AuctionType
-from .llm import create_llm
 from .llm.factory import create_tool_augmented_llm
 from .graph import build_market_graph, build_auction_graph
 from .agents import create_initial_state, create_auction_initial_state
@@ -289,21 +288,18 @@ def run(
                 else:
                     results_saver.save_simulation(final_state, sim_id)
 
-                n_parse_failures = final_state.get("parse_failures", 0)
                 n_violations = final_state.get("constraint_violations", 0)
 
                 if is_auction:
                     n_results = len(final_state.get("auction_results", []))
                     logger.info(
                         f"Simulation {sim_id} complete: {n_results} auction rounds, "
-                        f"{n_parse_failures} parse failures, "
                         f"{n_violations} constraint violations"
                     )
                 else:
                     n_transactions = len(final_state["transactions"])
                     logger.info(
                         f"Simulation {sim_id} complete: {n_transactions} transactions, "
-                        f"{n_parse_failures} parse failures, "
                         f"{n_violations} constraint violations"
                     )
 

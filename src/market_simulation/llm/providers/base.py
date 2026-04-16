@@ -8,8 +8,6 @@ from pydantic import BaseModel as PydanticBaseModel
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
-from langchain_core.runnables import RunnableConfig
-from langchain_core.callbacks import CallbackManager
 
 from ...config.schema import LLMConfig
 

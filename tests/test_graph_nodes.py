@@ -457,24 +457,6 @@ class TestRespondNode:
         assert result["response_accepted"] is True
         assert "constraint_violations" not in result
 
-    def test_clear_reject_does_not_increment_parse_failures(
-        self, base_market_state, mock_llm, prompt_config
-    ):
-        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
-        state = {
-            **base_market_state,
-            "potential_responder_ids": [3],
-            "current_responder_index": 0,
-            "announcing_agent_id": 0,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-        }
-        node = make_respond_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["response_accepted"] is False
-        assert "parse_failures" not in result
-
 
 # ===========================================================================
 # TestRecordTransactionNode

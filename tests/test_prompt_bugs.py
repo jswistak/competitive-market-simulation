@@ -72,7 +72,6 @@ def _make_state_for_history_test(
         "simulation_complete": False,
         "tool_usage_log": [],
         "last_error": None,
-        "parse_failures": 0,
         "constraint_violations": 0,
         "history_mode": "full",
         "history_summary_last_n": 3,

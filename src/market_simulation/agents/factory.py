@@ -138,7 +138,6 @@ def create_initial_state(
         # Error handling
         last_error=None,
         # Diagnostic counters
-        parse_failures=0,
         constraint_violations=0,
         # History display configuration
         history_mode=config.history.mode,
@@ -228,7 +227,6 @@ def create_auction_initial_state(
         "all_bid_records": [],
         "market_history_text": "",
         "tool_usage_log": [],
-        "parse_failures": 0,
         "constraint_violations": 0,
     }
 

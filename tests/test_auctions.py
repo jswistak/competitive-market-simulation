@@ -152,7 +152,6 @@ def _make_sealed_state(bidders, auction_type="fpsb", round_num=1, max_rounds=2):
         all_bid_records=[],
         market_history_text="",
         tool_usage_log=[],
-        parse_failures=0,
         constraint_violations=0,
     )
 
@@ -178,7 +177,6 @@ def _make_english_state(bidders, auction_type="english", round_num=1, max_rounds
         market_history_text="",
         auction_ended=False,
         tool_usage_log=[],
-        parse_failures=0,
         constraint_violations=0,
     )
 
@@ -203,7 +201,6 @@ def _make_dutch_state(bidders, round_num=1, max_rounds=2):
         market_history_text="",
         all_queried_at_price=False,
         tool_usage_log=[],
-        parse_failures=0,
         constraint_violations=0,
     )
 
