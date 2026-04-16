@@ -91,7 +91,6 @@ class MarketState(TypedDict):
     last_error: str | None
 
     # Diagnostic counters
-    parse_failures: int
     constraint_violations: int
 
     # History display configuration
@@ -172,7 +171,6 @@ class SealedBidState(TypedDict):
     tool_usage_log: Annotated[list[dict], add]
 
     # Diagnostics
-    parse_failures: int
     constraint_violations: int
 
 
@@ -216,7 +214,6 @@ class EnglishAuctionState(TypedDict):
     tool_usage_log: Annotated[list[dict], add]
 
     # Diagnostics
-    parse_failures: int
     constraint_violations: int
 
 
@@ -259,7 +256,6 @@ class DutchAuctionState(TypedDict):
     tool_usage_log: Annotated[list[dict], add]
 
     # Diagnostics
-    parse_failures: int
     constraint_violations: int
 
 

@@ -1,7 +1,7 @@
 """LangGraph workflow builder for market simulation."""
 
 from typing import Callable
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import StateGraph, START
 
 from .state import MarketState
 from .nodes import (
@@ -93,47 +93,5 @@ def build_market_graph(
 
     # Next round -> (select_announcer | END)
     builder.add_conditional_edges("next_round", route_after_next_round)
-
-    return builder.compile()
-
-
-def build_iteration_graph(
-    llm: LLMProvider,
-    prompts: PromptConfig,
-    callbacks_factory: Callable[[], list] | None = None,
-    include_reasoning: bool = True,
-) -> StateGraph:
-    """Build a simpler single-iteration graph for testing.
-
-    Args:
-        llm: LLM provider for agent interactions.
-        prompts: Prompt configuration for agents.
-        callbacks_factory: Optional factory for creating tracing callbacks.
-        include_reasoning: Whether to include reasoning field in LLM responses.
-
-    Returns:
-        Compiled StateGraph for single iteration.
-    """
-    schemas = get_response_schemas(include_reasoning)
-    builder = StateGraph(MarketState)
-
-    # Add nodes
-    builder.add_node("select_announcer", make_select_announcer_node())
-    builder.add_node("announce", make_announce_node(llm, prompts, callbacks_factory, response_schema=schemas.announcement))
-    builder.add_node("select_responders", make_select_responders_node())
-    builder.add_node("respond", make_respond_node(llm, prompts, callbacks_factory, response_schema=schemas.accept_reject))
-    builder.add_node("record_transaction", make_record_transaction_node())
-    builder.add_node("check_iteration", make_check_iteration_node())
-    builder.add_node("update_history", make_update_history_node())
-
-    # Add edges
-    builder.add_edge(START, "select_announcer")
-    builder.add_edge("select_announcer", "announce")
-    builder.add_conditional_edges("announce", route_after_announcement)
-    builder.add_edge("select_responders", "respond")
-    builder.add_conditional_edges("respond", route_after_response)
-    builder.add_edge("record_transaction", "check_iteration")
-    builder.add_edge("check_iteration", "update_history")
-    builder.add_edge("update_history", END)
 
     return builder.compile()

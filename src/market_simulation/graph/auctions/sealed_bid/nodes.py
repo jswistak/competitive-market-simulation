@@ -9,7 +9,7 @@ from ...state import SealedBidState, BidRecord, AuctionResult
 from ....llm.providers.base import LLMProvider
 from ....llm.response_schemas import BidResponse, BidResponseWithReasoning
 from ....config.schema import AuctionPromptConfig
-from ..base import render_auction_prompt, get_bidder_by_id
+from ..base import render_auction_prompt
 
 logger = logging.getLogger(__name__)
 

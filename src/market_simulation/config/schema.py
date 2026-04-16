@@ -94,9 +94,6 @@ class AuctionConfig(BaseModel):
     dutch_decrement: float = 0.5
     dutch_min_price: float = 0.0
 
-    # General
-    prize_value: float | None = None  # Override private values with common prize
-
     # Reproducibility
     random_seed: int | None = None  # Seed for random operations (shuffling, sampling)
 
