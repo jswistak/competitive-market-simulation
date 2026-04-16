@@ -133,6 +133,7 @@ class TracingConfig(BaseModel):
     """Langfuse tracing configuration."""
 
     enabled: bool = True
+    llm_call_logging: bool = True
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
     langfuse_host: str = "https://cloud.langfuse.com"

@@ -19,7 +19,7 @@ from .config.schema import AuctionType
 from .llm.factory import create_tool_augmented_llm
 from .graph import build_market_graph, build_auction_graph
 from .agents import create_initial_state, create_auction_initial_state
-from .tracing import create_tracing_manager
+from .tracing import create_tracing_manager, LLMCallLogger
 from .output import ResultsSaver
 from .tools.sandbox import SandboxManager
 
@@ -258,6 +258,12 @@ def run(
             # Start file logging for this simulation
             results_saver.start_simulation_logging(sim_id)
 
+            # Create LLM call logger for this simulation
+            llm_logger: LLMCallLogger | None = None
+            if cfg.tracing.llm_call_logging:
+                llm_log_path = results_saver.logs_dir / f"llm_calls_{sim_id}.jsonl"
+                llm_logger = LLMCallLogger(llm_log_path)
+
             # Create initial state
             if is_auction and auction_config:
                 initial_state = create_auction_initial_state(
@@ -276,6 +282,8 @@ def run(
                     recursion_limit=recursion_limit,
                     initial_state=initial_state,
                 ) as graph_config:
+                    if llm_logger:
+                        graph_config.setdefault("callbacks", []).append(llm_logger)
                     final_state = graph.invoke(initial_state, config=graph_config)
 
                     # Update trace output with results
@@ -319,6 +327,10 @@ def run(
                     console.print_exception()
 
             finally:
+                # Close LLM call logger
+                if llm_logger:
+                    llm_logger.close()
+
                 # Stop file logging for this simulation
                 results_saver.stop_simulation_logging(sim_id)
 
