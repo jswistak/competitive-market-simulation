@@ -125,6 +125,9 @@ class ExperimentConfig(BaseModel):
     # Auction-specific config (only used when auction_type != double_auction)
     auction: AuctionConfig | None = None
 
+    # Optional manual override for LangGraph recursion limit
+    recursion_limit: int | None = None
+
 
 class TracingConfig(BaseModel):
     """Langfuse tracing configuration."""

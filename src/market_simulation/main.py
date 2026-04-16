@@ -220,17 +220,27 @@ def run(
     else:
         logger.info("No auction type specified — defaulting to double-auction mode")
         graph = build_market_graph(llm, cfg.prompts, include_reasoning=cfg.experiment.include_reasoning)
-        max_nodes_per_iteration = 10  # approximate
-        recursion_limit = (
-            cfg.experiment.n_rounds
-            * cfg.experiment.n_iterations
-            * max_nodes_per_iteration
-            * (cfg.experiment.buyers.num + cfg.experiment.sellers.num)
-        )
+        # Worst-case recursion limit: per iteration, each of N agents can
+        # announce (3 nodes) and have up to R responders reject (3 nodes each),
+        # plus 7 overhead nodes for end-of-iteration routing.
+        n_buyers = cfg.experiment.buyers.num
+        n_sellers = cfg.experiment.sellers.num
+        N = n_buyers + n_sellers
+        R = max(n_buyers, n_sellers)
+        nodes_per_iteration = N * (3 + 3 * R) + 7
+        nodes_per_round = cfg.experiment.n_iterations * nodes_per_iteration + 2
+        recursion_limit = cfg.experiment.n_rounds * nodes_per_round
         n_sims = cfg.experiment.n_simulations
 
-    # Clamp recursion limit between 100 and 15000
-    recursion_limit = max(100, min(recursion_limit, 15000))
+    if cfg.experiment.recursion_limit is not None:
+        logger.info(
+            f"Recursion limit overridden by config: {cfg.experiment.recursion_limit} "
+            f"(calculated: {recursion_limit})"
+        )
+        recursion_limit = cfg.experiment.recursion_limit
+    else:
+        recursion_limit = max(100, min(recursion_limit, 500_000))
+    logger.info(f"Using recursion limit: {recursion_limit}")
 
     # Run simulations
     with Progress(
