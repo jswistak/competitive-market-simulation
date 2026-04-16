@@ -48,7 +48,7 @@ class ResultsSaver:
         """Save the configuration used for this experiment."""
         config_path = self.output_dir / "config_used.yaml"
         with open(config_path, "w") as f:
-            yaml.dump(self.config.model_dump(), f, default_flow_style=False)
+            yaml.dump(self.config.model_dump(mode="json"), f, default_flow_style=False)
 
     def start_simulation_logging(self, simulation_id: int) -> None:
         """Start logging to a file for this simulation.
