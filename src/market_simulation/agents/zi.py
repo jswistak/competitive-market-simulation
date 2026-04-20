@@ -15,7 +15,10 @@ Two variants are supported per agent:
 * ``zi_u`` — unconstrained uniform. Samples from ``[zi.u_low, zi.u_high]``
   ignoring reservation prices, and uses Bernoulli gates (``announce_prob``,
   ``accept_prob``, ``bid_prob``) for nodes where the agent can also opt out.
-  Useful as a pure-noise baseline.
+  Useful as a pure-noise baseline. ZI-U is unconstrained *with respect to
+  private value*, not with respect to mechanism legality: e.g. English
+  auction bids must still clear the standing improvement rule
+  (``bid >= standing + min_increment``).
 """
 
 from __future__ import annotations
@@ -48,7 +51,14 @@ def _mk(schema_cls, payload: dict, include_reasoning: bool, reasoning: str):
 
 
 def _uniform(rng: np.random.Generator, low: float, high: float) -> float:
-    """Sample uniform in [low, high]. If low >= high, return low (degenerate)."""
+    """Sample uniform in [low, high]. If low >= high, return low (degenerate).
+
+    Draws are rounded to 2 decimal places to match the precision of agent
+    ``reservation_price`` / ``private_value`` (``np.round(..., 2)`` in
+    ``agents/factory.py``). If that invariant changes — e.g. factories
+    emit higher-precision reservations — the rounding here must be
+    widened to preserve the ZI-C non-loss constraint.
+    """
     if high <= low:
         return round(float(low), 2)
     return round(float(rng.uniform(low, high)), 2)
@@ -196,7 +206,14 @@ def decide_english(
     rng: np.random.Generator,
     include_reasoning: bool = True,
 ) -> EnglishBidResponse:
-    """Sample a ZI English-auction bid-or-pass decision."""
+    """Sample a ZI English-auction bid-or-pass decision.
+
+    The English auction's improvement rule (``bid >= standing + min_increment``)
+    binds both strategies: ZI-U therefore clamps its uniform draw's lower
+    bound to ``min_bid`` even though its upper bound still comes from
+    ``zi_cfg.u_high``. This is mechanism-legality, not a value-rationality
+    constraint — ZI-U still ignores ``private_value``.
+    """
     strategy = bidder["strategy"]
     schema_cls = (
         EnglishBidResponseWithReasoning if include_reasoning else EnglishBidResponse
@@ -250,7 +267,13 @@ def decide_dutch_accept(
     rng: np.random.Generator,
     include_reasoning: bool = True,
 ) -> AcceptRejectResponse:
-    """Sample a ZI Dutch-auction accept/reject at the current price."""
+    """Sample a ZI Dutch-auction accept/reject at the current price.
+
+    ZI-C is deterministic: accept iff ``current_price <= private_value``.
+    Iteration-order fairness is delegated to the Dutch node, which
+    reshuffles bidder order at every price tick (see
+    ``make_lower_price_node`` in ``graph/auctions/dutch/nodes.py``).
+    """
     strategy = bidder["strategy"]
     schema_cls = (
         AcceptRejectResponseWithReasoning if include_reasoning else AcceptRejectResponse
@@ -258,23 +281,13 @@ def decide_dutch_accept(
 
     if strategy == "zi_c":
         value = bidder["private_value"]
-        if current_price > value:
-            return _mk(
-                schema_cls,
-                {"accept": False},
-                include_reasoning,
-                f"ZI-C: reject (price={current_price:.2f} > value={value:.2f})",
-            )
-        # Price is affordable — gate on accept_prob to avoid degenerate
-        # "first rational bidder always wins" behaviour that makes the
-        # Dutch auction collapse to a race.
-        accept = bool(rng.random() < zi_cfg.accept_prob)
+        accept = current_price <= value
         return _mk(
             schema_cls,
             {"accept": accept},
             include_reasoning,
-            f"ZI-C: price={current_price:.2f} ≤ value={value:.2f}, "
-            f"Bernoulli({zi_cfg.accept_prob}) -> {'accept' if accept else 'reject'}",
+            f"ZI-C: {'accept' if accept else 'reject'} "
+            f"(price={current_price:.2f}, value={value:.2f})",
         )
 
     # zi_u

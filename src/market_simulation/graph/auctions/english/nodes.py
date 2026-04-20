@@ -185,7 +185,10 @@ def make_solicit_bid_node(
             }
 
         except Exception as e:
-            logger.error(f"Decision failed for bidder {bidder_id} ({strategy}): {e}")
+            if strategy == "llm":
+                logger.error(f"LLM call failed for bidder {bidder_id}: {e}")
+            else:
+                logger.error(f"ZI decision failed for bidder {bidder_id} ({strategy}): {e}")
             # Drop bidder on LLM failure
             new_active = [aid for aid in active_ids if aid != bidder_id]
             return {

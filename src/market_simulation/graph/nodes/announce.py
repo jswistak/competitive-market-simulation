@@ -235,10 +235,16 @@ def make_announce_node(
             return result
 
         except Exception as e:
-            logger.error(
-                f"Decision failed for agent {agent_id} ({strategy}) "
-                f"(R{state['round']}/I{state['iteration']}): {e}"
-            )
+            if strategy == "llm":
+                logger.error(
+                    f"LLM call failed for agent {agent_id} "
+                    f"(R{state['round']}/I{state['iteration']}): {e}"
+                )
+            else:
+                logger.error(
+                    f"ZI decision failed for agent {agent_id} ({strategy}) "
+                    f"(R{state['round']}/I{state['iteration']}): {e}"
+                )
             return {
                 "announcement_made": False,
                 "announced_price": None,

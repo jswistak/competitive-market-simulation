@@ -114,7 +114,10 @@ class AuctionConfig(BaseModel):
     dutch_decrement: float = 0.5
     dutch_min_price: float = 0.0
 
-    # Reproducibility
+    # Reproducibility.
+    # Used for mechanism-level randomness (e.g. Dutch bidder shuffling).
+    # Precedence for the ZI RNG: ``ExperimentConfig.random_seed`` wins;
+    # this value is the fallback only when experiment seed is unset.
     random_seed: int | None = None  # Seed for random operations (shuffling, sampling)
 
 
@@ -149,7 +152,10 @@ class ExperimentConfig(BaseModel):
     recursion_limit: int | None = None
 
     # Seed for ZI sampling and any other stochastic double-auction operations.
-    # (Auction-specific seeding still lives on AuctionConfig.random_seed.)
+    # This is the primary source of truth for the ZI RNG; if unset and the
+    # run is an auction, the resolver in ``main.py`` falls back to
+    # ``AuctionConfig.random_seed`` to stay backward-compatible with older
+    # auction configs that only set the auction-level seed.
     random_seed: int | None = None
 
 

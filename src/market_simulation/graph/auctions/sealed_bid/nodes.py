@@ -129,7 +129,10 @@ def make_collect_bid_node(
             }
 
         except Exception as e:
-            logger.error(f"Decision failed for bidder {bidder['id']} ({strategy}): {e}")
+            if strategy == "llm":
+                logger.error(f"LLM call failed for bidder {bidder['id']}: {e}")
+            else:
+                logger.error(f"ZI decision failed for bidder {bidder['id']} ({strategy}): {e}")
             bid_record = BidRecord(
                 bidder_id=bidder["id"],
                 bid_amount=0.0,

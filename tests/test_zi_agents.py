@@ -219,15 +219,20 @@ class TestZIDutch:
         bidder = _bidder(3.0, "zi_c")
         assert zi_decisions.decide_dutch_accept(bidder, 4.0, cfg, rng).accept is False
 
-    def test_zi_c_bernoulli_below_value(self):
-        """Should sometimes accept and sometimes reject at an affordable price."""
+    def test_zi_c_accepts_deterministically_at_or_below_value(self):
+        """Strict Gode-Sunder ZI-C: accept iff ``current_price <= private_value``.
+
+        No Bernoulli gate — fairness across bidders at the same price tick is
+        delegated to the Dutch node, which reshuffles bidder order each time
+        the price is lowered.
+        """
         rng = np.random.default_rng(42)
-        cfg = ZIConfig(accept_prob=0.5)
+        cfg = ZIConfig(accept_prob=0.5)  # MUST be ignored by ZI-C
         bidder = _bidder(10.0, "zi_c")
-        accepts = [zi_decisions.decide_dutch_accept(bidder, 1.0, cfg, rng).accept for _ in range(200)]
-        # With accept_prob=0.5 and 200 draws, >10 of each outcome is near-certain.
-        assert sum(accepts) > 10
-        assert sum(accepts) < 190
+        for _ in range(50):
+            assert zi_decisions.decide_dutch_accept(bidder, 1.0, cfg, rng).accept is True
+            assert zi_decisions.decide_dutch_accept(bidder, 10.0, cfg, rng).accept is True
+            assert zi_decisions.decide_dutch_accept(bidder, 10.01, cfg, rng).accept is False
 
 
 # ---------------------------------------------------------------------------

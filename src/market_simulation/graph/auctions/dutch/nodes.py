@@ -195,7 +195,10 @@ def make_solicit_acceptance_node(
             }
 
         except Exception as e:
-            logger.error(f"Decision failed for bidder {bidder['id']} ({strategy}): {e}")
+            if strategy == "llm":
+                logger.error(f"LLM call failed for bidder {bidder['id']}: {e}")
+            else:
+                logger.error(f"ZI decision failed for bidder {bidder['id']} ({strategy}): {e}")
             new_idx = idx + 1
             return {
                 "current_bidder_index": new_idx,

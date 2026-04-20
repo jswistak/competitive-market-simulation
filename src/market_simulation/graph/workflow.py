@@ -47,7 +47,13 @@ def build_market_graph(
         callbacks_factory: Optional factory for creating tracing callbacks.
         include_reasoning: Whether to include reasoning field in LLM responses.
         zi_config: Hyperparameters for ZI sampling.
-        rng: Seeded NumPy ``Generator`` for ZI randomness.
+        rng: Seeded NumPy ``Generator`` for ZI randomness. A single generator
+            is shared across all ZI call sites (announce, respond, auction
+            nodes), so trajectory reproducibility under a seed is sensitive
+            to the *order* in which those sites are invoked. Any future
+            change that reorders agent selection or inserts new sampling
+            calls will produce different (but still seed-deterministic)
+            sequences; do not rely on seed-stability across such refactors.
 
     Returns:
         Compiled StateGraph ready for execution.

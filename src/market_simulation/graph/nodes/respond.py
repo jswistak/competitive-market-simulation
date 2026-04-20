@@ -232,7 +232,10 @@ def make_respond_node(
             return result
 
         except Exception as e:
-            logger.error(f"Decision failed ({strategy}): {e}")
+            if strategy == "llm":
+                logger.error(f"LLM call failed: {e}")
+            else:
+                logger.error(f"ZI decision failed ({strategy}): {e}")
             return {
                 "responding_agent_id": responder_id,
                 "response_accepted": False,
