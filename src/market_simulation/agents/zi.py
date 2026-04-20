@@ -269,10 +269,18 @@ def decide_dutch_accept(
 ) -> AcceptRejectResponse:
     """Sample a ZI Dutch-auction accept/reject at the current price.
 
-    ZI-C is deterministic: accept iff ``current_price <= private_value``.
-    Iteration-order fairness is delegated to the Dutch node, which
-    reshuffles bidder order at every price tick (see
-    ``make_lower_price_node`` in ``graph/auctions/dutch/nodes.py``).
+    Dutch auctions are NOT covered by Gode & Sunder (1993), which is
+    continuous-double-auction only. This function is a thesis-methodology
+    extension of ZI-C to a clock mechanism. In the CDA, ZI randomness
+    lives in the bid *level* (a uniform draw in the non-loss range); in a
+    Dutch clock auction a bidder only says yes/no at a single price, so
+    the analogous randomness must live in the *timing* of acceptance.
+    ZI-C here therefore first enforces non-loss (reject iff
+    ``current_price > value``) and then gates the accept on
+    ``accept_prob`` — without the gate, ZI-C Dutch would degenerate to
+    "highest-value bidder always wins at their own value," which is
+    indistinguishable from rational play and defeats the purpose of the
+    zero-intelligence baseline.
     """
     strategy = bidder["strategy"]
     schema_cls = (
@@ -281,13 +289,22 @@ def decide_dutch_accept(
 
     if strategy == "zi_c":
         value = bidder["private_value"]
-        accept = current_price <= value
+        if current_price > value:
+            return _mk(
+                schema_cls,
+                {"accept": False},
+                include_reasoning,
+                f"ZI-C: reject (price={current_price:.2f} > value={value:.2f})",
+            )
+        # Price is affordable — gate on accept_prob so ZI-C preserves
+        # trader-level randomness in acceptance timing. See docstring.
+        accept = bool(rng.random() < zi_cfg.accept_prob)
         return _mk(
             schema_cls,
             {"accept": accept},
             include_reasoning,
-            f"ZI-C: {'accept' if accept else 'reject'} "
-            f"(price={current_price:.2f}, value={value:.2f})",
+            f"ZI-C: price={current_price:.2f} <= value={value:.2f}, "
+            f"Bernoulli({zi_cfg.accept_prob}) -> {'accept' if accept else 'reject'}",
         )
 
     # zi_u

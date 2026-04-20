@@ -243,3 +243,41 @@ class SimulationConfig(BaseModel):
     tools: ToolConfig = Field(default_factory=ToolConfig)
     personas: PersonaConfig = Field(default_factory=PersonaConfig)
     zi: ZIConfig = Field(default_factory=ZIConfig)
+
+    @model_validator(mode="after")
+    def _validate_zi_c_bounds(self):
+        """Ensure ZI-C's non-loss invariant cannot be silently violated.
+
+        Gode & Sunder (1993) define ZI-C buyers as drawing from
+        ``[market_floor, v_i]`` and sellers from ``[c_i, market_ceiling]``.
+        Our ``zi.u_low`` / ``zi.u_high`` play the role of those market
+        bounds. If ``u_low`` exceeds the smallest buyer reservation (or
+        ``u_high`` sits below the largest seller reservation), the viable
+        range inverts and ``_uniform`` silently returns the out-of-range
+        bound — which for buyers means announcing above reservation, the
+        exact invariant ZI-C is supposed to preserve. Fail early at config
+        load instead.
+        """
+        def _uses_zi_c(strategies) -> bool:
+            if isinstance(strategies, list):
+                return "zi_c" in strategies
+            return strategies == "zi_c"
+
+        buyers = self.experiment.buyers
+        sellers = self.experiment.sellers
+
+        if _uses_zi_c(buyers.strategies) and self.zi.u_low > buyers.min:
+            raise ValueError(
+                f"ZI-C buyers: zi.u_low ({self.zi.u_low}) exceeds "
+                f"experiment.buyers.min ({buyers.min}); a buyer with "
+                f"reservation below u_low would announce above its own "
+                f"reservation, violating the non-loss constraint."
+            )
+        if _uses_zi_c(sellers.strategies) and self.zi.u_high < sellers.max:
+            raise ValueError(
+                f"ZI-C sellers: zi.u_high ({self.zi.u_high}) is below "
+                f"experiment.sellers.max ({sellers.max}); a seller with "
+                f"reservation above u_high would have an empty viable "
+                f"range."
+            )
+        return self
