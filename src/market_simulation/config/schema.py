@@ -142,8 +142,29 @@ class PromptTemplates(BaseModel):
     """Prompt templates for agent communication."""
 
     main_template: str = ""
-    announcement_history_template: str = ""
-    response_history_template: str = ""
+
+    # Per-agent "own history" entries (injected via {own_history}).
+    announcement_history_template: str = (
+        "In round {round} at iteration {iteration}, your offer to {announcement_type} "
+        "for ${price:.2f} was {outcome}.\n"
+    )
+    response_history_template: str = (
+        "In round {round} at iteration {iteration}, you {outcome} a "
+        "{opposite_announcement_type} offer for ${price:.2f}.\n"
+    )
+
+    # Shared market-history entries (injected via {market_history}).
+    market_history_accepted_template: str = (
+        "In round {round} at iteration {iteration}, an announcement to "
+        "{announcement_type} for ${price:.2f} was accepted.\n"
+    )
+    market_history_rejected_template: str = (
+        "In round {round} at iteration {iteration}, an announcement to "
+        "{announcement_type} for ${price:.2f} was made but no one responded.\n"
+    )
+    market_history_no_announcement_template: str = (
+        "In round {round} at iteration {iteration}, no announcement was made.\n"
+    )
 
 
 class AgentKeywords(BaseModel):

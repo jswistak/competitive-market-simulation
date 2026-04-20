@@ -4,16 +4,31 @@ import logging
 from typing import Callable
 
 from ..state import MarketState, IterationRecord
+from ...config.schema import PromptConfig, PromptTemplates
 
 logger = logging.getLogger(__name__)
 
 
-def make_update_history_node() -> Callable[[MarketState], dict]:
+def _get_templates(prompts: PromptConfig | None) -> PromptTemplates:
+    """Return prompt templates, falling back to schema defaults."""
+    return prompts.general if prompts is not None else PromptTemplates()
+
+
+def make_update_history_node(
+    prompts: PromptConfig | None = None,
+) -> Callable[[MarketState], dict]:
     """Create node that updates market history after an iteration.
+
+    Args:
+        prompts: Prompt configuration supplying the history templates.
+            If ``None``, schema defaults are used (matches legacy hardcoded
+            strings — keeps older tests passing).
 
     Returns:
         Node function that updates history text and records.
     """
+
+    templates = _get_templates(prompts)
 
     def update_history(state: MarketState) -> dict:
         """Update market history based on iteration outcome."""
@@ -62,24 +77,29 @@ def make_update_history_node() -> Callable[[MarketState], dict]:
         # (not only at iteration end, so subsequent announcers see prior rejections)
         history_update = ""
         if announcement_made and transaction_made:
-            history_update = (
-                f"In round {round_num} at iteration {iteration}, "
-                f"an announcement to {announcement_type} for ${price:.2f} was accepted.\n"
+            history_update = templates.market_history_accepted_template.format(
+                round=round_num,
+                iteration=iteration,
+                announcement_type=announcement_type,
+                price=price,
             )
         elif announcement_made and all_responders_queried:
-            history_update = (
-                f"In round {round_num} at iteration {iteration}, "
-                f"an announcement to {announcement_type} for ${price:.2f} was made but no one responded.\n"
+            history_update = templates.market_history_rejected_template.format(
+                round=round_num,
+                iteration=iteration,
+                announcement_type=announcement_type,
+                price=price,
             )
         elif not announcement_made and state["iteration_complete"]:
-            history_update = (
-                f"In round {round_num} at iteration {iteration}, no announcement was made.\n"
+            history_update = templates.market_history_no_announcement_template.format(
+                round=round_num,
+                iteration=iteration,
             )
 
         new_history = state["market_history_text"] + history_update
 
         # Update agent histories if needed
-        updated_agents = _update_agent_histories(state)
+        updated_agents = _update_agent_histories(state, templates)
 
         return {
             "iteration_records": [record],
@@ -90,8 +110,14 @@ def make_update_history_node() -> Callable[[MarketState], dict]:
     return update_history
 
 
-def _update_agent_histories(state: MarketState) -> list[dict]:
+def _update_agent_histories(
+    state: MarketState,
+    templates: PromptTemplates | None = None,
+) -> list[dict]:
     """Update individual agent history records."""
+    if templates is None:
+        templates = PromptTemplates()
+
     agents = state["agents"]
     updated = []
 
@@ -117,11 +143,14 @@ def _update_agent_histories(state: MarketState) -> list[dict]:
                 agent_copy["own_history_data"] = agent["own_history_data"] + [history_entry]
 
                 ann_type = "buy" if agent["type"] == "buyer" else "sell"
-                agent_copy["own_history_prompt"] = (
-                    agent["own_history_prompt"]
-                    + f"In round {state['round']} at iteration {state['iteration']}, "
-                    f"your offer to {ann_type} for ${state['announced_price']:.2f} was {outcome}.\n"
+                entry = templates.announcement_history_template.format(
+                    round=state["round"],
+                    iteration=state["iteration"],
+                    announcement_type=ann_type,
+                    price=state["announced_price"],
+                    outcome=outcome,
                 )
+                agent_copy["own_history_prompt"] = agent["own_history_prompt"] + entry
 
         # Update responding agent's history (always, so every responder sees their action)
         if agent["id"] == state["responding_agent_id"] and state["announcement_made"]:
@@ -135,12 +164,14 @@ def _update_agent_histories(state: MarketState) -> list[dict]:
             }
             agent_copy["own_history_data"] = agent["own_history_data"] + [history_entry]
 
-            opp_type = state["announcement_type"]
-            agent_copy["own_history_prompt"] = (
-                agent["own_history_prompt"]
-                + f"In round {state['round']} at iteration {state['iteration']}, "
-                f"you {outcome} a {opp_type} offer for ${state['announced_price']:.2f}.\n"
+            entry = templates.response_history_template.format(
+                round=state["round"],
+                iteration=state["iteration"],
+                opposite_announcement_type=state["announcement_type"],
+                price=state["announced_price"],
+                outcome=outcome,
             )
+            agent_copy["own_history_prompt"] = agent["own_history_prompt"] + entry
 
         updated.append(agent_copy)
 
