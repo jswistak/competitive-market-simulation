@@ -60,7 +60,7 @@ def build_open_outcry_graph(
     builder.add_node("check_auction_end", make_check_auction_end_node())
     builder.add_node("reset_cycle", make_reset_cycle_node())
     builder.add_node("settle", make_settle_open_outcry_node())  # <-- only difference
-    builder.add_node("update_history", make_update_english_history_node())
+    builder.add_node("update_history", make_update_english_history_node(prompts))
     builder.add_node("next_round", make_next_english_round_node())
 
     # Edges — identical to English

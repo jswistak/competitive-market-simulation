@@ -256,6 +256,7 @@ def _render_response_prompt(
         "iteration": state["iteration"],
         "action_prompt": action_prompt,
         "persona": agent.get("persona", ""),
+        "tools_preamble": prompts.tools_preamble,
     }
 
     # Use sentinel replacement for persona to avoid str.format() issues with curly braces

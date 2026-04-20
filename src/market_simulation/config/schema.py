@@ -104,8 +104,57 @@ class AuctionPromptConfig(BaseModel):
     bid_prompt: str = ""  # Sealed-bid: submit your bid
     english_bid_prompt: str = ""  # English/Open-Outcry: bid or pass
     dutch_accept_prompt: str = ""  # Dutch: accept or reject current price
-    history_template: str = ""
     value_explanation: str = ""  # Explains profit = value - payment
+
+    # --- Market history entries (shared across auction types) ---
+    # Format keys: round, auction_type, winner_id, winning_bid, payment,
+    # second_highest_bid (may be None for auctions other than Vickrey).
+    market_history_winner_template: str = (
+        "Round {round} ({auction_type}): Bidder {winner_id} won at "
+        "${winning_bid:.2f}, payment=${payment:.2f}.\n"
+    )
+    market_history_no_winner_template: str = (
+        "Round {round} ({auction_type}): No winner this round.\n"
+    )
+
+    # --- Dutch per-bidder history ---
+    # Format keys: round, payment, winner_id (for rejected_other_winner).
+    dutch_bidder_accepted_template: str = (
+        "Round {round}: You accepted at ${payment:.2f}.\n"
+    )
+    dutch_bidder_rejected_other_winner_template: str = (
+        "Round {round}: You did not accept. "
+        "Bidder {winner_id} won at ${payment:.2f}.\n"
+    )
+    dutch_bidder_rejected_no_winner_template: str = (
+        "Round {round}: You did not accept. No one accepted.\n"
+    )
+
+    # --- English per-bidder history ---
+    # Format keys: round, my_bid, payment (when won).
+    english_bidder_won_template: str = (
+        "Round {round}: Your highest bid was ${my_bid:.2f} and you won. "
+        "Payment: ${payment:.2f}.\n"
+    )
+    english_bidder_lost_template: str = (
+        "Round {round}: Your highest bid was ${my_bid:.2f} and you lost.\n"
+    )
+    english_bidder_no_bid_template: str = "Round {round}: You did not bid.\n"
+
+    # --- Sealed-bid per-bidder history ---
+    # Format keys: round, my_bid, payment (when won).
+    sealed_bidder_won_template: str = (
+        "Round {round}: You bid ${my_bid:.2f} and won. "
+        "Payment: ${payment:.2f}.\n"
+    )
+    sealed_bidder_lost_template: str = (
+        "Round {round}: You bid ${my_bid:.2f} and lost.\n"
+    )
+    # All-pay specific: loser still pays their own bid.
+    sealed_bidder_all_pay_loss_template: str = (
+        "Round {round}: You bid ${my_bid:.2f} and lost. "
+        "You paid your bid of ${my_bid:.2f}.\n"
+    )
 
 
 class ExperimentConfig(BaseModel):

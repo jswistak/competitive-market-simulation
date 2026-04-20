@@ -259,6 +259,7 @@ def _render_announcement_prompt(
         "iteration": state["iteration"],
         "action_prompt": agent_prompts.announcement_prompt,
         "persona": agent.get("persona", ""),
+        "tools_preamble": prompts.tools_preamble,
     }
 
     # Use sentinel replacement for persona to avoid str.format() issues with curly braces

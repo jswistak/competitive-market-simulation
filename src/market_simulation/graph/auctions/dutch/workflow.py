@@ -62,7 +62,7 @@ def build_dutch_graph(
     builder.add_node("check_dutch_end", make_check_dutch_end_node())
     builder.add_node("lower_price", make_lower_price_node(random_seed=random_seed))
     builder.add_node("settle", make_settle_dutch_node())
-    builder.add_node("update_history", make_update_dutch_history_node())
+    builder.add_node("update_history", make_update_dutch_history_node(prompts))
     builder.add_node("next_round", make_next_dutch_round_node())
 
     # Edges

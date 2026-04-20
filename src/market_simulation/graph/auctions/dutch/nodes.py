@@ -299,8 +299,18 @@ def make_settle_dutch_node() -> Callable[[DutchAuctionState], dict]:
 # ------------------------------------------------------------------
 
 
-def make_update_dutch_history_node() -> Callable[[DutchAuctionState], dict]:
-    """Create node that updates histories after a Dutch round."""
+def make_update_dutch_history_node(
+    prompts: AuctionPromptConfig | None = None,
+) -> Callable[[DutchAuctionState], dict]:
+    """Create node that updates histories after a Dutch round.
+
+    Args:
+        prompts: Auction prompt configuration supplying the history templates.
+            If ``None``, schema defaults are used (preserves legacy wording
+            for unit tests constructed without a config).
+    """
+
+    templates = prompts if prompts is not None else AuctionPromptConfig()
 
     def update_dutch_history(state: DutchAuctionState) -> dict:
         results = state["auction_results"]
@@ -309,18 +319,23 @@ def make_update_dutch_history_node() -> Callable[[DutchAuctionState], dict]:
 
         latest = results[-1]
         round_num = latest["round"]
+        winner_id = latest["winner_id"]
+        payment = latest["payment"]
 
         # Market history
-        if latest["winner_id"] is not None:
-            history_line = (
-                f"Round {round_num} (dutch): "
-                f"Bidder {latest['winner_id']} accepted at "
-                f"${latest['payment']:.2f}.\n"
+        if winner_id is not None:
+            history_line = templates.market_history_winner_template.format(
+                round=round_num,
+                auction_type="dutch",
+                winner_id=winner_id,
+                winning_bid=payment,
+                payment=payment,
+                second_highest_bid=None,
             )
         else:
-            history_line = (
-                f"Round {round_num} (dutch): "
-                f"No one accepted. Price reached floor.\n"
+            history_line = templates.market_history_no_winner_template.format(
+                round=round_num,
+                auction_type="dutch",
             )
 
         new_history = state["market_history_text"] + history_line
@@ -329,43 +344,46 @@ def make_update_dutch_history_node() -> Callable[[DutchAuctionState], dict]:
         updated_bidders = []
         for bidder in state["bidders"]:
             bidder_copy = {**bidder}
-            won = latest["winner_id"] == bidder["id"]
+            won = winner_id == bidder["id"]
 
             if won:
-                entry_text = (
-                    f"Round {round_num}: You accepted at "
-                    f"${latest['payment']:.2f}.\n"
+                entry_text = templates.dutch_bidder_accepted_template.format(
+                    round=round_num,
+                    payment=payment,
                 )
-                bidder_copy["own_history_data"] = bidder["own_history_data"] + [
-                    {
-                        "round": round_num,
-                        "action": "dutch_accept",
-                        "price": latest["payment"],
-                        "won": True,
-                        "payment": latest["payment"],
-                    }
-                ]
+                history_record = {
+                    "round": round_num,
+                    "action": "dutch_accept",
+                    "price": payment,
+                    "won": True,
+                    "payment": payment,
+                }
+            elif winner_id is not None:
+                entry_text = templates.dutch_bidder_rejected_other_winner_template.format(
+                    round=round_num,
+                    winner_id=winner_id,
+                    payment=payment,
+                )
+                history_record = {
+                    "round": round_num,
+                    "action": "dutch_reject",
+                    "price": None,
+                    "won": False,
+                    "payment": 0.0,
+                }
             else:
-                entry_text = (
-                    f"Round {round_num}: You did not accept. "
+                entry_text = templates.dutch_bidder_rejected_no_winner_template.format(
+                    round=round_num,
                 )
-                if latest["winner_id"] is not None:
-                    entry_text += (
-                        f"Bidder {latest['winner_id']} won at "
-                        f"${latest['payment']:.2f}.\n"
-                    )
-                else:
-                    entry_text += "No one accepted.\n"
-                bidder_copy["own_history_data"] = bidder["own_history_data"] + [
-                    {
-                        "round": round_num,
-                        "action": "dutch_reject",
-                        "price": None,
-                        "won": False,
-                        "payment": 0.0,
-                    }
-                ]
+                history_record = {
+                    "round": round_num,
+                    "action": "dutch_reject",
+                    "price": None,
+                    "won": False,
+                    "payment": 0.0,
+                }
 
+            bidder_copy["own_history_data"] = bidder["own_history_data"] + [history_record]
             bidder_copy["own_history_prompt"] = (
                 bidder["own_history_prompt"] + entry_text
             )

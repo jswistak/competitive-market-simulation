@@ -52,7 +52,7 @@ def build_sealed_bid_graph(
     # Add nodes
     builder.add_node("collect_bid", make_collect_bid_node(llm, prompts, callbacks_factory, response_schema=schemas.bid))
     builder.add_node("determine_winner", make_determine_winner_node())
-    builder.add_node("update_history", make_update_sealed_history_node())
+    builder.add_node("update_history", make_update_sealed_history_node(prompts))
     builder.add_node("next_round", make_next_sealed_round_node())
 
     # Edges

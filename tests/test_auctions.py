@@ -1090,3 +1090,256 @@ class TestOpenOutcryFullGraph:
         assert ar["auction_type"] == "first_price_open_outcry"
         # Payment = standing bid (first-price)
         assert ar["payment"] == ar["winning_bid"]
+
+
+# ===========================================================================
+# Regression: auction history templates reach bidders
+# ===========================================================================
+#
+# Prior bug (mirror of the double-auction leak): each auction's
+# make_update_*_history_node built history strings with hardcoded f-strings
+# that embedded round numbers, bypassing AuctionPromptConfig templates. These
+# tests lock in that the YAML templates are now the single source of truth.
+
+
+class TestSealedAuctionHistoryTemplates:
+    def test_winner_market_and_own_history_use_templates(self, sample_bidders):
+        prompts = AuctionPromptConfig(
+            market_history_winner_template=(
+                "MKT-WIN {winner_id} {winning_bid:.2f} {payment:.2f}\n"
+            ),
+            market_history_no_winner_template="MKT-NONE\n",
+            sealed_bidder_won_template="OWN-WON {my_bid:.2f} {payment:.2f}\n",
+            sealed_bidder_lost_template="OWN-LOST {my_bid:.2f}\n",
+        )
+
+        state = _make_sealed_state(sample_bidders, "fpsb")
+        state["bids"] = [
+            BidRecord(bidder_id=0, bid_amount=1.0, round=1, bid_step=0, private_value=0.0),
+            BidRecord(bidder_id=2, bid_amount=7.0, round=1, bid_step=0, private_value=10.0),
+        ]
+        state["auction_results"] = [
+            AuctionResult(
+                round=1, auction_type="fpsb", winner_id=2, winning_bid=7.0,
+                payment=7.0, second_highest_bid=1.0, all_bids=[],
+                n_active_bidders=3, surplus=3.0,
+            )
+        ]
+
+        result = make_update_sealed_history_node(prompts)(state)
+        assert "MKT-WIN 2 7.00 7.00" in result["market_history_text"]
+        assert "Round" not in result["market_history_text"]
+
+        winner = next(b for b in result["bidders"] if b["id"] == 2)
+        loser = next(b for b in result["bidders"] if b["id"] == 0)
+        assert winner["own_history_prompt"] == "OWN-WON 7.00 7.00\n"
+        assert loser["own_history_prompt"] == "OWN-LOST 1.00\n"
+
+    def test_all_pay_loss_uses_dedicated_template(self, sample_bidders):
+        prompts = AuctionPromptConfig(
+            sealed_bidder_all_pay_loss_template="ALL-PAY-LOSS {my_bid:.2f}\n",
+        )
+
+        state = _make_sealed_state(sample_bidders, "all_pay")
+        state["bids"] = [
+            BidRecord(bidder_id=0, bid_amount=2.0, round=1, bid_step=0, private_value=0.0),
+            BidRecord(bidder_id=2, bid_amount=7.0, round=1, bid_step=0, private_value=10.0),
+        ]
+        state["auction_results"] = [
+            AuctionResult(
+                round=1, auction_type="all_pay", winner_id=2, winning_bid=7.0,
+                payment=7.0, second_highest_bid=2.0, all_bids=[],
+                n_active_bidders=3, surplus=3.0,
+            )
+        ]
+
+        result = make_update_sealed_history_node(prompts)(state)
+        loser = next(b for b in result["bidders"] if b["id"] == 0)
+        assert loser["own_history_prompt"] == "ALL-PAY-LOSS 2.00\n"
+        # Loser pays their own bid in all-pay auctions.
+        assert loser["own_history_data"][0]["payment"] == 2.0
+
+    def test_no_winner_market_template(self, sample_bidders):
+        prompts = AuctionPromptConfig(
+            market_history_no_winner_template="NOBODY-BID {auction_type}\n",
+        )
+
+        state = _make_sealed_state(sample_bidders, "fpsb")
+        state["bids"] = []
+        state["auction_results"] = [
+            AuctionResult(
+                round=1, auction_type="fpsb", winner_id=None, winning_bid=None,
+                payment=None, second_highest_bid=None, all_bids=[],
+                n_active_bidders=3, surplus=0.0,
+            )
+        ]
+        result = make_update_sealed_history_node(prompts)(state)
+        assert result["market_history_text"] == "NOBODY-BID fpsb\n"
+
+
+class TestEnglishAuctionHistoryTemplates:
+    def test_bidder_templates_used(self, sample_bidders):
+        prompts = AuctionPromptConfig(
+            english_bidder_won_template="E-WON {my_bid:.2f} {payment:.2f}\n",
+            english_bidder_lost_template="E-LOST {my_bid:.2f}\n",
+            english_bidder_no_bid_template="E-NOBID\n",
+        )
+
+        state = _make_english_state(sample_bidders, "english")
+        state["bids"] = [
+            BidRecord(bidder_id=1, bid_amount=4.0, round=1, bid_step=0, private_value=5.0),
+            BidRecord(bidder_id=2, bid_amount=6.0, round=1, bid_step=1, private_value=10.0),
+        ]
+        state["auction_results"] = [
+            AuctionResult(
+                round=1, auction_type="english", winner_id=2, winning_bid=6.0,
+                payment=6.0, second_highest_bid=4.0, all_bids=[],
+                n_active_bidders=3, surplus=4.0,
+            )
+        ]
+
+        result = make_update_english_history_node(prompts)(state)
+        winner = next(b for b in result["bidders"] if b["id"] == 2)
+        loser = next(b for b in result["bidders"] if b["id"] == 1)
+        no_bidder = next(b for b in result["bidders"] if b["id"] == 0)
+        assert winner["own_history_prompt"] == "E-WON 6.00 6.00\n"
+        assert loser["own_history_prompt"] == "E-LOST 4.00\n"
+        assert no_bidder["own_history_prompt"] == "E-NOBID\n"
+
+
+class TestDutchAuctionHistoryTemplates:
+    def test_three_dutch_branches(self, sample_bidders):
+        prompts = AuctionPromptConfig(
+            dutch_bidder_accepted_template="D-ACC {payment:.2f}\n",
+            dutch_bidder_rejected_other_winner_template=(
+                "D-REJ-WIN bidder={winner_id} price={payment:.2f}\n"
+            ),
+            dutch_bidder_rejected_no_winner_template="D-REJ-NONE\n",
+            market_history_no_winner_template="MKT-NONE\n",
+        )
+
+        # Case 1: bidder 2 accepts at $8
+        state = _make_dutch_state(sample_bidders)
+        state["auction_results"] = [
+            AuctionResult(
+                round=1, auction_type="dutch", winner_id=2, winning_bid=8.0,
+                payment=8.0, second_highest_bid=None, all_bids=[],
+                n_active_bidders=3, surplus=2.0,
+            )
+        ]
+        result = make_update_dutch_history_node(prompts)(state)
+        winner = next(b for b in result["bidders"] if b["id"] == 2)
+        other = next(b for b in result["bidders"] if b["id"] == 0)
+        assert winner["own_history_prompt"] == "D-ACC 8.00\n"
+        assert other["own_history_prompt"] == "D-REJ-WIN bidder=2 price=8.00\n"
+
+        # Case 2: no winner (all rejected)
+        state = _make_dutch_state(sample_bidders)
+        state["auction_results"] = [
+            AuctionResult(
+                round=1, auction_type="dutch", winner_id=None, winning_bid=None,
+                payment=None, second_highest_bid=None, all_bids=[],
+                n_active_bidders=3, surplus=0.0,
+            )
+        ]
+        result = make_update_dutch_history_node(prompts)(state)
+        assert result["market_history_text"] == "MKT-NONE\n"
+        for b in result["bidders"]:
+            assert b["own_history_prompt"] == "D-REJ-NONE\n"
+
+    def test_round_can_be_fully_stripped_from_dutch_history(self, sample_bidders):
+        """End-to-end: with every template stripped of {round}, no bidder
+        history string contains the word 'round' or a round number."""
+        round_free = AuctionPromptConfig(
+            market_history_winner_template=(
+                "Bidder {winner_id} accepted at ${payment:.2f}.\n"
+            ),
+            market_history_no_winner_template="No one accepted.\n",
+            dutch_bidder_accepted_template="You accepted at ${payment:.2f}.\n",
+            dutch_bidder_rejected_other_winner_template=(
+                "You did not accept. Bidder {winner_id} won at ${payment:.2f}.\n"
+            ),
+            dutch_bidder_rejected_no_winner_template="You did not accept.\n",
+        )
+
+        state = _make_dutch_state(sample_bidders)
+        state["auction_results"] = [
+            AuctionResult(
+                round=1, auction_type="dutch", winner_id=2, winning_bid=8.0,
+                payment=8.0, second_highest_bid=None, all_bids=[],
+                n_active_bidders=3, surplus=2.0,
+            )
+        ]
+        result = make_update_dutch_history_node(round_free)(state)
+
+        assert "round" not in result["market_history_text"].lower()
+        for b in result["bidders"]:
+            assert "round" not in b["own_history_prompt"].lower()
+
+
+class TestAuctionConfigsHaveHistoryTemplates:
+    """Every auction config's history templates must format cleanly against
+    the canonical keyword set — prevents a typo or placeholder drift from
+    silently crashing a run late in a simulation."""
+
+    _AUCTION_HISTORY_FIELDS = (
+        "market_history_winner_template",
+        "market_history_no_winner_template",
+        "dutch_bidder_accepted_template",
+        "dutch_bidder_rejected_other_winner_template",
+        "dutch_bidder_rejected_no_winner_template",
+        "english_bidder_won_template",
+        "english_bidder_lost_template",
+        "english_bidder_no_bid_template",
+        "sealed_bidder_won_template",
+        "sealed_bidder_lost_template",
+        "sealed_bidder_all_pay_loss_template",
+    )
+
+    _CANONICAL_KEYS = dict(
+        round=1,
+        auction_type="fpsb",
+        winner_id=2,
+        winning_bid=6.0,
+        payment=6.0,
+        second_highest_bid=4.0,
+        my_bid=5.0,
+    )
+
+    def test_defaults_render_cleanly(self):
+        templates = AuctionPromptConfig()
+        for field in self._AUCTION_HISTORY_FIELDS:
+            template = getattr(templates, field)
+            assert template and template.strip(), (
+                f"Default {field} is empty — would silently drop history entries"
+            )
+            try:
+                template.format(**self._CANONICAL_KEYS)
+            except KeyError as exc:
+                pytest.fail(
+                    f"Default {field} references unsupported placeholder {exc}"
+                )
+
+    @pytest.mark.parametrize("config_path", [
+        pytest.param(p, id=p.name)
+        for p in __import__("pathlib").Path(__file__).parent.parent.glob("configs/auction_*.yaml")
+    ])
+    def test_shipped_auction_configs_render_cleanly(self, config_path):
+        from market_simulation.config.settings import load_config
+
+        config = load_config(config_path)
+        if config.prompts.auction is None:
+            pytest.skip("Config has no auction prompt block")
+
+        auction_prompts = config.prompts.auction
+        for field in self._AUCTION_HISTORY_FIELDS:
+            template = getattr(auction_prompts, field)
+            assert template and template.strip(), (
+                f"{config_path.name}: {field} is empty"
+            )
+            try:
+                template.format(**self._CANONICAL_KEYS)
+            except KeyError as exc:
+                pytest.fail(
+                    f"{config_path.name}: {field} references unsupported placeholder {exc}"
+                )
