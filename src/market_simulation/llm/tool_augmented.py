@@ -40,12 +40,18 @@ class ToolAugmentedProvider:
             self._model_with_tools = model.bind_tools(self.tool_registry.tools)
         return self._model_with_tools
 
-    def invoke(self, prompt: str, callbacks: list[Any] | None = None) -> str:
+    def invoke(
+        self,
+        prompt: str,
+        callbacks: list[Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> str:
         """Invoke the LLM with tool-calling loop.
 
         Args:
             prompt: The prompt text.
             callbacks: Optional callbacks for tracing.
+            metadata: Optional per-call metadata forwarded to LangChain callbacks.
 
         Returns:
             Final text response from the LLM.
@@ -53,7 +59,7 @@ class ToolAugmentedProvider:
         self.last_tool_log = []
 
         if not self.tool_registry.has_tools:
-            return self.base_provider.invoke(prompt, callbacks=callbacks)
+            return self.base_provider.invoke(prompt, callbacks=callbacks, metadata=metadata)
 
         model = self._get_model_with_tools()
         messages: list[Any] = [HumanMessage(content=prompt)]
@@ -61,6 +67,8 @@ class ToolAugmentedProvider:
         config: dict[str, Any] = {}
         if callbacks:
             config["callbacks"] = callbacks
+        if metadata:
+            config["metadata"] = metadata
 
         logger.info(f"Entering tool-calling loop (max {self.max_iterations} iterations)")
 
@@ -121,6 +129,7 @@ class ToolAugmentedProvider:
         prompt: str,
         schema: type[PydanticBaseModel],
         callbacks: list[Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> PydanticBaseModel:
         """Invoke the LLM with tool-calling loop and return structured output.
 
@@ -132,6 +141,7 @@ class ToolAugmentedProvider:
             prompt: The prompt text.
             schema: Pydantic model class to parse the response into.
             callbacks: Optional callbacks for tracing.
+            metadata: Optional per-call metadata forwarded to LangChain callbacks.
 
         Returns:
             An instance of the provided schema.
@@ -139,7 +149,9 @@ class ToolAugmentedProvider:
         self.last_tool_log = []
 
         if not self.tool_registry.has_tools:
-            return self.base_provider.invoke_structured(prompt, schema, callbacks=callbacks)
+            return self.base_provider.invoke_structured(
+                prompt, schema, callbacks=callbacks, metadata=metadata,
+            )
 
         model = self._get_model_with_tools()
         messages: list[Any] = [HumanMessage(content=prompt)]
@@ -147,6 +159,8 @@ class ToolAugmentedProvider:
         config: dict[str, Any] = {}
         if callbacks:
             config["callbacks"] = callbacks
+        if metadata:
+            config["metadata"] = metadata
 
         logger.info(f"Entering structured tool-calling loop (max {self.max_iterations} iterations)")
 

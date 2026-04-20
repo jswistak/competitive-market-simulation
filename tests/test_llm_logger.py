@@ -222,6 +222,67 @@ class TestLLMCallLogger:
         assert logger.ignore_agent is True
         assert logger.ignore_retriever is True
 
+    def test_metadata_captured(self, logger, log_path):
+        run_id = uuid4()
+        metadata = {
+            "agent_id": 2,
+            "agent_type": "seller",
+            "action": "announce",
+            "round": 1,
+            "iteration": 1,
+            "simulation_id": 5,
+        }
+
+        logger.on_chat_model_start(
+            _make_serialized(),
+            [[HumanMessage(content="hi")]],
+            run_id=run_id,
+            metadata=metadata,
+        )
+        logger.on_llm_end(_make_llm_result(), run_id=run_id)
+        logger.close()
+
+        record = json.loads(log_path.read_text().strip())
+        assert record["agent_id"] == 2
+        assert record["agent_type"] == "seller"
+        assert record["action"] == "announce"
+        assert record["round"] == 1
+        assert record["iteration"] == 1
+        assert record["simulation_id"] == 5
+
+    def test_metadata_captured_on_error(self, logger, log_path):
+        run_id = uuid4()
+        metadata = {"agent_id": 0, "action": "respond"}
+
+        logger.on_chat_model_start(
+            _make_serialized(),
+            [[HumanMessage(content="hi")]],
+            run_id=run_id,
+            metadata=metadata,
+        )
+        logger.on_llm_error(ValueError("boom"), run_id=run_id)
+        logger.close()
+
+        record = json.loads(log_path.read_text().strip())
+        assert record["agent_id"] == 0
+        assert record["action"] == "respond"
+        assert record["error"] == "boom"
+
+    def test_no_metadata_omits_keys(self, logger, log_path):
+        run_id = uuid4()
+
+        logger.on_chat_model_start(
+            _make_serialized(),
+            [[HumanMessage(content="hi")]],
+            run_id=run_id,
+        )
+        logger.on_llm_end(_make_llm_result(), run_id=run_id)
+        logger.close()
+
+        record = json.loads(log_path.read_text().strip())
+        assert "agent_id" not in record
+        assert "action" not in record
+
 
 class TestLoadLLMLogs:
 

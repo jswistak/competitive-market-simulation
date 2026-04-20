@@ -71,13 +71,20 @@ class LLMProvider(ABC):
         """
         return {"max_tokens": max_tokens}
 
-    def invoke(self, prompt: str, callbacks: list[Any] | None = None) -> str:
+    def invoke(
+        self,
+        prompt: str,
+        callbacks: list[Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> str:
         """Invoke the model with a prompt.
 
         Args:
             prompt: The prompt text.
             callbacks: Optional list of callbacks for tracing. If None, inherits
                 from the current LangGraph/LangChain context automatically.
+            metadata: Optional per-call metadata forwarded to LangChain callbacks
+                via ``config.metadata`` (e.g. agent_id, action, round).
 
         Returns:
             str: The model's response text.
@@ -90,6 +97,8 @@ class LLMProvider(ABC):
         config: dict[str, Any] = {}
         if callbacks:
             config["callbacks"] = callbacks
+        if metadata:
+            config["metadata"] = metadata
 
         response = model.invoke(
             [message], config=config, **self._max_tokens_kwargs(self.config.max_tokens)
@@ -118,6 +127,7 @@ class LLMProvider(ABC):
         prompt: str,
         schema: type[PydanticBaseModel],
         callbacks: list[Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> PydanticBaseModel:
         """Invoke the model and return a structured Pydantic response.
 
@@ -125,6 +135,8 @@ class LLMProvider(ABC):
             prompt: The prompt text.
             schema: Pydantic model class to parse the response into.
             callbacks: Optional list of callbacks for tracing.
+            metadata: Optional per-call metadata forwarded to LangChain callbacks
+                via ``config.metadata`` (e.g. agent_id, action, round).
 
         Returns:
             An instance of the provided schema.
@@ -136,6 +148,8 @@ class LLMProvider(ABC):
         config: dict[str, Any] = {}
         if callbacks:
             config["callbacks"] = callbacks
+        if metadata:
+            config["metadata"] = metadata
 
         return structured_model.invoke(
             [message], config=config, **self._max_tokens_kwargs(self.config.max_tokens)
