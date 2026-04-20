@@ -1,10 +1,9 @@
 """Pydantic configuration schemas."""
 
 from enum import Enum
-
-from pydantic import BaseModel, Field
 from typing import Literal
 
+from pydantic import BaseModel, Field
 
 # --- Auction type enum ---
 
@@ -41,7 +40,7 @@ class ToolConfig(BaseModel):
     """Tool availability configuration for agents."""
 
     enabled: bool = False
-    enable_simple_tools: bool = True
+    enable_simple_tools: bool = False
     enable_code_interpreter: bool = False
     e2b_timeout: int = 300
     max_tool_iterations: int = 5

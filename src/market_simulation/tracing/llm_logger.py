@@ -47,6 +47,7 @@ class LLMCallLogger(BaseCallbackHandler):
         *,
         run_id: UUID,
         parent_run_id: UUID | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         parts = []
@@ -64,6 +65,7 @@ class LLMCallLogger(BaseCallbackHandler):
                 "prompt": prompt_text,
                 "model_class": model_class,
                 "parent_run_id": str(parent_run_id) if parent_run_id else None,
+                "metadata": dict(metadata) if metadata else {},
             }
 
     def on_llm_end(
@@ -121,6 +123,7 @@ class LLMCallLogger(BaseCallbackHandler):
             "latency_seconds": round(latency, 4),
             "finish_reason": finish_reason,
             "error": None,
+            **pending.get("metadata", {}),
         }
 
         self._write(record)
@@ -154,6 +157,7 @@ class LLMCallLogger(BaseCallbackHandler):
             "latency_seconds": round(latency, 4),
             "finish_reason": None,
             "error": str(error),
+            **pending.get("metadata", {}),
         }
 
         self._write(record)

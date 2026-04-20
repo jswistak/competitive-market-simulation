@@ -36,6 +36,7 @@ class GeminiProvider(LLMProvider):
         prompt: str,
         schema: type[PydanticBaseModel],
         callbacks: list[Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> PydanticBaseModel:
         """Invoke Gemini with structured output using native JSON schema.
 
@@ -53,5 +54,7 @@ class GeminiProvider(LLMProvider):
         config: dict[str, Any] = {}
         if callbacks:
             config["callbacks"] = callbacks
+        if metadata:
+            config["metadata"] = metadata
 
         return structured_model.invoke([message], config=config)

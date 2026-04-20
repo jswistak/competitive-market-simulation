@@ -120,8 +120,19 @@ def make_announce_node(
         if not callbacks and callbacks_factory:
             callbacks = callbacks_factory()
 
+        call_metadata = {
+            "agent_id": agent_id,
+            "agent_type": agent_type,
+            "action": "announce",
+            "round": state["round"],
+            "iteration": state["iteration"],
+            "simulation_id": state["simulation_id"],
+        }
+
         try:
-            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            response = llm.invoke_structured(
+                prompt, response_schema, callbacks=callbacks, metadata=call_metadata,
+            )
             price = response.price
             reasoning = getattr(response, 'reasoning', '')
             logger.debug(
