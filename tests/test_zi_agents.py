@@ -35,11 +35,8 @@ class TestStrategyNormalisation:
         got = _normalize_strategies(["llm", "zi_c", "zi_u"], 3)
         assert got == ["llm", "zi_c", "zi_u"]
 
-    def test_list_length_mismatch_raises(self):
-        with pytest.raises(ValueError):
-            _normalize_strategies(["llm", "zi_c"], 3)
-
     def test_schema_validator_rejects_bad_list(self):
+        # Length mismatch is enforced at config load, not in the helper.
         with pytest.raises(Exception):
             AgentPricesConfig(num=3, strategies=["llm", "zi_c"])
 

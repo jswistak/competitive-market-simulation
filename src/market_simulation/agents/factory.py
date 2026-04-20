@@ -24,12 +24,14 @@ def _normalize_strategies(
     strategies: Strategy | list[Strategy],
     num: int,
 ) -> list[Strategy]:
-    """Expand a strategy spec into a per-agent list of length `num`."""
+    """Expand a strategy spec into a per-agent list of length `num`.
+
+    Length mismatch is already caught at config load by
+    ``AgentPricesConfig._validate_strategies_length`` /
+    ``BiddersConfig._validate_strategies_length``; this helper trusts the
+    invariant.
+    """
     if isinstance(strategies, list):
-        if len(strategies) != num:
-            raise ValueError(
-                f"strategies list length ({len(strategies)}) must equal num ({num})"
-            )
         return list(strategies)
     return [strategies] * num
 

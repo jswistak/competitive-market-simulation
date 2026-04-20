@@ -223,7 +223,12 @@ def run(
             )
         graph = build_auction_graph(
             cfg.experiment.auction_type, llm, cfg.prompts.auction,
-            random_seed=auction_config.random_seed,
+            # Use the resolved `seed` (experiment.random_seed first,
+            # auction.random_seed fallback) so mechanism-level randomness
+            # (e.g. Dutch bidder shuffle) follows the same precedence as
+            # the ZI RNG. Without this, setting only experiment.random_seed
+            # would leave the shuffle non-deterministic.
+            random_seed=seed,
             include_reasoning=cfg.experiment.include_reasoning,
             zi_config=cfg.zi,
             rng=zi_rng,
