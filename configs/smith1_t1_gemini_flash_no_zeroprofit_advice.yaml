@@ -1,0 +1,129 @@
+experiment:
+  auction: null
+  buyers:
+    max: 3.2
+    min: 0.8
+    num: 11
+  history:
+    mode: full
+    own_history_mode: full
+    summary_last_n_events: 3
+  include_reasoning: false
+  n_iterations: 11
+  n_rounds: 5
+  n_simulations: 5
+  sellers:
+    max: 3.2
+    min: 0.8
+    num: 11
+llm:
+  max_retries: 3
+  max_tokens: 2048
+  max_tokens_with_tools: 1024
+  model: gemini-3-flash-preview
+  provider: gemini
+  retry_backoff_factor: 2.0
+  retry_base_delay: 1.0
+  temperature: 1.0
+personas:
+  bidder_default: ''
+  bidders: {}
+  buyer_default: ''
+  buyers: {}
+  seller_default: ''
+  sellers: {}
+prompts:
+  auction: null
+  buyer:
+    announcement_prompt: 'Do you want to announce a bid to buy? If so, what is your
+      bid price?
+
+      '
+    main_keywords:
+      condition: above
+      preference: lowest
+      role: buyer
+      verb: buy
+    response_prompt: 'Someone is offering to sell at ${price:.2f}. Do you accept this
+      offer and buy at this price?
+
+      '
+  general:
+    announcement_history_template: 'In round {round} at iteration {iteration}, your
+      offer to {announcement_type} for ${price:.2f} was {outcome}.
+
+      '
+    main_template: 'You are a {role} participating in a market for a good you need
+      to {verb}. Your task is to {verb} a unit of the good at the {preference} possible
+      price but not {condition} your reservation price.
+
+      Your reservation price is known to you and only you.
+
+      Under no condition can you {verb} {condition} your reservation price.
+
+
+      There are {N_BUYERS} buyers and {N_SELLERS} sellers in the room (including you).
+
+      Any buyer or seller is free at any time to raise his hand and make a verbal
+      offer to buy/sell.
+
+      Any buyer or seller is free to accept an offer, in which case a binding contract
+      has been formed, the transaction occurs and the buyer and seller drop out of
+      the market (no longer permitted to do anything for the remainder of that round).
+
+
+      There will be {N_ROUNDS} rounds.
+
+      Each round, you want to {verb} an additional unit of the good and are able to
+      transact irrespective of whether you transacted in the previous round.
+
+      Each round, a maximum of {N_ITER} transactions can be made. You can only make
+      one transaction per round.
+
+
+      Your reservation price is {reservation_price}.
+
+
+      Market history:
+
+      {market_history}
+
+
+      History of your actions:
+
+      {own_history}
+
+
+      This is round {round}/{N_ROUNDS} iteration {iteration}/{N_ITER}.
+
+
+      {action_prompt}
+
+      '
+    response_history_template: 'In round {round} at iteration {iteration}, you {outcome}
+      a {opposite_announcement_type} offer for ${price:.2f}.
+
+      '
+  seller:
+    announcement_prompt: 'Do you want to announce an offer to sell? If so, what is
+      your asking price?
+
+      '
+    main_keywords:
+      condition: below
+      preference: highest
+      role: seller
+      verb: sell
+    response_prompt: 'Someone is offering to buy at ${price:.2f}. Do you accept this
+      offer and sell at this price?
+
+      '
+  tools_preamble: ''
+tools:
+  e2b_timeout: 300
+  enable_code_interpreter: false
+  enable_simple_tools: true
+  enabled: false
+  max_tool_iterations: 5
+tracing:
+  enabled: false
