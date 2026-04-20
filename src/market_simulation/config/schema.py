@@ -3,7 +3,10 @@
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+Strategy = Literal["llm", "zi_c", "zi_u"]
 
 # --- Auction type enum ---
 
@@ -55,6 +58,15 @@ class AgentPricesConfig(BaseModel):
     min: float = 0.8
     max: float = 3.2
     num: int = 11
+    strategies: Strategy | list[Strategy] = "llm"
+
+    @model_validator(mode="after")
+    def _validate_strategies_length(self):
+        if isinstance(self.strategies, list) and len(self.strategies) != self.num:
+            raise ValueError(
+                f"strategies list length ({len(self.strategies)}) must equal num ({self.num})"
+            )
+        return self
 
 
 class HistoryConfig(BaseModel):
@@ -75,6 +87,15 @@ class BiddersConfig(BaseModel):
     value_min: float = 0.0
     value_max: float = 10.0
     distribution: Literal["linspace", "uniform"] = "linspace"
+    strategies: Strategy | list[Strategy] = "llm"
+
+    @model_validator(mode="after")
+    def _validate_strategies_length(self):
+        if isinstance(self.strategies, list) and len(self.strategies) != self.num:
+            raise ValueError(
+                f"strategies list length ({len(self.strategies)}) must equal num ({self.num})"
+            )
+        return self
 
 
 class AuctionConfig(BaseModel):
@@ -126,6 +147,10 @@ class ExperimentConfig(BaseModel):
 
     # Optional manual override for LangGraph recursion limit
     recursion_limit: int | None = None
+
+    # Seed for ZI sampling and any other stochastic double-auction operations.
+    # (Auction-specific seeding still lives on AuctionConfig.random_seed.)
+    random_seed: int | None = None
 
 
 class TracingConfig(BaseModel):
@@ -185,6 +210,23 @@ class PersonaConfig(BaseModel):
     bidders: dict[int, str] = Field(default_factory=dict)
 
 
+class ZIConfig(BaseModel):
+    """Zero-intelligence trader sampling hyperparameters.
+
+    ZI-C (constrained) always respects reservation price / private value and
+    needs no bounds — it draws inside the agent's viable range. ZI-U
+    (unconstrained) samples from the fixed interval [u_low, u_high] and
+    uses Bernoulli gates to decide whether to announce / bid / accept at all.
+    """
+
+    u_low: float = 0.0
+    u_high: float = 10.0
+    # Probabilities used by ZI-U where a node can choose *not* to act at all.
+    announce_prob: float = 0.5  # double-auction announce
+    accept_prob: float = 0.5  # double-auction respond, dutch acceptance
+    bid_prob: float = 0.5  # english bid-or-pass
+
+
 class SimulationConfig(BaseModel):
     """Complete simulation configuration."""
 
@@ -194,3 +236,4 @@ class SimulationConfig(BaseModel):
     prompts: PromptConfig = Field(default_factory=PromptConfig)
     tools: ToolConfig = Field(default_factory=ToolConfig)
     personas: PersonaConfig = Field(default_factory=PersonaConfig)
+    zi: ZIConfig = Field(default_factory=ZIConfig)

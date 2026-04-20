@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 
+import numpy as np
 import typer
 from rich.console import Console
 from rich.progress import (
@@ -133,17 +134,43 @@ def run(
         console.print("Tools: [cyan]disabled[/]")
     console.print()
 
+    # Determine whether any configured agent uses an LLM strategy.
+    # If all agents are zero-intelligence we can skip creating the LLM
+    # provider (and its API client) entirely.
+    def _uses_llm(strategies) -> bool:
+        if isinstance(strategies, list):
+            return any(s == "llm" for s in strategies)
+        return strategies == "llm"
+
+    if is_auction and auction_config:
+        any_llm = _uses_llm(auction_config.bidders.strategies)
+    else:
+        any_llm = _uses_llm(cfg.experiment.buyers.strategies) or _uses_llm(
+            cfg.experiment.sellers.strategies
+        )
+
     # Create sandbox manager if E2B is enabled
     sandbox_manager: SandboxManager | None = None
-    if cfg.tools.enabled and cfg.tools.enable_code_interpreter:
+    if any_llm and cfg.tools.enabled and cfg.tools.enable_code_interpreter:
         sandbox_manager = SandboxManager(
             enabled=True,
             timeout=cfg.tools.e2b_timeout,
         )
 
-    # Create LLM provider (with optional tool augmentation)
-    llm = create_tool_augmented_llm(cfg.llm, cfg.tools, sandbox_manager)
-    logger.info(f"Created {llm.provider_name} provider with model {llm.model_name}")
+    # Create LLM provider only if at least one agent uses it.
+    llm = None
+    if any_llm:
+        llm = create_tool_augmented_llm(cfg.llm, cfg.tools, sandbox_manager)
+        logger.info(f"Created {llm.provider_name} provider with model {llm.model_name}")
+    else:
+        console.print("[yellow]All agents are zero-intelligence — skipping LLM provider creation[/]")
+
+    # Seed the ZI RNG. Prefer experiment.random_seed; fall back to auction
+    # random_seed for auction runs so existing auction configs keep working.
+    seed = cfg.experiment.random_seed
+    if seed is None and is_auction and auction_config is not None:
+        seed = auction_config.random_seed
+    zi_rng = np.random.default_rng(seed)
 
     # Create tracing manager
     tracing = create_tracing_manager(cfg.tracing)
@@ -188,11 +215,18 @@ def run(
             )
 
     # Build graph and calculate recursion limit
-    if is_auction and auction_config and cfg.prompts.auction:
+    if is_auction and auction_config:
+        if any_llm and not cfg.prompts.auction:
+            raise typer.BadParameter(
+                f"Auction type '{cfg.experiment.auction_type.value}' with "
+                f"strategy='llm' requires 'prompts.auction' to be configured."
+            )
         graph = build_auction_graph(
             cfg.experiment.auction_type, llm, cfg.prompts.auction,
             random_seed=auction_config.random_seed,
             include_reasoning=cfg.experiment.include_reasoning,
+            zi_config=cfg.zi,
+            rng=zi_rng,
         )
         n_bidders = auction_config.bidders.num
         n_rounds = auction_config.n_rounds
@@ -206,12 +240,6 @@ def run(
             recursion_limit = n_rounds * n_bidders * 3 + 50
 
         n_sims = auction_config.n_simulations
-    elif is_auction and auction_config and not cfg.prompts.auction:
-        raise typer.BadParameter(
-            f"Auction type '{cfg.experiment.auction_type.value}' requires "
-            f"'prompts.auction' to be configured. Please add auction prompt "
-            f"settings to your config file."
-        )
     elif is_auction and not auction_config:
         raise typer.BadParameter(
             f"Auction type '{cfg.experiment.auction_type.value}' requires "
@@ -219,7 +247,12 @@ def run(
         )
     else:
         logger.info("No auction type specified — defaulting to double-auction mode")
-        graph = build_market_graph(llm, cfg.prompts, include_reasoning=cfg.experiment.include_reasoning)
+        graph = build_market_graph(
+            llm, cfg.prompts,
+            include_reasoning=cfg.experiment.include_reasoning,
+            zi_config=cfg.zi,
+            rng=zi_rng,
+        )
         # Worst-case recursion limit: per iteration, each of N agents can
         # announce (3 nodes) and have up to R responders reject (3 nodes each),
         # plus 7 overhead nodes for end-of-iteration routing.

@@ -9,6 +9,7 @@ Graph topology:
 
 from typing import Callable
 
+import numpy as np
 from langgraph.graph import StateGraph, START, END
 
 from ...state import SealedBidState
@@ -21,15 +22,17 @@ from .nodes import (
 from .edges import route_after_collect_bid, route_after_update_history
 from ....llm.providers.base import LLMProvider
 from ....llm.response_schemas import get_response_schemas
-from ....config.schema import AuctionPromptConfig
+from ....config.schema import AuctionPromptConfig, ZIConfig
 
 
 def build_sealed_bid_graph(
     auction_type: str,
-    llm: LLMProvider,
+    llm: LLMProvider | None,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
     include_reasoning: bool = True,
+    zi_config: ZIConfig | None = None,
+    rng: np.random.Generator | None = None,
 ) -> StateGraph:
     """Build a sealed-bid auction LangGraph workflow.
 
@@ -50,7 +53,14 @@ def build_sealed_bid_graph(
     builder = StateGraph(SealedBidState)
 
     # Add nodes
-    builder.add_node("collect_bid", make_collect_bid_node(llm, prompts, callbacks_factory, response_schema=schemas.bid))
+    builder.add_node(
+        "collect_bid",
+        make_collect_bid_node(
+            llm, prompts, callbacks_factory,
+            response_schema=schemas.bid,
+            zi_config=zi_config, rng=rng,
+        ),
+    )
     builder.add_node("determine_winner", make_determine_winner_node())
     builder.add_node("update_history", make_update_sealed_history_node())
     builder.add_node("next_round", make_next_sealed_round_node())

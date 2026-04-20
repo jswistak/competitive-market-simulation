@@ -10,12 +10,14 @@ import logging
 import random
 from typing import Callable
 
+import numpy as np
 from langchain_core.runnables import RunnableConfig
 
 from ...state import DutchAuctionState, BidRecord, AuctionResult
+from ....agents import zi as zi_decisions
 from ....llm.providers.base import LLMProvider
 from ....llm.response_schemas import AcceptRejectResponse, AcceptRejectResponseWithReasoning
-from ....config.schema import AuctionPromptConfig
+from ....config.schema import AuctionPromptConfig, ZIConfig
 from ..base import render_auction_prompt
 
 logger = logging.getLogger(__name__)
@@ -68,12 +70,18 @@ def make_announce_price_node(
 
 
 def make_solicit_acceptance_node(
-    llm: LLMProvider,
+    llm: LLMProvider | None,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
     response_schema: type[AcceptRejectResponse] = AcceptRejectResponseWithReasoning,
+    zi_config: ZIConfig | None = None,
+    rng: np.random.Generator | None = None,
 ) -> Callable[[DutchAuctionState, RunnableConfig], dict]:
     """Create node that asks the current bidder to accept or reject the price."""
+
+    zi_cfg = zi_config or ZIConfig()
+    zi_rng = rng if rng is not None else np.random.default_rng()
+    include_reasoning = response_schema is AcceptRejectResponseWithReasoning
 
     def solicit_acceptance(state: DutchAuctionState, config: RunnableConfig) -> dict:
         idx = state["current_bidder_index"]
@@ -84,34 +92,48 @@ def make_solicit_acceptance_node(
 
         bidder = bidders[idx]
         current_price = state["current_price"]
-
-        prompt = render_auction_prompt(
-            template=prompts.system_template,
-            bidder=bidder,
-            state=state,
-            extra_vars={
-                "action_prompt": prompts.dutch_accept_prompt,
-                "auction_type": state["auction_type"],
-                "value_explanation": prompts.value_explanation,
-                "current_price": current_price,
-                "n_bidders": len(bidders),
-            },
-        )
-
-        callbacks = config.get("callbacks", []) if config else []
-        if not callbacks and callbacks_factory:
-            callbacks = callbacks_factory()
+        strategy = bidder.get("strategy", "llm")
 
         try:
-            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            if strategy == "llm":
+                if llm is None:
+                    raise RuntimeError(
+                        "Bidder has strategy='llm' but no LLM provider was supplied"
+                    )
+                prompt = render_auction_prompt(
+                    template=prompts.system_template,
+                    bidder=bidder,
+                    state=state,
+                    extra_vars={
+                        "action_prompt": prompts.dutch_accept_prompt,
+                        "auction_type": state["auction_type"],
+                        "value_explanation": prompts.value_explanation,
+                        "current_price": current_price,
+                        "n_bidders": len(bidders),
+                    },
+                )
+
+                callbacks = config.get("callbacks", []) if config else []
+                if not callbacks and callbacks_factory:
+                    callbacks = callbacks_factory()
+
+                response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            else:
+                response = zi_decisions.decide_dutch_accept(
+                    bidder=bidder,
+                    current_price=current_price,
+                    zi_cfg=zi_cfg,
+                    rng=zi_rng,
+                    include_reasoning=include_reasoning,
+                )
             reasoning = getattr(response, 'reasoning', '')
             logger.debug(
                 f"Bidder {bidder['id']} structured response: accept={response.accept}, "
                 f"reasoning='{reasoning[:100]}...'"
             )
 
-            # Capture tool log
-            tool_log_entries = getattr(llm, "last_tool_log", [])
+            # Capture tool log (ZI path has none)
+            tool_log_entries = getattr(llm, "last_tool_log", []) if strategy == "llm" else []
             tool_usage_log = [
                 {
                     **entry,
@@ -173,7 +195,7 @@ def make_solicit_acceptance_node(
             }
 
         except Exception as e:
-            logger.error(f"LLM call failed for bidder {bidder['id']}: {e}")
+            logger.error(f"Decision failed for bidder {bidder['id']} ({strategy}): {e}")
             new_idx = idx + 1
             return {
                 "current_bidder_index": new_idx,

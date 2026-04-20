@@ -1,6 +1,8 @@
 """LangGraph workflow builder for market simulation."""
 
 from typing import Callable
+
+import numpy as np
 from langgraph.graph import StateGraph, START
 
 from .state import MarketState
@@ -25,22 +27,27 @@ from .edges import (
 )
 from ..llm.providers.base import LLMProvider
 from ..llm.response_schemas import get_response_schemas
-from ..config.schema import PromptConfig
+from ..config.schema import PromptConfig, ZIConfig
 
 
 def build_market_graph(
-    llm: LLMProvider,
+    llm: LLMProvider | None,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
     include_reasoning: bool = True,
+    zi_config: ZIConfig | None = None,
+    rng: np.random.Generator | None = None,
 ) -> StateGraph:
     """Build the market simulation LangGraph workflow.
 
     Args:
-        llm: LLM provider for agent interactions.
+        llm: LLM provider for agent interactions. May be ``None`` when all
+            agents use a zero-intelligence strategy.
         prompts: Prompt configuration for agents.
         callbacks_factory: Optional factory for creating tracing callbacks.
         include_reasoning: Whether to include reasoning field in LLM responses.
+        zi_config: Hyperparameters for ZI sampling.
+        rng: Seeded NumPy ``Generator`` for ZI randomness.
 
     Returns:
         Compiled StateGraph ready for execution.
@@ -50,9 +57,23 @@ def build_market_graph(
 
     # Add nodes
     builder.add_node("select_announcer", make_select_announcer_node())
-    builder.add_node("announce", make_announce_node(llm, prompts, callbacks_factory, response_schema=schemas.announcement))
+    builder.add_node(
+        "announce",
+        make_announce_node(
+            llm, prompts, callbacks_factory,
+            response_schema=schemas.announcement,
+            zi_config=zi_config, rng=rng,
+        ),
+    )
     builder.add_node("select_responders", make_select_responders_node())
-    builder.add_node("respond", make_respond_node(llm, prompts, callbacks_factory, response_schema=schemas.accept_reject))
+    builder.add_node(
+        "respond",
+        make_respond_node(
+            llm, prompts, callbacks_factory,
+            response_schema=schemas.accept_reject,
+            zi_config=zi_config, rng=rng,
+        ),
+    )
     builder.add_node("record_transaction", make_record_transaction_node())
     builder.add_node("check_iteration", make_check_iteration_node())
     builder.add_node("update_history", make_update_history_node())

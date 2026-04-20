@@ -3,7 +3,13 @@
 import numpy as np
 from typing import Any
 
-from ..config.schema import ExperimentConfig, AuctionConfig, AuctionType, PersonaConfig
+from ..config.schema import (
+    ExperimentConfig,
+    AuctionConfig,
+    AuctionType,
+    PersonaConfig,
+    Strategy,
+)
 from ..graph.state import (
     MarketState,
     AgentState,
@@ -12,6 +18,20 @@ from ..graph.state import (
     EnglishAuctionState,
     DutchAuctionState,
 )
+
+
+def _normalize_strategies(
+    strategies: Strategy | list[Strategy],
+    num: int,
+) -> list[Strategy]:
+    """Expand a strategy spec into a per-agent list of length `num`."""
+    if isinstance(strategies, list):
+        if len(strategies) != num:
+            raise ValueError(
+                f"strategies list length ({len(strategies)}) must equal num ({num})"
+            )
+        return list(strategies)
+    return [strategies] * num
 
 
 def create_agents(
@@ -41,6 +61,7 @@ def create_agents(
         ),
         2,
     )
+    buyer_strategies = _normalize_strategies(config.buyers.strategies, config.buyers.num)
 
     for i, price in enumerate(buyer_prices):
         persona_text = personas.buyers.get(i, personas.buyer_default)
@@ -52,6 +73,7 @@ def create_agents(
             own_history_prompt="",
             own_history_data=[],
             persona=persona_text,
+            strategy=buyer_strategies[i],
         )
         agents.append(agent)
 
@@ -64,6 +86,7 @@ def create_agents(
         ),
         2,
     )
+    seller_strategies = _normalize_strategies(config.sellers.strategies, config.sellers.num)
 
     id_offset = config.buyers.num
     for i, price in enumerate(seller_prices):
@@ -76,6 +99,7 @@ def create_agents(
             own_history_prompt="",
             own_history_data=[],
             persona=persona_text,
+            strategy=seller_strategies[i],
         )
         agents.append(agent)
 
@@ -177,6 +201,8 @@ def create_bidders(
     if personas is None:
         personas = PersonaConfig()
 
+    bidder_strategies = _normalize_strategies(bc.strategies, bc.num)
+
     bidders: list[BidderState] = []
     for i, val in enumerate(values):
         persona_text = personas.bidders.get(i, personas.bidder_default)
@@ -188,6 +214,7 @@ def create_bidders(
                 own_history_prompt="",
                 own_history_data=[],
                 persona=persona_text,
+                strategy=bidder_strategies[i],
             )
         )
     return bidders

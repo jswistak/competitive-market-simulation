@@ -1,0 +1,31 @@
+# Zero-Intelligence (unconstrained) double auction baseline.
+#
+# Each agent ignores its reservation price and draws bids/asks
+# uniformly from [zi.u_low, zi.u_high]. Accept/announce decisions
+# are Bernoulli-gated. Serves as a pure-noise floor for LLM comparisons.
+experiment:
+  n_rounds: 5
+  n_iterations: 11
+  n_simulations: 10
+  random_seed: 42
+  buyers:
+    min: 0.8
+    max: 3.2
+    num: 11
+    strategies: zi_u
+  sellers:
+    min: 0.8
+    max: 3.2
+    num: 11
+    strategies: zi_u
+
+zi:
+  u_low: 0.0
+  u_high: 4.0
+  announce_prob: 0.5
+  accept_prob: 0.5
+  bid_prob: 0.5
+
+tracing:
+  enabled: false
+  llm_call_logging: false

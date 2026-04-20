@@ -4,6 +4,9 @@ from typing import Annotated, Literal, NotRequired, TypedDict
 from operator import add
 
 
+Strategy = Literal["llm", "zi_c", "zi_u"]
+
+
 class AgentState(TypedDict):
     """State for a single market agent."""
 
@@ -14,6 +17,7 @@ class AgentState(TypedDict):
     own_history_prompt: str  # History for prompt rendering
     own_history_data: list[dict]  # Data for CSV export
     persona: str  # Per-agent persona text
+    strategy: Strategy  # Decision-making strategy: LLM or zero-intelligence variant
 
 
 class Transaction(TypedDict):
@@ -113,6 +117,7 @@ class BidderState(TypedDict):
     own_history_prompt: str  # History for prompt rendering
     own_history_data: list[dict]  # Data for CSV export
     persona: str  # Per-bidder persona text
+    strategy: Strategy  # Decision-making strategy: LLM or zero-intelligence variant
 
 
 class BidRecord(TypedDict):
