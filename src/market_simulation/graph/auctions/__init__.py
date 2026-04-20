@@ -2,10 +2,11 @@
 
 from typing import Callable
 
+import numpy as np
 from langgraph.graph import StateGraph
 
 from ...llm.providers.base import LLMProvider
-from ...config.schema import AuctionType, AuctionPromptConfig
+from ...config.schema import AuctionType, AuctionPromptConfig, ZIConfig
 
 from .sealed_bid import build_sealed_bid_graph
 from .english import build_english_graph
@@ -25,11 +26,13 @@ AUCTION_BUILDERS: dict[str, Callable[..., StateGraph]] = {
 
 def build_auction_graph(
     auction_type: str | AuctionType,
-    llm: LLMProvider,
+    llm: LLMProvider | None,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
     random_seed: int | None = None,
     include_reasoning: bool = True,
+    zi_config: ZIConfig | None = None,
+    rng: np.random.Generator | None = None,
 ) -> StateGraph:
     """Build the appropriate auction graph for the given type.
 
@@ -41,6 +44,8 @@ def build_auction_graph(
         random_seed: Optional seed for deterministic random operations
             (e.g. bidder shuffling in Dutch auctions).
         include_reasoning: Whether to include reasoning field in LLM responses.
+        zi_config: Hyperparameters for zero-intelligence sampling.
+        rng: Seeded NumPy ``Generator`` for ZI randomness.
 
     Returns:
         Compiled StateGraph ready for execution.
@@ -61,6 +66,11 @@ def build_auction_graph(
         return builder(
             type_str, llm, prompts, callbacks_factory,
             random_seed=random_seed, include_reasoning=include_reasoning,
+            zi_config=zi_config, rng=rng,
         )
 
-    return builder(type_str, llm, prompts, callbacks_factory, include_reasoning=include_reasoning)
+    return builder(
+        type_str, llm, prompts, callbacks_factory,
+        include_reasoning=include_reasoning,
+        zi_config=zi_config, rng=rng,
+    )

@@ -4,13 +4,15 @@ import random
 import logging
 from typing import Callable, Any
 
+import numpy as np
 from langchain_core.runnables import RunnableConfig
 
 from ..state import MarketState
 from ..history import build_market_history_for_prompt, build_own_history_for_prompt
+from ...agents import zi as zi_decisions
 from ...llm.providers.base import LLMProvider
 from ...llm.response_schemas import AcceptRejectResponse, AcceptRejectResponseWithReasoning
-from ...config.schema import PromptConfig
+from ...config.schema import PromptConfig, ZIConfig
 
 logger = logging.getLogger(__name__)
 
@@ -63,26 +65,35 @@ def make_select_responders_node() -> Callable[[MarketState], dict]:
 
 
 def make_respond_node(
-    llm: LLMProvider,
+    llm: LLMProvider | None,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
     response_schema: type[AcceptRejectResponse] = AcceptRejectResponseWithReasoning,
+    zi_config: ZIConfig | None = None,
+    rng: np.random.Generator | None = None,
 ) -> Callable[[MarketState, RunnableConfig], dict]:
     """Create node that handles agent responses to announcements.
 
     Args:
-        llm: LLM provider for generating responses.
+        llm: LLM provider for generating responses. May be ``None`` if all
+            agents use a zero-intelligence strategy.
         prompts: Prompt configuration.
         callbacks_factory: Optional factory for tracing callbacks (deprecated,
             prefer passing callbacks via graph config).
         response_schema: Pydantic schema for structured output.
+        zi_config: Hyperparameters for zero-intelligence sampling.
+        rng: Seeded NumPy ``Generator`` for ZI randomness.
 
     Returns:
         Node function that generates response.
     """
 
+    zi_cfg = zi_config or ZIConfig()
+    zi_rng = rng if rng is not None else np.random.default_rng()
+    include_reasoning = response_schema is AcceptRejectResponseWithReasoning
+
     def respond(state: MarketState, config: RunnableConfig) -> dict:
-        """Agent responds to an announcement via LLM call."""
+        """Agent responds to an announcement via LLM call or ZI sampling."""
         responder_ids = state["potential_responder_ids"]
         current_idx = state["current_responder_index"]
 
@@ -111,55 +122,66 @@ def make_respond_node(
                 "current_responder_index": current_idx + 1,
             }
 
-        # Get appropriate prompts
         agent_type = responder["type"]
-        if agent_type == "buyer":
-            agent_prompts = prompts.buyer
-        else:
-            agent_prompts = prompts.seller
-
-        if agent_prompts is None:
-            return {
-                "responding_agent_id": responder_id,
-                "response_accepted": False,
-                "current_responder_index": current_idx + 1,
-            }
-
-        # Render prompt
-        prompt = _render_response_prompt(
-            agent=responder,
-            state=state,
-            prompts=prompts,
-            agent_prompts=agent_prompts,
-        )
-
-        # Get callbacks from config (propagated from graph.invoke)
-        # Falls back to callbacks_factory for backwards compatibility
-        callbacks = config.get("callbacks", []) if config else []
-        if not callbacks and callbacks_factory:
-            callbacks = callbacks_factory()
-
-        call_metadata = {
-            "agent_id": responder_id,
-            "agent_type": agent_type,
-            "action": "respond",
-            "round": state["round"],
-            "iteration": state["iteration"],
-            "simulation_id": state["simulation_id"],
-        }
+        strategy = responder.get("strategy", "llm")
 
         try:
-            response = llm.invoke_structured(
-                prompt, response_schema, callbacks=callbacks, metadata=call_metadata,
-            )
+            if strategy == "llm":
+                if llm is None:
+                    raise RuntimeError(
+                        "Responder has strategy='llm' but no LLM provider was supplied"
+                    )
+                if agent_type == "buyer":
+                    agent_prompts = prompts.buyer
+                else:
+                    agent_prompts = prompts.seller
+
+                if agent_prompts is None:
+                    return {
+                        "responding_agent_id": responder_id,
+                        "response_accepted": False,
+                        "current_responder_index": current_idx + 1,
+                    }
+
+                prompt = _render_response_prompt(
+                    agent=responder,
+                    state=state,
+                    prompts=prompts,
+                    agent_prompts=agent_prompts,
+                )
+
+                callbacks = config.get("callbacks", []) if config else []
+                if not callbacks and callbacks_factory:
+                    callbacks = callbacks_factory()
+
+                call_metadata = {
+                    "agent_id": responder_id,
+                    "agent_type": agent_type,
+                    "action": "respond",
+                    "round": state["round"],
+                    "iteration": state["iteration"],
+                    "simulation_id": state["simulation_id"],
+                    "strategy": strategy,
+                }
+                response = llm.invoke_structured(
+                    prompt, response_schema, callbacks=callbacks, metadata=call_metadata,
+                )
+            else:
+                response = zi_decisions.decide_respond(
+                    responder=responder,
+                    announced_price=state["announced_price"],
+                    zi_cfg=zi_cfg,
+                    rng=zi_rng,
+                    include_reasoning=include_reasoning,
+                )
             accepted = response.accept
             reasoning = getattr(response, 'reasoning', '')
             logger.debug(
                 f"Structured response for agent {responder_id}: accept={accepted}, reasoning='{reasoning[:100]}...'"
             )
 
-            # Capture tool usage log if available
-            tool_log_entries = getattr(llm, "last_tool_log", [])
+            # Capture tool usage log if available (ZI path has none)
+            tool_log_entries = getattr(llm, "last_tool_log", []) if strategy == "llm" else []
             tool_usage_log = [
                 {
                     **entry,
@@ -209,7 +231,10 @@ def make_respond_node(
             return result
 
         except Exception as e:
-            logger.error(f"LLM call failed: {e}")
+            if strategy == "llm":
+                logger.error(f"LLM call failed: {e}")
+            else:
+                logger.error(f"ZI decision failed ({strategy}): {e}")
             return {
                 "responding_agent_id": responder_id,
                 "response_accepted": False,

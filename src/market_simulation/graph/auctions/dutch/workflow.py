@@ -10,6 +10,7 @@ Graph topology:
 
 from typing import Callable
 
+import numpy as np
 from langgraph.graph import StateGraph, START, END
 
 from ...state import DutchAuctionState
@@ -29,16 +30,18 @@ from .edges import (
 )
 from ....llm.providers.base import LLMProvider
 from ....llm.response_schemas import get_response_schemas
-from ....config.schema import AuctionPromptConfig
+from ....config.schema import AuctionPromptConfig, ZIConfig
 
 
 def build_dutch_graph(
     auction_type: str,
-    llm: LLMProvider,
+    llm: LLMProvider | None,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
     random_seed: int | None = None,
     include_reasoning: bool = True,
+    zi_config: ZIConfig | None = None,
+    rng: np.random.Generator | None = None,
 ) -> StateGraph:
     """Build a Dutch (descending) auction LangGraph workflow.
 
@@ -58,7 +61,14 @@ def build_dutch_graph(
 
     # Nodes
     builder.add_node("announce_price", make_announce_price_node(random_seed=random_seed))
-    builder.add_node("solicit_acceptance", make_solicit_acceptance_node(llm, prompts, callbacks_factory, response_schema=schemas.accept_reject))
+    builder.add_node(
+        "solicit_acceptance",
+        make_solicit_acceptance_node(
+            llm, prompts, callbacks_factory,
+            response_schema=schemas.accept_reject,
+            zi_config=zi_config, rng=rng,
+        ),
+    )
     builder.add_node("check_dutch_end", make_check_dutch_end_node())
     builder.add_node("lower_price", make_lower_price_node(random_seed=random_seed))
     builder.add_node("settle", make_settle_dutch_node())

@@ -3,7 +3,10 @@
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+Strategy = Literal["llm", "zi_c", "zi_u"]
 
 # --- Auction type enum ---
 
@@ -55,6 +58,15 @@ class AgentPricesConfig(BaseModel):
     min: float = 0.8
     max: float = 3.2
     num: int = 11
+    strategies: Strategy | list[Strategy] = "llm"
+
+    @model_validator(mode="after")
+    def _validate_strategies_length(self):
+        if isinstance(self.strategies, list) and len(self.strategies) != self.num:
+            raise ValueError(
+                f"strategies list length ({len(self.strategies)}) must equal num ({self.num})"
+            )
+        return self
 
 
 class HistoryConfig(BaseModel):
@@ -75,6 +87,15 @@ class BiddersConfig(BaseModel):
     value_min: float = 0.0
     value_max: float = 10.0
     distribution: Literal["linspace", "uniform"] = "linspace"
+    strategies: Strategy | list[Strategy] = "llm"
+
+    @model_validator(mode="after")
+    def _validate_strategies_length(self):
+        if isinstance(self.strategies, list) and len(self.strategies) != self.num:
+            raise ValueError(
+                f"strategies list length ({len(self.strategies)}) must equal num ({self.num})"
+            )
+        return self
 
 
 class AuctionConfig(BaseModel):
@@ -93,7 +114,10 @@ class AuctionConfig(BaseModel):
     dutch_decrement: float = 0.5
     dutch_min_price: float = 0.0
 
-    # Reproducibility
+    # Reproducibility.
+    # Used for mechanism-level randomness (e.g. Dutch bidder shuffling).
+    # Precedence for the ZI RNG: ``ExperimentConfig.random_seed`` wins;
+    # this value is the fallback only when experiment seed is unset.
     random_seed: int | None = None  # Seed for random operations (shuffling, sampling)
 
 
@@ -126,6 +150,13 @@ class ExperimentConfig(BaseModel):
 
     # Optional manual override for LangGraph recursion limit
     recursion_limit: int | None = None
+
+    # Seed for ZI sampling and any other stochastic double-auction operations.
+    # This is the primary source of truth for the ZI RNG; if unset and the
+    # run is an auction, the resolver in ``main.py`` falls back to
+    # ``AuctionConfig.random_seed`` to stay backward-compatible with older
+    # auction configs that only set the auction-level seed.
+    random_seed: int | None = None
 
 
 class TracingConfig(BaseModel):
@@ -185,6 +216,23 @@ class PersonaConfig(BaseModel):
     bidders: dict[int, str] = Field(default_factory=dict)
 
 
+class ZIConfig(BaseModel):
+    """Zero-intelligence trader sampling hyperparameters.
+
+    ZI-C (constrained) always respects reservation price / private value and
+    needs no bounds — it draws inside the agent's viable range. ZI-U
+    (unconstrained) samples from the fixed interval [u_low, u_high] and
+    uses Bernoulli gates to decide whether to announce / bid / accept at all.
+    """
+
+    u_low: float = 0.0
+    u_high: float = 10.0
+    # Probabilities used by ZI-U where a node can choose *not* to act at all.
+    announce_prob: float = 0.5  # double-auction announce
+    accept_prob: float = 0.5  # double-auction respond, dutch acceptance
+    bid_prob: float = 0.5  # english bid-or-pass
+
+
 class SimulationConfig(BaseModel):
     """Complete simulation configuration."""
 
@@ -194,3 +242,42 @@ class SimulationConfig(BaseModel):
     prompts: PromptConfig = Field(default_factory=PromptConfig)
     tools: ToolConfig = Field(default_factory=ToolConfig)
     personas: PersonaConfig = Field(default_factory=PersonaConfig)
+    zi: ZIConfig = Field(default_factory=ZIConfig)
+
+    @model_validator(mode="after")
+    def _validate_zi_c_bounds(self):
+        """Ensure ZI-C's non-loss invariant cannot be silently violated.
+
+        Gode & Sunder (1993) define ZI-C buyers as drawing from
+        ``[market_floor, v_i]`` and sellers from ``[c_i, market_ceiling]``.
+        Our ``zi.u_low`` / ``zi.u_high`` play the role of those market
+        bounds. If ``u_low`` exceeds the smallest buyer reservation (or
+        ``u_high`` sits below the largest seller reservation), the viable
+        range inverts and ``_uniform`` silently returns the out-of-range
+        bound — which for buyers means announcing above reservation, the
+        exact invariant ZI-C is supposed to preserve. Fail early at config
+        load instead.
+        """
+        def _uses_zi_c(strategies) -> bool:
+            if isinstance(strategies, list):
+                return "zi_c" in strategies
+            return strategies == "zi_c"
+
+        buyers = self.experiment.buyers
+        sellers = self.experiment.sellers
+
+        if _uses_zi_c(buyers.strategies) and self.zi.u_low > buyers.min:
+            raise ValueError(
+                f"ZI-C buyers: zi.u_low ({self.zi.u_low}) exceeds "
+                f"experiment.buyers.min ({buyers.min}); a buyer with "
+                f"reservation below u_low would announce above its own "
+                f"reservation, violating the non-loss constraint."
+            )
+        if _uses_zi_c(sellers.strategies) and self.zi.u_high < sellers.max:
+            raise ValueError(
+                f"ZI-C sellers: zi.u_high ({self.zi.u_high}) is below "
+                f"experiment.sellers.max ({sellers.max}); a seller with "
+                f"reservation above u_high would have an empty viable "
+                f"range."
+            )
+        return self

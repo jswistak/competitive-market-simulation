@@ -9,6 +9,7 @@ Graph topology is identical to english/workflow.py.
 
 from typing import Callable
 
+import numpy as np
 from langgraph.graph import StateGraph, START, END
 
 from ...state import EnglishAuctionState
@@ -27,15 +28,17 @@ from ..english.edges import (
 )
 from ....llm.providers.base import LLMProvider
 from ....llm.response_schemas import get_response_schemas
-from ....config.schema import AuctionPromptConfig
+from ....config.schema import AuctionPromptConfig, ZIConfig
 
 
 def build_open_outcry_graph(
     auction_type: str,
-    llm: LLMProvider,
+    llm: LLMProvider | None,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
     include_reasoning: bool = True,
+    zi_config: ZIConfig | None = None,
+    rng: np.random.Generator | None = None,
 ) -> StateGraph:
     """Build a first-price open-outcry auction LangGraph workflow.
 
@@ -56,7 +59,14 @@ def build_open_outcry_graph(
     builder = StateGraph(EnglishAuctionState)
 
     # Nodes — reuse all English nodes except settlement
-    builder.add_node("solicit_bid", make_solicit_bid_node(llm, prompts, callbacks_factory, response_schema=schemas.english_bid))
+    builder.add_node(
+        "solicit_bid",
+        make_solicit_bid_node(
+            llm, prompts, callbacks_factory,
+            response_schema=schemas.english_bid,
+            zi_config=zi_config, rng=rng,
+        ),
+    )
     builder.add_node("check_auction_end", make_check_auction_end_node())
     builder.add_node("reset_cycle", make_reset_cycle_node())
     builder.add_node("settle", make_settle_open_outcry_node())  # <-- only difference

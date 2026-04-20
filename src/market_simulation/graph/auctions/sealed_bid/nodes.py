@@ -3,28 +3,36 @@
 import logging
 from typing import Callable
 
+import numpy as np
 from langchain_core.runnables import RunnableConfig
 
 from ...state import SealedBidState, BidRecord, AuctionResult
+from ....agents import zi as zi_decisions
 from ....llm.providers.base import LLMProvider
 from ....llm.response_schemas import BidResponse, BidResponseWithReasoning
-from ....config.schema import AuctionPromptConfig
+from ....config.schema import AuctionPromptConfig, ZIConfig
 from ..base import render_auction_prompt
 
 logger = logging.getLogger(__name__)
 
 
 def make_collect_bid_node(
-    llm: LLMProvider,
+    llm: LLMProvider | None,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
     response_schema: type[BidResponse] = BidResponseWithReasoning,
+    zi_config: ZIConfig | None = None,
+    rng: np.random.Generator | None = None,
 ) -> Callable[[SealedBidState, RunnableConfig], dict]:
     """Create node that collects a bid from the current bidder.
 
-    Prompts one bidder, extracts their bid, appends to bids list,
+    Prompts one bidder (or samples a ZI bid), appends to bids list,
     and advances current_bidder_index.
     """
+
+    zi_cfg = zi_config or ZIConfig()
+    zi_rng = rng if rng is not None else np.random.default_rng()
+    include_reasoning = response_schema is BidResponseWithReasoning
 
     def collect_bid(state: SealedBidState, config: RunnableConfig) -> dict:
         idx = state["current_bidder_index"]
@@ -34,26 +42,38 @@ def make_collect_bid_node(
             return {"all_bids_collected": True}
 
         bidder = bidders[idx]
-
-        # Render prompt
-        prompt = render_auction_prompt(
-            template=prompts.system_template,
-            bidder=bidder,
-            state=state,
-            extra_vars={
-                "action_prompt": prompts.bid_prompt,
-                "auction_type": state["auction_type"],
-                "value_explanation": prompts.value_explanation,
-                "n_bidders": len(bidders),
-            },
-        )
-
-        callbacks = config.get("callbacks", []) if config else []
-        if not callbacks and callbacks_factory:
-            callbacks = callbacks_factory()
+        strategy = bidder.get("strategy", "llm")
 
         try:
-            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            if strategy == "llm":
+                if llm is None:
+                    raise RuntimeError(
+                        "Bidder has strategy='llm' but no LLM provider was supplied"
+                    )
+                prompt = render_auction_prompt(
+                    template=prompts.system_template,
+                    bidder=bidder,
+                    state=state,
+                    extra_vars={
+                        "action_prompt": prompts.bid_prompt,
+                        "auction_type": state["auction_type"],
+                        "value_explanation": prompts.value_explanation,
+                        "n_bidders": len(bidders),
+                    },
+                )
+
+                callbacks = config.get("callbacks", []) if config else []
+                if not callbacks and callbacks_factory:
+                    callbacks = callbacks_factory()
+
+                response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            else:
+                response = zi_decisions.decide_sealed_bid(
+                    bidder=bidder,
+                    zi_cfg=zi_cfg,
+                    rng=zi_rng,
+                    include_reasoning=include_reasoning,
+                )
             bid_amount = response.bid
             reasoning = getattr(response, 'reasoning', '')
             logger.debug(
@@ -61,8 +81,8 @@ def make_collect_bid_node(
                 f"reasoning: '{reasoning[:100]}...'"
             )
 
-            # Capture tool usage
-            tool_log_entries = getattr(llm, "last_tool_log", [])
+            # Capture tool usage (ZI path has none)
+            tool_log_entries = getattr(llm, "last_tool_log", []) if strategy == "llm" else []
             tool_usage_log = [
                 {
                     **entry,
@@ -109,7 +129,10 @@ def make_collect_bid_node(
             }
 
         except Exception as e:
-            logger.error(f"LLM call failed for bidder {bidder['id']}: {e}")
+            if strategy == "llm":
+                logger.error(f"LLM call failed for bidder {bidder['id']}: {e}")
+            else:
+                logger.error(f"ZI decision failed for bidder {bidder['id']} ({strategy}): {e}")
             bid_record = BidRecord(
                 bidder_id=bidder["id"],
                 bid_amount=0.0,

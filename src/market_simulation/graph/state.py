@@ -3,6 +3,8 @@
 from typing import Annotated, Literal, NotRequired, TypedDict
 from operator import add
 
+from ..config.schema import Strategy
+
 
 class AgentState(TypedDict):
     """State for a single market agent."""
@@ -14,6 +16,12 @@ class AgentState(TypedDict):
     own_history_prompt: str  # History for prompt rendering
     own_history_data: list[dict]  # Data for CSV export
     persona: str  # Per-agent persona text
+    # Decision-making strategy: LLM or zero-intelligence variant.
+    # Optional at the TypedDict level; the factory always sets it, but
+    # tests/legacy callers that bypass the factory may omit it. Every
+    # consumer must read with ``agent.get("strategy", "llm")`` so a
+    # missing key routes to the LLM path.
+    strategy: NotRequired[Strategy]
 
 
 class Transaction(TypedDict):
@@ -113,6 +121,7 @@ class BidderState(TypedDict):
     own_history_prompt: str  # History for prompt rendering
     own_history_data: list[dict]  # Data for CSV export
     persona: str  # Per-bidder persona text
+    strategy: NotRequired[Strategy]  # See AgentState; same optionality rules apply.
 
 
 class BidRecord(TypedDict):

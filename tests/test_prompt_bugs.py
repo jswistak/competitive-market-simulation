@@ -195,6 +195,17 @@ class TestDynamicParticipantCount:
         if config.experiment.auction_type.value != "double_auction":
             pytest.skip("Auction configs use system_template, not main_template")
 
+        # Zero-intelligence configs don't render prompts at all.
+        def _only_zi(strategies):
+            if isinstance(strategies, list):
+                return strategies and all(s != "llm" for s in strategies)
+            return strategies != "llm"
+
+        if _only_zi(config.experiment.buyers.strategies) and _only_zi(
+            config.experiment.sellers.strategies
+        ):
+            pytest.skip("Pure ZI configs don't render prompts")
+
         template = config.prompts.general.main_template
 
         assert "{N_BUYERS}" in template, (

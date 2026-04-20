@@ -1,0 +1,31 @@
+# Zero-Intelligence (constrained) double auction baseline.
+#
+# Gode & Sunder (1993) ZI-C traders: each agent draws a random price
+# inside its own viable range on every turn (buyers: [0, reservation];
+# sellers: [reservation, u_high]). No LLM is invoked — this config is
+# a pure stochastic baseline for comparison with LLM experiments.
+experiment:
+  n_rounds: 5
+  n_iterations: 11
+  n_simulations: 10
+  random_seed: 42
+  buyers:
+    min: 0.8
+    max: 3.2
+    num: 11
+    strategies: zi_c
+  sellers:
+    min: 0.8
+    max: 3.2
+    num: 11
+    strategies: zi_c
+
+# ZI sampling hyperparameters. u_high caps seller asks; u_low caps buyer
+# bids from below. For ZI-C, accept/bid/announce probabilities are unused.
+zi:
+  u_low: 0.0
+  u_high: 4.0
+
+tracing:
+  enabled: false
+  llm_call_logging: false
