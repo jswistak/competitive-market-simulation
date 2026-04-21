@@ -89,6 +89,8 @@ class LLMCallLogger(BaseCallbackHandler):
         input_tokens = None
         output_tokens = None
         total_tokens = None
+        reasoning_tokens = None
+        thinking_text = None
         model_name = None
         finish_reason = None
 
@@ -103,6 +105,21 @@ class LLMCallLogger(BaseCallbackHandler):
                     input_tokens = usage.get("input_tokens")
                     output_tokens = usage.get("output_tokens")
                     total_tokens = usage.get("total_tokens")
+                    output_details = usage.get("output_token_details") or {}
+                    reasoning_tokens = output_details.get("reasoning")
+
+                # Gemini thinking parts live in message.content as
+                # {"type": "thinking", "thinking": "..."} blocks when
+                # include_thoughts=True. Extract them separately.
+                content = getattr(message, "content", None)
+                if isinstance(content, list):
+                    thoughts = [
+                        part.get("thinking", "")
+                        for part in content
+                        if isinstance(part, dict) and part.get("type") == "thinking"
+                    ]
+                    if thoughts:
+                        thinking_text = "\n".join(t for t in thoughts if t)
 
                 # Model name and finish reason from response_metadata
                 meta = getattr(message, "response_metadata", None) or {}
@@ -120,6 +137,8 @@ class LLMCallLogger(BaseCallbackHandler):
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,
+            "reasoning_tokens": reasoning_tokens,
+            "thinking": thinking_text,
             "latency_seconds": round(latency, 4),
             "finish_reason": finish_reason,
             "error": None,
@@ -154,6 +173,8 @@ class LLMCallLogger(BaseCallbackHandler):
             "input_tokens": None,
             "output_tokens": None,
             "total_tokens": None,
+            "reasoning_tokens": None,
+            "thinking": None,
             "latency_seconds": round(latency, 4),
             "finish_reason": None,
             "error": str(error),
