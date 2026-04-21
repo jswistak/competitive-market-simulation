@@ -505,3 +505,113 @@ class TestAllConfigsHaveHistoryTemplates:
                 pytest.fail(
                     f"{config_path.name}: {field} references unsupported placeholder {exc}"
                 )
+
+
+# ===========================================================================
+# Bug 6: tools_preamble was declared but unread
+# ===========================================================================
+#
+# The YAML field `prompts.tools_preamble` existed in the schema and was set
+# in every tool-augmented config, but nothing on the production path read
+# it — researchers worked around the gap by duplicating the same text inside
+# main_template. These tests lock in that `{tools_preamble}` is now a real
+# placeholder available to main_template.
+
+
+class TestToolsPreambleWiring:
+    def test_tools_preamble_available_in_announcement_prompt(
+        self, base_market_state, prompt_config
+    ):
+        """A {tools_preamble} placeholder in main_template must be filled
+        from prompts.tools_preamble."""
+        prompt_config_with_preamble = PromptConfig(
+            general=PromptTemplates(
+                main_template=(
+                    "PREAMBLE={tools_preamble} "
+                    "You are a {role}. {verb} {preference} {condition}. "
+                    "Reservation: {reservation_price}. "
+                    "Rounds: {N_ROUNDS}. Iters: {N_ITER}. "
+                    "Buyers: {N_BUYERS}. Sellers: {N_SELLERS}. "
+                    "Market: {market_history}. Own: {own_history}. "
+                    "Round {round}/{N_ROUNDS} Iter {iteration}/{N_ITER}. "
+                    "{action_prompt}"
+                ),
+            ),
+            tools_preamble="USE-YOUR-TOOLS-SENTINEL",
+            buyer=prompt_config.buyer,
+            seller=prompt_config.seller,
+        )
+
+        agent = base_market_state["agents"][0]
+        prompt = _render_announcement_prompt(
+            agent=agent,
+            state=base_market_state,
+            prompts=prompt_config_with_preamble,
+            agent_prompts=prompt_config_with_preamble.buyer,
+        )
+
+        assert "PREAMBLE=USE-YOUR-TOOLS-SENTINEL" in prompt
+
+    def test_tools_preamble_available_in_response_prompt(
+        self, base_market_state, prompt_config
+    ):
+        prompt_config_with_preamble = PromptConfig(
+            general=PromptTemplates(
+                main_template=(
+                    "PREAMBLE={tools_preamble} "
+                    "You are a {role}. {verb} {preference} {condition}. "
+                    "Reservation: {reservation_price}. "
+                    "Rounds: {N_ROUNDS}. Iters: {N_ITER}. "
+                    "Buyers: {N_BUYERS}. Sellers: {N_SELLERS}. "
+                    "Market: {market_history}. Own: {own_history}. "
+                    "Round {round}/{N_ROUNDS} Iter {iteration}/{N_ITER}. "
+                    "{action_prompt}"
+                ),
+            ),
+            tools_preamble="RESPOND-PREAMBLE",
+            buyer=prompt_config.buyer,
+            seller=prompt_config.seller,
+        )
+
+        agent = base_market_state["agents"][0]
+        state_with_price = {**base_market_state, "announced_price": 1.50}
+        prompt = _render_response_prompt(
+            agent=agent,
+            state=state_with_price,
+            prompts=prompt_config_with_preamble,
+            agent_prompts=prompt_config_with_preamble.buyer,
+        )
+
+        assert "PREAMBLE=RESPOND-PREAMBLE" in prompt
+
+    def test_empty_preamble_renders_empty_string(
+        self, base_market_state, prompt_config
+    ):
+        """Configs that don't set tools_preamble (schema default "") must
+        still render main_templates containing {tools_preamble} without error."""
+        prompt_config_no_preamble = PromptConfig(
+            general=PromptTemplates(
+                main_template=(
+                    "[{tools_preamble}] "
+                    "You are a {role}. {verb} {preference} {condition}. "
+                    "Reservation: {reservation_price}. "
+                    "Rounds: {N_ROUNDS}. Iters: {N_ITER}. "
+                    "Buyers: {N_BUYERS}. Sellers: {N_SELLERS}. "
+                    "Market: {market_history}. Own: {own_history}. "
+                    "Round {round}/{N_ROUNDS} Iter {iteration}/{N_ITER}. "
+                    "{action_prompt}"
+                ),
+            ),
+            # tools_preamble left as default ""
+            buyer=prompt_config.buyer,
+            seller=prompt_config.seller,
+        )
+
+        agent = base_market_state["agents"][0]
+        prompt = _render_announcement_prompt(
+            agent=agent,
+            state=base_market_state,
+            prompts=prompt_config_no_preamble,
+            agent_prompts=prompt_config_no_preamble.buyer,
+        )
+        assert "[]" in prompt  # empty placeholder rendered cleanly

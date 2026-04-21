@@ -370,8 +370,12 @@ def _settle(state: EnglishAuctionState) -> dict:
 # ------------------------------------------------------------------
 
 
-def make_update_english_history_node() -> Callable[[EnglishAuctionState], dict]:
+def make_update_english_history_node(
+    prompts: AuctionPromptConfig | None = None,
+) -> Callable[[EnglishAuctionState], dict]:
     """Create node that updates histories after an English/Open-Outcry round."""
+
+    templates = prompts if prompts is not None else AuctionPromptConfig()
 
     def update_english_history(state: EnglishAuctionState) -> dict:
         results = state["auction_results"]
@@ -381,17 +385,25 @@ def make_update_english_history_node() -> Callable[[EnglishAuctionState], dict]:
         latest = results[-1]
         round_num = latest["round"]
         auction_type = latest["auction_type"]
+        winner_id = latest["winner_id"]
+        payment = latest["payment"]
+        winning_bid = latest["winning_bid"]
 
         # Market history
-        if latest["winner_id"] is not None:
-            history_line = (
-                f"Round {round_num} ({auction_type}): "
-                f"Bidder {latest['winner_id']} won at "
-                f"${latest['winning_bid']:.2f}, "
-                f"payment=${latest['payment']:.2f}.\n"
+        if winner_id is not None:
+            history_line = templates.market_history_winner_template.format(
+                round=round_num,
+                auction_type=auction_type,
+                winner_id=winner_id,
+                winning_bid=winning_bid,
+                payment=payment,
+                second_highest_bid=None,
             )
         else:
-            history_line = f"Round {round_num} ({auction_type}): No bids placed.\n"
+            history_line = templates.market_history_no_winner_template.format(
+                round=round_num,
+                auction_type=auction_type,
+            )
 
         new_history = state["market_history_text"] + history_line
 
@@ -399,7 +411,7 @@ def make_update_english_history_node() -> Callable[[EnglishAuctionState], dict]:
         updated_bidders = []
         for bidder in state["bidders"]:
             bidder_copy = {**bidder}
-            won = latest["winner_id"] == bidder["id"]
+            won = winner_id == bidder["id"]
 
             # Find this bidder's highest bid in the round
             my_bids = [
@@ -409,14 +421,17 @@ def make_update_english_history_node() -> Callable[[EnglishAuctionState], dict]:
             highest_bid = max(my_bids) if my_bids else None
 
             if highest_bid is not None:
-                outcome = "won" if won else "lost"
-                entry_text = (
-                    f"Round {round_num}: Your highest bid was "
-                    f"${highest_bid:.2f} and you {outcome}."
-                )
-                if won and latest["payment"] is not None:
-                    entry_text += f" Payment: ${latest['payment']:.2f}."
-                entry_text += "\n"
+                if won:
+                    entry_text = templates.english_bidder_won_template.format(
+                        round=round_num,
+                        my_bid=highest_bid,
+                        payment=payment if payment is not None else 0.0,
+                    )
+                else:
+                    entry_text = templates.english_bidder_lost_template.format(
+                        round=round_num,
+                        my_bid=highest_bid,
+                    )
                 bidder_copy["own_history_prompt"] = (
                     bidder["own_history_prompt"] + entry_text
                 )
@@ -427,14 +442,16 @@ def make_update_english_history_node() -> Callable[[EnglishAuctionState], dict]:
                         "highest_bid": highest_bid,
                         "n_bids": len(my_bids),
                         "won": won,
-                        "payment": latest["payment"] if won else 0.0,
+                        "payment": payment if won else 0.0,
                     }
                 ]
             else:
                 # Bidder dropped out immediately or was never active
+                entry_text = templates.english_bidder_no_bid_template.format(
+                    round=round_num,
+                )
                 bidder_copy["own_history_prompt"] = (
-                    bidder["own_history_prompt"]
-                    + f"Round {round_num}: You did not bid.\n"
+                    bidder["own_history_prompt"] + entry_text
                 )
                 bidder_copy["own_history_data"] = bidder["own_history_data"] + [
                     {
