@@ -25,6 +25,7 @@ class GeminiProvider(LLMProvider):
             temperature=self.config.temperature,
             max_output_tokens=self.config.max_tokens,
             thinking_level="low",
+            include_thoughts=True,
         )
 
     def _max_tokens_kwargs(self, max_tokens: int) -> dict[str, Any]:
