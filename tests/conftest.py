@@ -70,6 +70,10 @@ def experiment_config():
         n_rounds=2,
         n_iterations=3,
         n_simulations=1,
+        # Small tick budget is plenty for the tiny markets these tests
+        # build around the fixture. Individual tests override it when
+        # they need more ticks.
+        max_ticks_per_round=20,
         buyers=AgentPricesConfig(min=1.0, max=2.0, num=3),
         sellers=AgentPricesConfig(min=1.0, max=2.0, num=3),
     )
@@ -182,6 +186,12 @@ def base_market_state(sample_agents):
         history_mode="full",
         history_summary_last_n=3,
         own_history_mode="full",
+        # Improvement-rule CDA order book — empty at simulation start.
+        standing_bid=None,
+        standing_ask=None,
+        standing_bid_agent_id=None,
+        standing_ask_agent_id=None,
+        last_order_outcome=None,
     )
 
 

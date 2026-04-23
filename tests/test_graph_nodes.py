@@ -49,25 +49,12 @@ class TestSelectAnnouncerNode:
         result = node(base_market_state)
         assert result["announcing_agent_id"] in base_market_state["active_agent_ids"]
 
-    def test_no_eligible_agents(self, base_market_state):
-        state = {
-            **base_market_state,
-            "announced_this_iteration": list(base_market_state["active_agent_ids"]),
-        }
+    def test_returns_none_when_no_active_agents(self, base_market_state):
+        state = {**base_market_state, "active_agent_ids": []}
         node = make_select_announcer_node()
         result = node(state)
         assert result["announcing_agent_id"] is None
         assert result["announcement_made"] is False
-
-    def test_excludes_already_announced(self, base_market_state):
-        # Mark all except agent 5 as having announced
-        state = {
-            **base_market_state,
-            "announced_this_iteration": [0, 1, 2, 3, 4],
-        }
-        node = make_select_announcer_node()
-        result = node(state)
-        assert result["announcing_agent_id"] == 5
 
     def test_selected_from_active_ids(self, base_market_state):
         # Only agents 0 and 3 are active
@@ -628,47 +615,6 @@ class TestUpdateHistoryNode:
         assert announcing_agent["own_history_data"][0]["outcome"] == "accepted"
         assert "accepted" in announcing_agent["own_history_prompt"]
 
-    def test_responding_agent_history_updated(self, base_market_state):
-        state = {
-            **base_market_state,
-            "announcement_made": True,
-            "transaction_made": True,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-            "announcing_agent_id": 0,
-            "responding_agent_id": 3,
-            "response_accepted": True,
-            "current_responder_index": 1,
-            "potential_responder_ids": [3],
-        }
-        node = make_update_history_node()
-        result = node(state)
-
-        responding_agent = next(a for a in result["agents"] if a["id"] == 3)
-        assert len(responding_agent["own_history_data"]) == 1
-        assert responding_agent["own_history_data"][0]["action"] == "respond"
-        assert responding_agent["own_history_data"][0]["outcome"] == "accepted"
-
-    def test_announcer_not_updated_when_more_responders_pending(self, base_market_state):
-        state = {
-            **base_market_state,
-            "announcement_made": True,
-            "transaction_made": False,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-            "announcing_agent_id": 0,
-            "responding_agent_id": 3,
-            "response_accepted": False,
-            "current_responder_index": 1,
-            "potential_responder_ids": [3, 4, 5],  # more responders remain
-        }
-        node = make_update_history_node()
-        result = node(state)
-
-        announcing_agent = next(a for a in result["agents"] if a["id"] == 0)
-        # Should NOT be updated yet — more responders are pending
-        assert len(announcing_agent["own_history_data"]) == 0
-
     def test_iteration_record_fields(self, base_market_state):
         state = {
             **base_market_state,
@@ -694,67 +640,19 @@ class TestUpdateHistoryNode:
         assert record["announcing_agent_id"] == 0
         assert record["responding_agent_id"] == 3
 
-    def test_no_market_history_update_when_more_responders_pending(self, base_market_state):
-        """Market history should not be updated until announcement outcome is fully resolved."""
-        state = {
-            **base_market_state,
-            "announcement_made": True,
-            "transaction_made": False,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-            "announcing_agent_id": 0,
-            "responding_agent_id": 3,
-            "response_accepted": False,
-            "current_responder_index": 1,
-            "potential_responder_ids": [3, 4, 5],  # more responders remain
-            "iteration_complete": False,
-        }
-        node = make_update_history_node()
-        result = node(state)
-
-        # Market history text should NOT be updated (no history_update appended)
-        assert result["market_history_text"] == ""
-
-
 # ===========================================================================
 # TestCheckIterationNode
+#
+# check_iteration is retained as a no-op stub for any legacy caller —
+# the improvement-rule CDA does not wire it into the graph. The node
+# simply returns iteration_complete=True.
 # ===========================================================================
 
 
 class TestCheckIterationNode:
-    """Tests for check_iteration node."""
-
-    def test_complete_on_transaction(self, base_market_state):
-        state = {**base_market_state, "transaction_made": True, "announcement_made": True}
+    def test_always_returns_iteration_complete(self, base_market_state):
         node = make_check_iteration_node()
-        assert node(state)["iteration_complete"] is True
-
-    def test_complete_on_no_announcement(self, base_market_state):
-        state = {**base_market_state, "transaction_made": False, "announcement_made": False}
-        node = make_check_iteration_node()
-        assert node(state)["iteration_complete"] is True
-
-    def test_complete_when_all_responders_queried(self, base_market_state):
-        state = {
-            **base_market_state,
-            "transaction_made": False,
-            "announcement_made": True,
-            "potential_responder_ids": [3, 4],
-            "current_responder_index": 2,
-        }
-        node = make_check_iteration_node()
-        assert node(state)["iteration_complete"] is True
-
-    def test_not_complete_when_more_responders(self, base_market_state):
-        state = {
-            **base_market_state,
-            "transaction_made": False,
-            "announcement_made": True,
-            "potential_responder_ids": [3, 4, 5],
-            "current_responder_index": 1,
-        }
-        node = make_check_iteration_node()
-        assert node(state)["iteration_complete"] is False
+        assert node(base_market_state)["iteration_complete"] is True
 
 
 # ===========================================================================

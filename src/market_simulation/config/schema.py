@@ -194,6 +194,14 @@ class ExperimentConfig(BaseModel):
     sellers: AgentPricesConfig = Field(default_factory=AgentPricesConfig)
     history: HistoryConfig = Field(default_factory=HistoryConfig)
 
+    # Ticks-per-round for the continuous double auction. One tick = one
+    # randomly-chosen active agent posts an order into the central order
+    # book. Required when auction_type == double_auction; fail-fast at
+    # config load (validator on SimulationConfig). No code default:
+    # picking the right value depends on market size and
+    # expected trading density, so configs must declare it explicitly.
+    max_ticks_per_round: int | None = None
+
     # Auction-specific config (only used when auction_type != double_auction)
     auction: AuctionConfig | None = None
 
@@ -349,5 +357,28 @@ class SimulationConfig(BaseModel):
                 f"experiment.sellers.max ({sellers.max}); a seller with "
                 f"reservation above u_high would have an empty viable "
                 f"range."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _require_max_ticks_for_cda(self):
+        """max_ticks_per_round is mandatory for the continuous double auction.
+
+        The CDA migration (improvement-rule, automatic crossing, tick-based
+        periods) replaced the old iteration/response loop. Period length is
+        now set by max_ticks_per_round instead of derived from
+        n_iterations × responder count, so there is no sensible default —
+        the right value depends on market size and desired trading density.
+        Fail fast at config load rather than silently running with an
+        implicit value.
+        """
+        if (
+            self.experiment.auction_type == AuctionType.DOUBLE_AUCTION
+            and self.experiment.max_ticks_per_round is None
+        ):
+            raise ValueError(
+                "experiment.max_ticks_per_round is required for "
+                "auction_type=double_auction. Set it explicitly in your "
+                "config (e.g. max_ticks_per_round: 50)."
             )
         return self

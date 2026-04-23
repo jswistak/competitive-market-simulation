@@ -2,6 +2,7 @@
 experiment:
   n_rounds: 4
   n_iterations: 12
+  max_ticks_per_round: 68
   n_simulations: 10
   buyers:
     min: 8.5

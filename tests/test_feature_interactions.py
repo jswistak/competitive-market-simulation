@@ -549,6 +549,7 @@ class TestConfigCrossCompatibility:
     def test_all_features_enabled_config(self):
         cfg = SimulationConfig(
             experiment=ExperimentConfig(
+                max_ticks_per_round=50,
                 history=HistoryConfig(mode="summary", own_history_mode="summary"),
             ),
             personas=PersonaConfig(
@@ -590,6 +591,7 @@ class TestConfigCrossCompatibility:
         cfg = SimulationConfig(
             experiment=ExperimentConfig(
                 auction_type=AuctionType.DOUBLE_AUCTION,
+                max_ticks_per_round=50,
                 history=HistoryConfig(
                     mode="summary",
                     own_history_mode="summary",
@@ -618,6 +620,7 @@ class TestFactoryCrossCompatibility:
         config = ExperimentConfig(
             n_rounds=3,
             n_iterations=5,
+            max_ticks_per_round=20,
             buyers=AgentPricesConfig(min=1.0, max=2.0, num=2),
             sellers=AgentPricesConfig(min=1.0, max=2.0, num=2),
             history=HistoryConfig(mode="summary", own_history_mode="summary"),

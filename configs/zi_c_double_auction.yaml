@@ -6,7 +6,19 @@
 # a pure stochastic baseline for comparison with LLM experiments.
 experiment:
   n_rounds: 5
+  # n_iterations is legacy (old iteration-based CDA); no longer read by
+  # the double-auction path. Retained here so non-DA configs sharing a
+  # loader don't choke. The new knob is max_ticks_per_round.
   n_iterations: 11
+  # One tick = one randomly-chosen active agent posts an order into the
+  # central order book. 50 is comfortable for an 11-buyer / 11-seller
+  # market (Q* = 6) — leaves plenty of room for non-crossing standing
+  # orders and ZI-C "pass" ticks before the book freezes.
+  # 300 ticks is about 2x headroom over the typical deadlock point for an
+  # 11x11 Smith market (~140 ticks in practice). Low enough to keep runs
+  # fast, high enough that deadlock detection — not the cap — ends
+  # rounds in every observed ZI-C trajectory.
+  max_ticks_per_round: 300
   n_simulations: 10
   random_seed: 42
   buyers:

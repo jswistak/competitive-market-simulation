@@ -64,8 +64,9 @@ class TestSchemaDefaults:
         assert cfg.langfuse_public_key is None
 
     def test_simulation_config_constructs_with_defaults(self):
-        """SimulationConfig should construct with all defaults."""
-        cfg = SimulationConfig()
+        """SimulationConfig should construct with all defaults (except the
+        required CDA tick budget)."""
+        cfg = SimulationConfig(experiment=ExperimentConfig(max_ticks_per_round=50))
         assert cfg.llm.provider == "openai"
         assert cfg.experiment.n_rounds == 5
 
@@ -113,7 +114,10 @@ class TestLoadConfig:
     def test_load_config_from_full_path(self, tmp_path):
         """load_config should parse a YAML file given a full path."""
         config_data = {
-            "experiment": {"n_rounds": 1, "n_iterations": 2, "n_simulations": 1},
+            "experiment": {
+                "n_rounds": 1, "n_iterations": 2, "n_simulations": 1,
+                "max_ticks_per_round": 10,
+            },
             "llm": {"provider": "openai", "model": "gpt-4o-mini"},
             "tracing": {"enabled": False},
         }
@@ -134,6 +138,7 @@ class TestLoadConfig:
         """load_config should inject tracing section when absent in YAML."""
         config_data = {
             "llm": {"provider": "openai"},
+            "experiment": {"max_ticks_per_round": 50},
         }
         cfg_file = tmp_path / "no_tracing.yaml"
         cfg_file.write_text(yaml.dump(config_data))

@@ -69,16 +69,37 @@ def _uniform(rng: np.random.Generator, low: float, high: float) -> float:
 # ---------------------------------------------------------------------------
 
 
+# Minimum price increment for the improvement rule. Matches the 2-decimal
+# rounding in _uniform / factory reservation generation.
+PRICE_INCREMENT = 0.01
+
+
 def decide_announce(
     agent: dict,
     zi_cfg: ZIConfig,
     rng: np.random.Generator,
     include_reasoning: bool = True,
+    standing_bid: float | None = None,
+    standing_ask: float | None = None,
 ) -> AnnouncementResponse:
-    """Sample a ZI announcement decision for a double-auction agent.
+    """Sample a ZI announcement decision for an improvement-rule CDA.
 
-    Returns a response with ``price=None`` when the agent chooses not to
-    announce (ZI-U only — ZI-C always announces inside its viable range).
+    ZI-C draws in the intersection of the non-loss range and the
+    mechanism-legal range:
+      - buyer: ``[max(u_low, standing_bid + PRICE_INCREMENT), reservation]``
+        — improve on the standing bid without bidding above value. A
+        buyer MAY still cross the standing ask (that produces a trade);
+        crossing is the apply_order node's responsibility, not the
+        sampler's.
+      - seller: ``[reservation, min(u_high, standing_ask - PRICE_INCREMENT)]``
+        — undercut the standing ask without selling below cost.
+    When the range is empty, the agent passes (price=None).
+
+    ZI-U ignores the non-loss range entirely (samples in [u_low, u_high]).
+    It does NOT self-filter on the improvement rule either — the
+    mechanism discards non-improving ZI-U draws at the apply_order
+    stage so "wasted draws" show up as no_announcement ticks, which is
+    the paper's behaviour.
     """
     strategy = agent["strategy"]
     reservation = agent["reservation_price"]
@@ -90,9 +111,34 @@ def decide_announce(
 
     if strategy == "zi_c":
         if agent_type == "buyer":
-            low, high = zi_cfg.u_low, reservation
+            low = zi_cfg.u_low
+            if standing_bid is not None:
+                low = max(low, standing_bid + PRICE_INCREMENT)
+            high = reservation
         else:
-            low, high = reservation, zi_cfg.u_high
+            low = reservation
+            high = zi_cfg.u_high
+            if standing_ask is not None:
+                high = min(high, standing_ask - PRICE_INCREMENT)
+
+        # Round the bounds to the 2-decimal grid that prices live on.
+        # Without this, floating-point error in `standing_ask - 0.01`
+        # (stored as 1.9999999999999998 when ask=2.01) can falsely
+        # empty a range that is genuinely non-empty on the price grid.
+        low = round(low, 2)
+        high = round(high, 2)
+
+        # Empty improvement range — agent passes.
+        if high < low:
+            return _mk(
+                schema_cls,
+                {"price": None},
+                include_reasoning,
+                f"ZI-C: pass (empty range [{low:.2f}, {high:.2f}] "
+                f"under improvement rule; standing_bid={standing_bid}, "
+                f"standing_ask={standing_ask})",
+            )
+
         price = _uniform(rng, low, high)
         return _mk(
             schema_cls,

@@ -91,10 +91,11 @@ class TestCreateInitialState:
         assert agent_ids == active_ids
 
     def test_max_values_from_config(self, experiment_config):
-        """max_rounds and max_iterations should match config."""
+        """max_rounds matches config; max_iterations holds the CDA tick
+        budget (max_ticks_per_round) under the improvement-rule CDA."""
         state = create_initial_state(experiment_config)
         assert state["max_rounds"] == experiment_config.n_rounds
-        assert state["max_iterations"] == experiment_config.n_iterations
+        assert state["max_iterations"] == experiment_config.max_ticks_per_round
 
     def test_simulation_id_stored(self, experiment_config):
         """simulation_id should be stored in state."""

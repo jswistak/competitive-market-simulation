@@ -121,7 +121,7 @@ def run(
         console.print(f"Auction type: [cyan]double_auction[/]")
         console.print(f"Simulations: [cyan]{cfg.experiment.n_simulations}[/]")
         console.print(f"Rounds: [cyan]{cfg.experiment.n_rounds}[/]")
-        console.print(f"Iterations: [cyan]{cfg.experiment.n_iterations}[/]")
+        console.print(f"Max ticks/round: [cyan]{cfg.experiment.max_ticks_per_round}[/]")
     console.print(f"Tracing: [cyan]{'enabled' if trace else 'disabled'}[/]")
     if cfg.tools.enabled:
         tool_types = []
@@ -258,16 +258,14 @@ def run(
             zi_config=cfg.zi,
             rng=zi_rng,
         )
-        # Worst-case recursion limit: per iteration, each of N agents can
-        # announce (3 nodes) and have up to R responders reject (3 nodes each),
-        # plus 7 overhead nodes for end-of-iteration routing.
-        n_buyers = cfg.experiment.buyers.num
-        n_sellers = cfg.experiment.sellers.num
-        N = n_buyers + n_sellers
-        R = max(n_buyers, n_sellers)
-        nodes_per_iteration = N * (3 + 3 * R) + 7
-        nodes_per_round = cfg.experiment.n_iterations * nodes_per_iteration + 2
-        recursion_limit = cfg.experiment.n_rounds * nodes_per_round
+        # CDA recursion bound: each tick runs 6 nodes
+        # (select_announcer, announce, apply_order, update_history,
+        # check_round, next_iteration). Plus a next_round cycle per
+        # round. Use a generous multiplier for safety.
+        max_ticks = cfg.experiment.max_ticks_per_round
+        nodes_per_tick = 6
+        nodes_per_round = max_ticks * nodes_per_tick + 4
+        recursion_limit = cfg.experiment.n_rounds * nodes_per_round + 50
         n_sims = cfg.experiment.n_simulations
 
     if cfg.experiment.recursion_limit is not None:
@@ -476,7 +474,7 @@ def validate(
         else:
             console.print(f"  Simulations: {cfg.experiment.n_simulations}")
             console.print(f"  Rounds: {cfg.experiment.n_rounds}")
-            console.print(f"  Iterations: {cfg.experiment.n_iterations}")
+            console.print(f"  Max ticks/round: {cfg.experiment.max_ticks_per_round}")
             console.print(f"  Buyers: {cfg.experiment.buyers.num}")
             console.print(f"  Sellers: {cfg.experiment.sellers.num}")
     except Exception as e:

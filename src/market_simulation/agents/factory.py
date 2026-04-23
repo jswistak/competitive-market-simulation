@@ -126,12 +126,21 @@ def create_initial_state(
     agents = create_agents(config, personas=personas)
     all_agent_ids = [agent["id"] for agent in agents]
 
+    # CDA-only factory: max_ticks_per_round is required at config load
+    # (SimulationConfig._require_max_ticks_for_cda). Safe to assert here.
+    assert config.max_ticks_per_round is not None, (
+        "max_ticks_per_round must be set for double_auction configs"
+    )
+
     return MarketState(
         # Experiment context
         round=1,
         iteration=1,
         max_rounds=config.n_rounds,
-        max_iterations=config.n_iterations,
+        # max_iterations holds the tick budget per round under the
+        # improvement-rule CDA. One tick = one randomly-chosen active
+        # agent attempts to post an order.
+        max_iterations=config.max_ticks_per_round,
         simulation_id=simulation_id,
         # Agent management
         agents=agents,
@@ -144,6 +153,12 @@ def create_initial_state(
         announcement_type=None,
         responding_agent_id=None,
         response_accepted=None,
+        # Order book — empty at start of simulation.
+        standing_bid=None,
+        standing_ask=None,
+        standing_bid_agent_id=None,
+        standing_ask_agent_id=None,
+        last_order_outcome=None,
         # History
         market_history_text="",
         iteration_records=[],

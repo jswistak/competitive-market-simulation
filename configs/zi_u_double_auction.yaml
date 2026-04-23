@@ -6,6 +6,9 @@
 experiment:
   n_rounds: 5
   n_iterations: 11
+  # ZI-U draws are often non-improving (discarded by the mechanism),
+  # so a wider tick budget is needed to surface Q* transactions.
+  max_ticks_per_round: 300
   n_simulations: 10
   random_seed: 42
   buyers:

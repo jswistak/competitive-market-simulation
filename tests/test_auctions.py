@@ -299,7 +299,7 @@ class TestAuctionConfig:
 
 class TestBackwardCompatibility:
     def test_simulation_config_no_auction(self):
-        sc = SimulationConfig()
+        sc = SimulationConfig(experiment=ExperimentConfig(max_ticks_per_round=50))
         assert sc.experiment.auction_type == AuctionType.DOUBLE_AUCTION
         assert sc.experiment.auction is None
         assert sc.prompts.auction is None

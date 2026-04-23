@@ -258,6 +258,7 @@ def _smith_experiment_with_strategy(strategy: str) -> ExperimentConfig:
     return ExperimentConfig(
         n_rounds=2,
         n_iterations=6,
+        max_ticks_per_round=40,
         n_simulations=1,
         buyers=AgentPricesConfig(min=0.8, max=3.2, num=5, strategies=strategy),
         sellers=AgentPricesConfig(min=0.8, max=3.2, num=5, strategies=strategy),
@@ -290,3 +291,139 @@ class TestEndToEndDoubleAuction:
             seller = next(a for a in final_state["agents"] if a["id"] == t["seller_id"])
             assert t["price"] <= buyer["reservation_price"] + 1e-9
             assert t["price"] >= seller["reservation_price"] - 1e-9
+
+
+# ---------------------------------------------------------------------------
+# Improvement-rule CDA — ZI-C sampling under the standing book
+# ---------------------------------------------------------------------------
+
+
+class TestZICAnnounceWithImprovementRule:
+    def test_buyer_range_bounded_below_by_standing_bid(self):
+        """A ZI-C buyer with a standing bid in the book must bid strictly
+        above it (or pass if the improvement range is empty)."""
+        from market_simulation.agents.zi import PRICE_INCREMENT
+        rng = np.random.default_rng(0)
+        cfg = ZIConfig()
+        agent = _buyer(2.5, "zi_c")
+        for _ in range(N_DRAWS):
+            resp = zi_decisions.decide_announce(
+                agent, cfg, rng, standing_bid=1.50, standing_ask=None,
+            )
+            # Either posts above standing_bid or passes because of some other
+            # tick's deadlock (not expected here since range is non-empty).
+            assert resp.price is None or (
+                resp.price >= 1.50 + PRICE_INCREMENT - 1e-9
+                and resp.price <= 2.5 + 1e-9
+            )
+
+    def test_buyer_passes_when_standing_bid_at_reservation(self):
+        """No improving bid is possible if standing_bid = reservation."""
+        rng = np.random.default_rng(0)
+        cfg = ZIConfig()
+        agent = _buyer(2.5, "zi_c")
+        resp = zi_decisions.decide_announce(
+            agent, cfg, rng, standing_bid=2.50, standing_ask=None,
+        )
+        assert resp.price is None
+
+    def test_seller_range_bounded_above_by_standing_ask(self):
+        from market_simulation.agents.zi import PRICE_INCREMENT
+        rng = np.random.default_rng(0)
+        cfg = ZIConfig(u_high=5.0)
+        agent = _seller(2.0, "zi_c")
+        for _ in range(N_DRAWS):
+            resp = zi_decisions.decide_announce(
+                agent, cfg, rng, standing_bid=None, standing_ask=3.50,
+            )
+            assert resp.price is None or (
+                resp.price >= 2.0 - 1e-9
+                and resp.price <= 3.50 - PRICE_INCREMENT + 1e-9
+            )
+
+    def test_seller_passes_when_standing_ask_below_reservation(self):
+        rng = np.random.default_rng(0)
+        cfg = ZIConfig(u_high=5.0)
+        agent = _seller(2.0, "zi_c")
+        # standing_ask undercut to the point where no improving non-loss
+        # ask exists.
+        resp = zi_decisions.decide_announce(
+            agent, cfg, rng, standing_bid=None, standing_ask=1.50,
+        )
+        assert resp.price is None
+
+    def test_no_standing_book_same_as_unconstrained_zi_c(self):
+        """With no standing orders, ZI-C samples in its classic
+        [u_low, reservation] buyer range (G&S non-loss only)."""
+        rng = np.random.default_rng(0)
+        cfg = ZIConfig()
+        agent = _buyer(2.5, "zi_c")
+        for _ in range(N_DRAWS):
+            resp = zi_decisions.decide_announce(
+                agent, cfg, rng, standing_bid=None, standing_ask=None,
+            )
+            assert resp.price is not None
+            assert 0.0 <= resp.price <= 2.5 + 1e-9
+
+
+class TestCDAOrderBookEndToEnd:
+    """Integration checks on the improvement-rule CDA graph behaviour."""
+
+    def _run(self, strategy: str):
+        exp = _smith_experiment_with_strategy(strategy)
+        state = create_initial_state(exp, simulation_id=1)
+        rng = np.random.default_rng(exp.random_seed)
+        graph = build_market_graph(
+            llm=None,
+            prompts=PromptConfig(),
+            zi_config=ZIConfig(u_low=0.0, u_high=4.0),
+            rng=rng,
+        )
+        return graph.invoke(state, config={"recursion_limit": 5000})
+
+    def test_iteration_records_have_standing_book_columns(self):
+        final_state = self._run("zi_c")
+        recs = final_state["iteration_records"]
+        assert len(recs) > 0
+        # Every record carries the new standing_bid/standing_ask keys,
+        # even when None.
+        for r in recs:
+            assert "standing_bid" in r
+            assert "standing_ask" in r
+            assert "order_outcome" in r
+
+    def test_outcomes_cover_expected_tags(self):
+        final_state = self._run("zi_c")
+        outcomes = {r["order_outcome"] for r in final_state["iteration_records"]}
+        # ZI-C should produce at least trades and posts over two rounds.
+        assert "traded" in outcomes
+        assert "posted" in outcomes
+
+    def test_crossing_trade_price_equals_standing_price(self):
+        """Every trade should execute at the earlier (standing) price
+        on its side, which is the core improvement-rule convention.
+
+        Operationally: for each trade, the tick's announced_price must
+        be weakly more aggressive than the trade price (buy >= tprice,
+        sell <= tprice). Exactly the cross pricing rule.
+        """
+        final_state = self._run("zi_c")
+        records = {(r["round"], r["iteration"]): r for r in final_state["iteration_records"]}
+        for tx in final_state["transactions"]:
+            rec = records.get((tx["round"], tx["iteration"]))
+            assert rec is not None, f"missing iteration record for {tx}"
+            ann_price = rec["price"]
+            if tx["announcement_type"] == "buy":
+                assert ann_price >= tx["price"] - 1e-9
+            else:
+                assert ann_price <= tx["price"] + 1e-9
+
+
+class TestConfigValidator:
+    def test_cda_requires_max_ticks_per_round(self):
+        from market_simulation.config.schema import SimulationConfig, ExperimentConfig
+        # Default auction_type is double_auction — must fail without
+        # max_ticks_per_round set.
+        with pytest.raises(Exception) as exc_info:
+            SimulationConfig(experiment=ExperimentConfig())
+        assert "max_ticks_per_round" in str(exc_info.value)

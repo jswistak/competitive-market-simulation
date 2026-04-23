@@ -54,14 +54,17 @@ class TestRecursionLimitSchema:
 
     def test_round_trips_through_simulation_config(self):
         cfg = SimulationConfig(
-            experiment=ExperimentConfig(recursion_limit=99999),
+            experiment=ExperimentConfig(recursion_limit=99999, max_ticks_per_round=50),
         )
         assert cfg.experiment.recursion_limit == 99999
 
     def test_absent_from_yaml_defaults_to_none(self, tmp_path):
         """A YAML without recursion_limit should parse with None."""
         data = {
-            "experiment": {"n_rounds": 2, "n_iterations": 3, "n_simulations": 1},
+            "experiment": {
+                "n_rounds": 2, "n_iterations": 3, "n_simulations": 1,
+                "max_ticks_per_round": 50,
+            },
             "llm": {"provider": "openai"},
         }
         f = tmp_path / "cfg.yaml"
@@ -77,6 +80,7 @@ class TestRecursionLimitSchema:
                 "n_iterations": 3,
                 "n_simulations": 1,
                 "recursion_limit": 75000,
+                "max_ticks_per_round": 50,
             },
             "llm": {"provider": "openai"},
         }
