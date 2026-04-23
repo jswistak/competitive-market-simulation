@@ -135,14 +135,27 @@ def _record_trade(
 ) -> dict:
     """Build the state delta for an executed trade.
 
-    Selectively clears the book: orders belonging to deactivated parties
-    (buyer_id, seller_id) are removed; standing orders from third-party
-    agents that happen to still be live are preserved. This is the NYSE
-    / G&S convention — after a cross, the non-trading side's standing
-    order remains if its owner is still active, so intra-marginal
-    traders can keep transacting without rebuilding the book from
-    scratch every time.
+    Multi-unit aware. Each trader's ``current_unit_index`` advances by
+    one. If that was the trader's last unit, they deactivate; otherwise
+    they stay live and their ``reservation_price`` is updated to the
+    next unit's value. Their own standing orders (which referenced the
+    just-retired unit) are cleared from the book — the next unit will
+    be re-quoted from scratch, which is the G&S convention.
+
+    Standing orders belonging to third-party agents persist unchanged
+    (NYSE / G&S convention): an intra-marginal buyer's outstanding bid
+    doesn't vanish just because another pair transacted.
     """
+    # Look up trader state to read schedules and unit indices.
+    agents_by_id = {a["id"]: a for a in state["agents"]}
+    buyer = agents_by_id[buyer_id]
+    seller = agents_by_id[seller_id]
+
+    buyer_unit_index = buyer.get("current_unit_index", 0)
+    seller_unit_index = seller.get("current_unit_index", 0)
+    buyer_values = buyer.get("values", [buyer["reservation_price"]])
+    seller_values = seller.get("values", [seller["reservation_price"]])
+
     transaction = Transaction(
         round=state["round"],
         iteration=state["iteration"],
@@ -150,33 +163,58 @@ def _record_trade(
         buyer_id=buyer_id,
         seller_id=seller_id,
         announcement_type=ann_type,
+        buyer_unit_index=buyer_unit_index,
+        seller_unit_index=seller_unit_index,
+        buyer_value=buyer_values[buyer_unit_index],
+        seller_cost=seller_values[seller_unit_index],
     )
 
-    new_active = [
-        aid for aid in state["active_agent_ids"]
-        if aid != buyer_id and aid != seller_id
-    ]
+    # Determine post-trade status per trader: deactivate only when all
+    # units are retired; otherwise advance to the next unit.
+    def _advance_unit(agent: dict) -> tuple[dict, bool]:
+        """Return (updated_agent, still_active)."""
+        values = agent.get("values", [agent["reservation_price"]])
+        new_index = agent.get("current_unit_index", 0) + 1
+        if new_index >= len(values):
+            return ({**agent, "active": False, "current_unit_index": new_index}, False)
+        return (
+            {
+                **agent,
+                "current_unit_index": new_index,
+                "reservation_price": values[new_index],
+            },
+            True,
+        )
 
-    updated_agents = []
+    updated_agents: list[dict] = []
+    buyer_still_active = True
+    seller_still_active = True
     for agent in state["agents"]:
-        if agent["id"] in (buyer_id, seller_id):
-            updated_agents.append({**agent, "active": False})
+        if agent["id"] == buyer_id:
+            new_agent, buyer_still_active = _advance_unit(agent)
+            updated_agents.append(new_agent)
+        elif agent["id"] == seller_id:
+            new_agent, seller_still_active = _advance_unit(agent)
+            updated_agents.append(new_agent)
         else:
             updated_agents.append(agent)
 
-    # Preserve the side's standing order only if the resting agent is
-    # someone OTHER than the two deactivating parties. On a buy-side
-    # cross, the matched counterparty is the standing_ask owner, so
-    # standing_ask always clears; standing_bid may persist. On a
-    # sell-side cross, standing_bid always clears; standing_ask may
-    # persist. The announcer (who crossed) did not have a resting
-    # order on their own side, so we only have to check the opposite.
+    # Active-agent list: drop the trader only if they exhausted their
+    # schedule. Under single-unit (values=[one]), this always drops them
+    # — matching pre-multi-unit behaviour.
+    new_active = list(state["active_agent_ids"])
+    if not buyer_still_active and buyer_id in new_active:
+        new_active.remove(buyer_id)
+    if not seller_still_active and seller_id in new_active:
+        new_active.remove(seller_id)
+
+    # Clear the book's orders that belonged to the traders, regardless
+    # of whether they stay in the round. Their prior quote referenced
+    # the retired unit; the next unit must be re-quoted.
     standing_bid = state.get("standing_bid")
     standing_bid_owner = state.get("standing_bid_agent_id")
     standing_ask = state.get("standing_ask")
     standing_ask_owner = state.get("standing_ask_agent_id")
-
-    # Drop orders whose owner just deactivated.
     if standing_bid_owner in (buyer_id, seller_id):
         standing_bid = None
         standing_bid_owner = None
@@ -186,7 +224,8 @@ def _record_trade(
 
     logger.info(
         f"R{state['round']}/T{state['iteration']}: trade executed @ ${price:.2f} "
-        f"(buyer={buyer_id}, seller={seller_id}, type={ann_type})"
+        f"(buyer={buyer_id} unit {buyer_unit_index}, "
+        f"seller={seller_id} unit {seller_unit_index}, type={ann_type})"
     )
 
     return {

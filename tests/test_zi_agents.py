@@ -427,3 +427,119 @@ class TestConfigValidator:
         with pytest.raises(Exception) as exc_info:
             SimulationConfig(experiment=ExperimentConfig())
         assert "max_ticks_per_round" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# Multi-unit traders (Gode & Sunder 1993 multi-unit markets)
+# ---------------------------------------------------------------------------
+
+
+class TestMultiUnitFactory:
+    def test_units_per_agent_one_preserves_single_unit(self):
+        """units_per_agent=1 must produce single-unit agents identical to
+        the pre-multi-unit factory output."""
+        cfg = ExperimentConfig(
+            n_rounds=1, max_ticks_per_round=10,
+            buyers=AgentPricesConfig(min=0.8, max=3.2, num=11, units_per_agent=1),
+            sellers=AgentPricesConfig(min=0.8, max=3.2, num=11, units_per_agent=1),
+        )
+        agents = create_agents(cfg)
+        buyers = [a for a in agents if a["type"] == "buyer"]
+        sellers = [a for a in agents if a["type"] == "seller"]
+        assert len(buyers) == 11 and len(sellers) == 11
+        # Each agent has exactly one unit
+        assert all(len(a["values"]) == 1 for a in agents)
+        assert all(a["current_unit_index"] == 0 for a in agents)
+        assert all(a["reservation_price"] == a["values"][0] for a in agents)
+
+    def test_multi_unit_buyer_schedule_descending(self):
+        cfg = ExperimentConfig(
+            n_rounds=1, max_ticks_per_round=10,
+            buyers=AgentPricesConfig(min=0.8, max=3.2, num=6, units_per_agent=4),
+            sellers=AgentPricesConfig(min=0.8, max=3.2, num=6, units_per_agent=4),
+        )
+        agents = create_agents(cfg)
+        buyers = sorted([a for a in agents if a["type"] == "buyer"], key=lambda a: a["id"])
+        assert len(buyers) == 6
+        # Each buyer has 4 units in descending order
+        for b in buyers:
+            assert len(b["values"]) == 4
+            assert b["values"] == sorted(b["values"], reverse=True)
+        # Convention: agent 0 is weakest; agent N-1 is most-aggressive.
+        # So buyer 0's top-unit is LOWER than buyer 5's top-unit.
+        assert buyers[0]["values"][0] <= buyers[-1]["values"][0]
+
+    def test_multi_unit_seller_schedule_ascending(self):
+        cfg = ExperimentConfig(
+            n_rounds=1, max_ticks_per_round=10,
+            buyers=AgentPricesConfig(min=0.8, max=3.2, num=6, units_per_agent=4),
+            sellers=AgentPricesConfig(min=0.8, max=3.2, num=6, units_per_agent=4),
+        )
+        agents = create_agents(cfg)
+        sellers = sorted([a for a in agents if a["type"] == "seller"], key=lambda a: a["id"])
+        assert len(sellers) == 6
+        for s in sellers:
+            assert len(s["values"]) == 4
+            assert s["values"] == sorted(s["values"])
+        # Under single-unit convention, seller_i = linspace[i], so seller
+        # 0 has the LOWEST cost (most aggressive on the sell side) and
+        # seller N-1 has the highest. Multi-unit preserves that: seller
+        # 0's first unit is the lowest-cost unit overall.
+        assert sellers[0]["values"][0] <= sellers[-1]["values"][0]
+
+    def test_total_units_equal_num_times_units_per_agent(self):
+        """All agent units should cover num * units_per_agent values
+        without gaps or overlaps."""
+        cfg = ExperimentConfig(
+            n_rounds=1, max_ticks_per_round=10,
+            buyers=AgentPricesConfig(min=0.8, max=3.2, num=6, units_per_agent=4),
+            sellers=AgentPricesConfig(min=0.8, max=3.2, num=6, units_per_agent=4),
+        )
+        agents = create_agents(cfg)
+        buyers = [a for a in agents if a["type"] == "buyer"]
+        all_buyer_values = sorted(v for a in buyers for v in a["values"])
+        # Should equal np.linspace(0.8, 3.2, 24), sorted asc, rounded to 2dp.
+        expected = sorted(float(v) for v in np.round(np.linspace(0.8, 3.2, 24), 2))
+        assert all_buyer_values == expected
+
+
+class TestMultiUnitRetirement:
+    """End-to-end: a multi-unit agent should advance unit by unit and
+    only deactivate once all units are retired."""
+
+    def test_multi_unit_zi_c_run_retires_units(self):
+        exp = ExperimentConfig(
+            n_rounds=1, n_iterations=20, max_ticks_per_round=200,
+            n_simulations=1,
+            buyers=AgentPricesConfig(min=0.8, max=3.2, num=3, units_per_agent=3, strategies="zi_c"),
+            sellers=AgentPricesConfig(min=0.8, max=3.2, num=3, units_per_agent=3, strategies="zi_c"),
+            random_seed=42,
+        )
+        state = create_initial_state(exp, simulation_id=1)
+        rng = np.random.default_rng(exp.random_seed)
+        graph = build_market_graph(llm=None, prompts=PromptConfig(),
+                                   zi_config=ZIConfig(u_low=0.0, u_high=4.0), rng=rng)
+        final = graph.invoke(state, config={"recursion_limit": 5000})
+
+        # ZI-C must never violate reservation; every recorded trade
+        # should sit inside the pair's current-unit price grid.
+        assert final["constraint_violations"] == 0
+        assert len(final["transactions"]) > 0
+
+        # Every transaction must have valid unit indices and
+        # buyer_value >= price >= seller_cost.
+        for t in final["transactions"]:
+            assert t.get("buyer_unit_index") is not None
+            assert t.get("seller_unit_index") is not None
+            assert t["buyer_value"] >= t["price"] - 1e-9
+            assert t["seller_cost"] <= t["price"] + 1e-9
+
+        # Each trader's own_history_data count equals the number of
+        # trades they took part in (one "announce" log per their trade);
+        # should match (buyer_unit_index + 1 or seller_unit_index + 1).
+        # Weaker check: total transactions * 2 = sum of (announce count)
+        # plus pass/non-announce ticks where the agent was the announcer.
+        # Just sanity-check the final unit indices are consistent.
+        for agent in final["agents"]:
+            idx = agent.get("current_unit_index", 0)
+            assert idx <= len(agent["values"])

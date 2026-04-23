@@ -36,11 +36,62 @@ def _normalize_strategies(
     return [strategies] * num
 
 
+def _build_schedules(
+    side_min: float,
+    side_max: float,
+    num: int,
+    units_per_agent: int,
+    side: str,  # "buyer" or "seller"
+) -> list[list[float]]:
+    """Build per-agent marginal value/cost schedules.
+
+    Generates ``num * units_per_agent`` linspace values on ``[min, max]``
+    (ascending) and partitions them into contiguous chunks of
+    ``units_per_agent`` values assigned by agent ID.
+
+    Convention: higher agent ID means more-aggressive agent on the given
+    side. Buyer 0 has the weakest values; buyer N-1 has the strongest.
+    Seller 0 has the lowest costs (most aggressive); seller N-1 has the
+    highest. This preserves the single-unit convention
+    ``reservation[i] = linspace(min, max)[i]`` for both sides and
+    generalises it to multi-unit without breaking downstream analysis
+    that relies on agent-ID / reservation-price orderings.
+
+    Within each agent's schedule, units are ordered most-aggressive-first
+    so advancing ``current_unit_index`` by 1 always steps to the next-best
+    (less aggressive) unit:
+      - buyer: values descending (first unit = highest value)
+      - seller: values ascending (first unit = lowest cost)
+
+    For ``units_per_agent == 1`` this is byte-compatible with the
+    pre-multi-unit factory output.
+    """
+    total = num * units_per_agent
+    all_values = np.round(np.linspace(side_min, side_max, total), 2)
+    sorted_values = np.sort(all_values)  # ascending
+
+    schedules: list[list[float]] = []
+    for i in range(num):
+        chunk = sorted_values[i * units_per_agent : (i + 1) * units_per_agent]
+        if side == "buyer":
+            # Buyer's first (most-aggressive) unit is the highest value
+            # in their chunk — reverse so the schedule is descending.
+            chunk = chunk[::-1]
+        # Seller's first unit is the lowest cost — keep ascending.
+        schedules.append([float(v) for v in chunk])
+    return schedules
+
+
 def create_agents(
     config: ExperimentConfig,
     personas: PersonaConfig | None = None,
 ) -> list[AgentState]:
     """Create buyer and seller agents based on configuration.
+
+    Handles both single-unit (``units_per_agent == 1``) and multi-unit
+    (Gode & Sunder 1993 multi-unit markets) traders. Each agent carries
+    a ``values`` schedule and a ``current_unit_index`` cursor; the
+    initial ``reservation_price`` mirrors ``values[0]``.
 
     Args:
         config: Experiment configuration with price distributions.
@@ -54,56 +105,60 @@ def create_agents(
     if personas is None:
         personas = PersonaConfig()
 
-    # Create buyers
-    buyer_prices = np.round(
-        np.linspace(
-            config.buyers.min,
-            config.buyers.max,
-            config.buyers.num,
-        ),
-        2,
+    # --- Buyers ---
+    buyer_schedules = _build_schedules(
+        side_min=config.buyers.min,
+        side_max=config.buyers.max,
+        num=config.buyers.num,
+        units_per_agent=config.buyers.units_per_agent,
+        side="buyer",
     )
     buyer_strategies = _normalize_strategies(config.buyers.strategies, config.buyers.num)
 
-    for i, price in enumerate(buyer_prices):
+    for i, schedule in enumerate(buyer_schedules):
         persona_text = personas.buyers.get(i, personas.buyer_default)
-        agent = AgentState(
-            id=i,
-            type="buyer",
-            reservation_price=float(price),
-            active=True,
-            own_history_prompt="",
-            own_history_data=[],
-            persona=persona_text,
-            strategy=buyer_strategies[i],
+        agents.append(
+            AgentState(
+                id=i,
+                type="buyer",
+                reservation_price=schedule[0],
+                values=schedule,
+                current_unit_index=0,
+                active=True,
+                own_history_prompt="",
+                own_history_data=[],
+                persona=persona_text,
+                strategy=buyer_strategies[i],
+            )
         )
-        agents.append(agent)
 
-    # Create sellers (with offset IDs)
-    seller_prices = np.round(
-        np.linspace(
-            config.sellers.min,
-            config.sellers.max,
-            config.sellers.num,
-        ),
-        2,
+    # --- Sellers (with offset IDs) ---
+    seller_schedules = _build_schedules(
+        side_min=config.sellers.min,
+        side_max=config.sellers.max,
+        num=config.sellers.num,
+        units_per_agent=config.sellers.units_per_agent,
+        side="seller",
     )
     seller_strategies = _normalize_strategies(config.sellers.strategies, config.sellers.num)
 
     id_offset = config.buyers.num
-    for i, price in enumerate(seller_prices):
+    for i, schedule in enumerate(seller_schedules):
         persona_text = personas.sellers.get(i, personas.seller_default)
-        agent = AgentState(
-            id=id_offset + i,
-            type="seller",
-            reservation_price=float(price),
-            active=True,
-            own_history_prompt="",
-            own_history_data=[],
-            persona=persona_text,
-            strategy=seller_strategies[i],
+        agents.append(
+            AgentState(
+                id=id_offset + i,
+                type="seller",
+                reservation_price=schedule[0],
+                values=schedule,
+                current_unit_index=0,
+                active=True,
+                own_history_prompt="",
+                own_history_data=[],
+                persona=persona_text,
+                strategy=seller_strategies[i],
+            )
         )
-        agents.append(agent)
 
     return agents
 

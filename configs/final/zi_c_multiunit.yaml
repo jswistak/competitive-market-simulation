@@ -1,0 +1,44 @@
+# Zero-Intelligence Constrained (ZI-C) multi-unit double auction baseline.
+#
+# Gode & Sunder (1993) multi-unit CDA: each trader holds a schedule of
+# K marginal values (buyers) / costs (sellers). Buyer i trades up to K
+# units per round, retiring one unit per successful transaction and
+# stepping to their next marginal value. Same for sellers in reverse.
+#
+# Asymmetric allocation: agent 0 is the weakest trader on their side,
+# agent N-1 is the most aggressive. This preserves the existing single-
+# unit id-to-reservation convention and scales it up to K units.
+#
+# Market structure: 6 buyers x 4 units and 6 sellers x 4 units.
+# Induced demand/supply curves share the same support; theoretical
+# competitive equilibrium is the midpoint of the range and Q* = 12.
+experiment:
+  n_rounds: 5
+  # Legacy; ignored by the CDA path.
+  n_iterations: 11
+  # Multi-unit markets have ~4x the trading density of single-unit, so
+  # the tick budget scales up. In practice the deadlock check ends
+  # rounds well before this cap.
+  max_ticks_per_round: 1200
+  n_simulations: 20
+  random_seed: 42
+  buyers:
+    min: 0.8
+    max: 3.2
+    num: 6
+    units_per_agent: 4
+    strategies: zi_c
+  sellers:
+    min: 0.8
+    max: 3.2
+    num: 6
+    units_per_agent: 4
+    strategies: zi_c
+
+zi:
+  u_low: 0.0
+  u_high: 4.0
+
+tracing:
+  enabled: false
+  llm_call_logging: false

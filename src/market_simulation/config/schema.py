@@ -53,11 +53,22 @@ class ToolConfig(BaseModel):
 
 
 class AgentPricesConfig(BaseModel):
-    """Reservation price distribution for agents."""
+    """Reservation price distribution for agents.
+
+    Supports both single-unit (Smith 1962 style) and multi-unit
+    (Gode & Sunder 1993 Markets 2+) traders. When ``units_per_agent > 1``
+    each agent holds an ordered schedule of K marginal values/costs;
+    the market-wide demand/supply curve is constructed by generating
+    ``num * units_per_agent`` linspace values and assigning the
+    top-K to agent 0, next-K to agent 1, etc. (asymmetric allocation).
+    Default ``units_per_agent = 1`` preserves the existing single-unit
+    behaviour so older configs run unchanged.
+    """
 
     min: float = 0.8
     max: float = 3.2
     num: int = 11
+    units_per_agent: int = 1
     strategies: Strategy | list[Strategy] = "llm"
 
     @model_validator(mode="after")
@@ -65,6 +76,14 @@ class AgentPricesConfig(BaseModel):
         if isinstance(self.strategies, list) and len(self.strategies) != self.num:
             raise ValueError(
                 f"strategies list length ({len(self.strategies)}) must equal num ({self.num})"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_units_per_agent(self):
+        if self.units_per_agent < 1:
+            raise ValueError(
+                f"units_per_agent must be >= 1 (got {self.units_per_agent})"
             )
         return self
 

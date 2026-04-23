@@ -318,10 +318,22 @@ def make_next_round_node() -> Callable[[MarketState], dict]:
             f"Advancing to round {new_round}"
         )
 
+        # Reactivate all agents and reset their marginal-unit cursor so
+        # each round starts with a fresh full schedule (G&S periods are
+        # independent). Single-unit agents simply reset to unit 0 which
+        # is their only unit, so this is a no-op for them.
         updated_agents = []
         all_agent_ids = []
         for agent in state["agents"]:
-            updated_agents.append({**agent, "active": True})
+            values = agent.get("values", [agent["reservation_price"]])
+            updated_agents.append(
+                {
+                    **agent,
+                    "active": True,
+                    "current_unit_index": 0,
+                    "reservation_price": values[0],
+                }
+            )
             all_agent_ids.append(agent["id"])
 
         return {

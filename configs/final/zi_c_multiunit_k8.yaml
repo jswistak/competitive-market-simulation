@@ -1,0 +1,26 @@
+experiment:
+  n_rounds: 5
+  n_iterations: 11
+  max_ticks_per_round: 2400
+  n_simulations: 20
+  random_seed: 42
+  buyers:
+    min: 0.8
+    max: 3.2
+    num: 6
+    units_per_agent: 8
+    strategies: zi_c
+  sellers:
+    min: 0.8
+    max: 3.2
+    num: 6
+    units_per_agent: 8
+    strategies: zi_c
+
+zi:
+  u_low: 0.0
+  u_high: 4.0
+
+tracing:
+  enabled: false
+  llm_call_logging: false

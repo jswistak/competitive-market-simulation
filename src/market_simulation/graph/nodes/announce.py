@@ -273,6 +273,13 @@ def _render_announcement_prompt(
     standing_bid_str = f"${standing_bid:.2f}" if standing_bid is not None else "none"
     standing_ask_str = f"${standing_ask:.2f}" if standing_ask is not None else "none"
 
+    # Multi-unit: how many units the agent still has to trade this round
+    # (including the current marginal unit). Always >= 1 when called
+    # since inactive agents never reach this node.
+    values = agent.get("values", [agent["reservation_price"]])
+    current_unit_index = agent.get("current_unit_index", 0)
+    units_remaining = max(0, len(values) - current_unit_index)
+
     template_vars = {
         "role": keywords.role,
         "verb": keywords.verb,
@@ -301,6 +308,8 @@ def _render_announcement_prompt(
         # market state the agent needs to see.
         "standing_bid": standing_bid_str,
         "standing_ask": standing_ask_str,
+        # Multi-unit: number of remaining units (1 for single-unit).
+        "units_remaining": units_remaining,
     }
 
     # Use sentinel replacement for persona to avoid str.format() issues with curly braces

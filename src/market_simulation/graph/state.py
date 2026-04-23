@@ -7,11 +7,28 @@ from ..config.schema import Strategy
 
 
 class AgentState(TypedDict):
-    """State for a single market agent."""
+    """State for a single market agent.
+
+    Multi-unit fields:
+      - ``values``: ordered schedule of marginal values (buyers) / costs
+        (sellers). Most-aggressive unit first (descending for buyers,
+        ascending for sellers). For single-unit traders this is just
+        ``[reservation_price]``.
+      - ``current_unit_index``: which unit the agent is currently trying
+        to trade. Advances on every trade the agent takes part in.
+        Agent deactivates when it reaches ``len(values)``.
+      - ``reservation_price`` always equals ``values[current_unit_index]``;
+        the factory keeps them in sync and the apply_order node updates
+        both when a unit is retired. ZI-C sampler and prompt rendering
+        read ``reservation_price``, so they don't need to know about
+        multi-unit explicitly.
+    """
 
     id: int
     type: str  # "buyer" or "seller"
-    reservation_price: float
+    reservation_price: float  # Current marginal unit's value/cost
+    values: NotRequired[list[float]]  # Full schedule; len-1 for single-unit
+    current_unit_index: NotRequired[int]  # 0-based index into values
     active: bool  # Still in current round
     own_history_prompt: str  # History for prompt rendering
     own_history_data: list[dict]  # Data for CSV export
@@ -25,7 +42,14 @@ class AgentState(TypedDict):
 
 
 class Transaction(TypedDict):
-    """Record of a completed transaction."""
+    """Record of a completed transaction.
+
+    ``buyer_unit_index`` / ``seller_unit_index`` identify which marginal
+    unit in the agent's schedule was traded (0 = first / most-aggressive
+    unit). For single-unit traders these are always 0. Essential for
+    efficiency computation in multi-unit markets where a single agent
+    trades multiple units per round.
+    """
 
     round: int
     iteration: int
@@ -33,6 +57,10 @@ class Transaction(TypedDict):
     buyer_id: int
     seller_id: int
     announcement_type: str
+    buyer_unit_index: NotRequired[int]
+    seller_unit_index: NotRequired[int]
+    buyer_value: NotRequired[float]
+    seller_cost: NotRequired[float]
 
 
 class IterationRecord(TypedDict):
