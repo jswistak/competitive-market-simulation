@@ -255,12 +255,20 @@ class PromptTemplates(BaseModel):
 
 
 class AgentKeywords(BaseModel):
-    """Keywords for prompt substitution."""
+    """Keywords for prompt substitution.
+
+    ``profit_formula`` is optional; templates reference it as
+    ``{profit_formula}`` to embed the side-specific definition of
+    profit (e.g. "transaction price and reservation price" for a
+    seller). Empty string is a safe default for templates that don't
+    need it.
+    """
 
     role: str
     verb: str
     preference: str
     condition: str
+    profit_formula: str = ""
 
 
 class AgentPromptConfig(BaseModel):

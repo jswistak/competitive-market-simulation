@@ -266,6 +266,7 @@ def _render_announcement_prompt(
         "verb": keywords.verb,
         "preference": keywords.preference,
         "condition": keywords.condition,
+        "profit_formula": keywords.profit_formula,
         "reservation_price": agent["reservation_price"],
         "N_ROUNDS": state["max_rounds"],
         "N_ITER": state["max_iterations"],
