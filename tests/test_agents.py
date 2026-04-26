@@ -50,7 +50,6 @@ class TestCreateAgents:
         """Should work with just one buyer and one seller."""
         cfg = ExperimentConfig(
             n_rounds=1,
-            n_iterations=1,
             n_simulations=1,
             buyers=AgentPricesConfig(min=1.5, max=1.5, num=1),
             sellers=AgentPricesConfig(min=1.5, max=1.5, num=1),
@@ -91,10 +90,11 @@ class TestCreateInitialState:
         assert agent_ids == active_ids
 
     def test_max_values_from_config(self, experiment_config):
-        """max_rounds and max_iterations should match config."""
+        """max_rounds matches config; max_iterations holds the CDA tick
+        budget (max_ticks_per_round) under the improvement-rule CDA."""
         state = create_initial_state(experiment_config)
         assert state["max_rounds"] == experiment_config.n_rounds
-        assert state["max_iterations"] == experiment_config.n_iterations
+        assert state["max_iterations"] == experiment_config.max_ticks_per_round
 
     def test_simulation_id_stored(self, experiment_config):
         """simulation_id should be stored in state."""
@@ -191,32 +191,6 @@ class TestPersonaInRenderedPrompts:
             state=base_market_state,
             prompts=prompt_config,
             agent_prompts=prompt_config.buyer,
-        )
-
-        assert persona_text in rendered
-
-    def test_persona_appears_in_response_prompt(self, prompt_config, base_market_state):
-        """Persona text assigned to an agent should appear in the rendered response prompt."""
-        from market_simulation.graph.nodes.respond import _render_response_prompt
-
-        # Patch the main_template to include {persona} placeholder
-        persona_template = prompt_config.general.main_template.replace(
-            "{action_prompt}",
-            "{persona} {action_prompt}",
-        )
-        prompt_config.general.main_template = persona_template
-
-        # Set a distinctive persona on the seller agent and set announced_price for response_prompt
-        persona_text = "You are a patient seller who waits for the best offer."
-        agent = base_market_state["agents"][3]  # seller, id=3
-        agent["persona"] = persona_text
-        base_market_state["announced_price"] = 1.50
-
-        rendered = _render_response_prompt(
-            agent=agent,
-            state=base_market_state,
-            prompts=prompt_config,
-            agent_prompts=prompt_config.seller,
         )
 
         assert persona_text in rendered

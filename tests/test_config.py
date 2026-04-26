@@ -37,10 +37,9 @@ class TestSchemaDefaults:
         assert cfg.max_retries == 5
 
     def test_experiment_config_defaults(self):
-        """ExperimentConfig should default to 5 rounds, 10 iters, 10 sims."""
+        """ExperimentConfig should default to 5 rounds, 10 sims."""
         cfg = ExperimentConfig()
         assert cfg.n_rounds == 5
-        assert cfg.n_iterations == 10
         assert cfg.n_simulations == 10
 
     def test_agent_prices_config_defaults(self):
@@ -64,8 +63,9 @@ class TestSchemaDefaults:
         assert cfg.langfuse_public_key is None
 
     def test_simulation_config_constructs_with_defaults(self):
-        """SimulationConfig should construct with all defaults."""
-        cfg = SimulationConfig()
+        """SimulationConfig should construct with all defaults (except the
+        required CDA tick budget)."""
+        cfg = SimulationConfig(experiment=ExperimentConfig(max_ticks_per_round=50))
         assert cfg.llm.provider == "openai"
         assert cfg.experiment.n_rounds == 5
 
@@ -95,10 +95,9 @@ class TestSchemaValidation:
             AgentKeywords(role="buyer")  # missing verb, preference, condition
 
     def test_experiment_config_custom_values(self):
-        """ExperimentConfig should accept custom round/iteration counts."""
-        cfg = ExperimentConfig(n_rounds=3, n_iterations=5, n_simulations=2)
+        """ExperimentConfig should accept custom round / sim counts."""
+        cfg = ExperimentConfig(n_rounds=3, n_simulations=2)
         assert cfg.n_rounds == 3
-        assert cfg.n_iterations == 5
         assert cfg.n_simulations == 2
 
 
@@ -113,7 +112,10 @@ class TestLoadConfig:
     def test_load_config_from_full_path(self, tmp_path):
         """load_config should parse a YAML file given a full path."""
         config_data = {
-            "experiment": {"n_rounds": 1, "n_iterations": 2, "n_simulations": 1},
+            "experiment": {
+                "n_rounds": 1, "n_simulations": 1,
+                "max_ticks_per_round": 10,
+            },
             "llm": {"provider": "openai", "model": "gpt-4o-mini"},
             "tracing": {"enabled": False},
         }
@@ -134,6 +136,7 @@ class TestLoadConfig:
         """load_config should inject tracing section when absent in YAML."""
         config_data = {
             "llm": {"provider": "openai"},
+            "experiment": {"max_ticks_per_round": 50},
         }
         cfg_file = tmp_path / "no_tracing.yaml"
         cfg_file.write_text(yaml.dump(config_data))

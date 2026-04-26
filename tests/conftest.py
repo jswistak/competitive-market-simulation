@@ -68,8 +68,11 @@ def prompt_config(buyer_keywords, seller_keywords):
 def experiment_config():
     return ExperimentConfig(
         n_rounds=2,
-        n_iterations=3,
         n_simulations=1,
+        # Small tick budget is plenty for the tiny markets these tests
+        # build around the fixture. Individual tests override it when
+        # they need more ticks.
+        max_ticks_per_round=20,
         buyers=AgentPricesConfig(min=1.0, max=2.0, num=3),
         sellers=AgentPricesConfig(min=1.0, max=2.0, num=3),
     )
@@ -163,12 +166,10 @@ def base_market_state(sample_agents):
         announcing_agent_id=None,
         announced_price=None,
         announcement_type=None,
-        responding_agent_id=None,
-        response_accepted=None,
+        counterparty_agent_id=None,
         market_history_text="",
         iteration_records=[],
         transactions=[],
-        announced_this_iteration=[],
         announcement_made=False,
         transaction_made=False,
         iteration_complete=False,
@@ -176,12 +177,18 @@ def base_market_state(sample_agents):
         simulation_complete=False,
         tool_usage_log=[],
         last_announcement_reasoning="",
-        last_response_reasoning="",
+        last_counterparty_reasoning="",
         last_error=None,
         constraint_violations=0,
         history_mode="full",
         history_summary_last_n=3,
         own_history_mode="full",
+        # Improvement-rule CDA order book — empty at simulation start.
+        standing_bid=None,
+        standing_ask=None,
+        standing_bid_agent_id=None,
+        standing_ask_agent_id=None,
+        last_order_outcome=None,
     )
 
 

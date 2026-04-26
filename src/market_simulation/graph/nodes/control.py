@@ -1,4 +1,4 @@
-"""Control flow nodes for managing iterations and rounds."""
+"""Control-flow nodes for the improvement-rule CDA graph."""
 
 import logging
 from typing import Callable
@@ -17,88 +17,87 @@ def _get_templates(prompts: PromptConfig | None) -> PromptTemplates:
 def make_update_history_node(
     prompts: PromptConfig | None = None,
 ) -> Callable[[MarketState], dict]:
-    """Create node that updates market history after an iteration.
+    """Node that records per-tick history.
 
-    Args:
-        prompts: Prompt configuration supplying the history templates.
-            If ``None``, schema defaults are used (matches legacy hardcoded
-            strings — keeps older tests passing).
-
-    Returns:
-        Node function that updates history text and records.
+    One row per tick, regardless of outcome — preserves the existing
+    iteration_history_*.csv schema (plus two new columns for the
+    standing book and one for the outcome tag).
     """
 
     templates = _get_templates(prompts)
 
     def update_history(state: MarketState) -> dict:
-        """Update market history based on iteration outcome."""
         round_num = state["round"]
-        iteration = state["iteration"]
-        price = state["announced_price"]
-        announcement_type = state["announcement_type"]
-        announcement_made = state["announcement_made"]
-        transaction_made = state["transaction_made"]
+        tick = state["iteration"]
+        price = state.get("announced_price")
+        announcement_type = state.get("announcement_type")
+        announcement_made = state.get("announcement_made", False)
+        transaction_made = state.get("transaction_made", False)
+        outcome = state.get("last_order_outcome") or (
+            "no_announcement" if not announcement_made else "posted"
+        )
 
-        # Get reservation prices for record (only when relevant)
+        announcer_id = state.get("announcing_agent_id")
+        responder_id = state.get("counterparty_agent_id")
+
         announcing_rp = None
         responding_rp = None
+        for agent in state["agents"]:
+            if agent["id"] == announcer_id:
+                announcing_rp = agent["reservation_price"]
+            if responder_id is not None and agent["id"] == responder_id:
+                responding_rp = agent["reservation_price"]
 
-        if announcement_made:
-            for agent in state["agents"]:
-                if agent["id"] == state["announcing_agent_id"]:
-                    announcing_rp = agent["reservation_price"]
-                if agent["id"] == state["responding_agent_id"]:
-                    responding_rp = agent["reservation_price"]
-
-        # Create iteration record
-        # When announcement_made=False, clear fields that may be stale from
-        # a previous announcement cycle within the same iteration
         record = IterationRecord(
             round=round_num,
-            iteration=iteration,
+            iteration=tick,
             price=price if announcement_made else None,
             announcement_made=announcement_made,
             transaction_made=transaction_made,
             announcement_type=announcement_type if announcement_made else None,
-            announcing_agent_id=state["announcing_agent_id"],
+            announcing_agent_id=announcer_id,
             announcing_agent_reservation_price=announcing_rp,
-            responding_agent_id=state["responding_agent_id"] if announcement_made else None,
-            responding_agent_reservation_price=responding_rp,
+            counterparty_agent_id=responder_id,
+            counterparty_reservation_price=responding_rp,
             announcement_reasoning=state.get("last_announcement_reasoning", ""),
-            response_reasoning=state.get("last_response_reasoning", "") if announcement_made else "",
+            # Under the CDA the counterparty does not take a fresh action
+            # on a cross, so this is always "". The pass-through is kept
+            # so the column exists in the iteration history CSV alongside
+            # announcement_reasoning, even when always empty.
+            counterparty_reasoning=state.get("last_counterparty_reasoning", ""),
+            standing_bid=state.get("standing_bid"),
+            standing_ask=state.get("standing_ask"),
+            order_outcome=outcome,
         )
 
-        # Check if all responders for the current announcement have been queried
-        all_responders_queried = (
-            state["current_responder_index"] >= len(state["potential_responder_ids"])
-        )
-
-        # Update market history text when announcement outcome is known
-        # (not only at iteration end, so subsequent announcers see prior rejections)
+        # Market-history text — one line per tick. Use existing templates
+        # so downstream prompt rendering keeps working. "accepted"
+        # corresponds to a cross; "rejected" here reads as "the order
+        # posted or was discarded without trading," which is close
+        # enough for prompt purposes.
         history_update = ""
-        if announcement_made and transaction_made:
+        if transaction_made and announcement_made:
             history_update = templates.market_history_accepted_template.format(
                 round=round_num,
-                iteration=iteration,
+                iteration=tick,
                 announcement_type=announcement_type,
                 price=price,
             )
-        elif announcement_made and all_responders_queried:
+        elif announcement_made and outcome == "posted":
             history_update = templates.market_history_rejected_template.format(
                 round=round_num,
-                iteration=iteration,
+                iteration=tick,
                 announcement_type=announcement_type,
                 price=price,
             )
-        elif not announcement_made and state["iteration_complete"]:
+        elif not announcement_made:
             history_update = templates.market_history_no_announcement_template.format(
                 round=round_num,
-                iteration=iteration,
+                iteration=tick,
             )
 
         new_history = state["market_history_text"] + history_update
 
-        # Update agent histories if needed
         updated_agents = _update_agent_histories(state, templates)
 
         return {
@@ -114,60 +113,42 @@ def _update_agent_histories(
     state: MarketState,
     templates: PromptTemplates | None = None,
 ) -> list[dict]:
-    """Update individual agent history records."""
+    """Append per-agent history rows for the announcer on this tick.
+
+    In the CDA path there is no explicit "responder" action — the
+    counterparty on a cross just has their standing order executed, so
+    they don't make a new decision. We therefore only log the announcer's
+    action here; the counterparty's original posting was logged on an
+    earlier tick.
+    """
     if templates is None:
         templates = PromptTemplates()
 
     agents = state["agents"]
-    updated = []
+    announcer_id = state.get("announcing_agent_id")
+    announcement_made = state.get("announcement_made", False)
+    transaction_made = state.get("transaction_made", False)
 
+    updated = []
     for agent in agents:
         agent_copy = {**agent}
 
-        # Update announcing agent's history (only when announcement outcome is resolved)
-        if agent["id"] == state["announcing_agent_id"] and state["announcement_made"]:
-            all_responders_queried = (
-                state["current_responder_index"] >= len(state["potential_responder_ids"])
-            )
-            announcement_resolved = state["transaction_made"] or all_responders_queried
-
-            if announcement_resolved:
-                outcome = "accepted" if state["transaction_made"] else "rejected"
-                history_entry = {
-                    "round": state["round"],
-                    "iteration": state["iteration"],
-                    "action": "announce",
-                    "price": state["announced_price"],
-                    "outcome": outcome,
-                }
-                agent_copy["own_history_data"] = agent["own_history_data"] + [history_entry]
-
-                ann_type = "buy" if agent["type"] == "buyer" else "sell"
-                entry = templates.announcement_history_template.format(
-                    round=state["round"],
-                    iteration=state["iteration"],
-                    announcement_type=ann_type,
-                    price=state["announced_price"],
-                    outcome=outcome,
-                )
-                agent_copy["own_history_prompt"] = agent["own_history_prompt"] + entry
-
-        # Update responding agent's history (always, so every responder sees their action)
-        if agent["id"] == state["responding_agent_id"] and state["announcement_made"]:
-            outcome = "accepted" if state["response_accepted"] else "rejected"
+        if agent["id"] == announcer_id and announcement_made:
+            outcome = "accepted" if transaction_made else "rejected"
             history_entry = {
                 "round": state["round"],
                 "iteration": state["iteration"],
-                "action": "respond",
+                "action": "announce",
                 "price": state["announced_price"],
                 "outcome": outcome,
             }
             agent_copy["own_history_data"] = agent["own_history_data"] + [history_entry]
 
-            entry = templates.response_history_template.format(
+            ann_type = "buy" if agent["type"] == "buyer" else "sell"
+            entry = templates.announcement_history_template.format(
                 round=state["round"],
                 iteration=state["iteration"],
-                opposite_announcement_type=state["announcement_type"],
+                announcement_type=ann_type,
                 price=state["announced_price"],
                 outcome=outcome,
             )
@@ -179,62 +160,53 @@ def _update_agent_histories(
 
 
 def make_check_iteration_node() -> Callable[[MarketState], dict]:
-    """Create node that checks if iteration should continue.
+    """Retained for non-CDA compatibility; not in the CDA graph anymore.
 
-    Returns:
-        Node function that sets iteration_complete flag.
+    The old CDA loop needed this to detect "iteration complete when a
+    transaction happens or all responders exhaust." Under the tick-based
+    CDA, every tick is one step and the round check handles advancement.
+    Keeping the factory so nothing outside the CDA path breaks.
     """
 
     def check_iteration(state: MarketState) -> dict:
-        """Check if the current iteration is complete."""
-        # Iteration complete if:
-        # 1. Transaction was made
-        # 2. All responders have been queried and rejected
-        # 3. No announcement was made
-
-        if state["transaction_made"]:
-            logger.info(f"R{state['round']}/I{state['iteration']}: Iteration complete (transaction made)")
-            return {"iteration_complete": True}
-
-        if not state["announcement_made"]:
-            logger.info(f"R{state['round']}/I{state['iteration']}: Iteration complete (no announcement)")
-            return {"iteration_complete": True}
-
-        # Check if more responders to query
-        responder_idx = state["current_responder_index"]
-        total_responders = len(state["potential_responder_ids"])
-
-        if responder_idx >= total_responders:
-            logger.info(
-                f"R{state['round']}/I{state['iteration']}: Iteration complete "
-                f"(all {total_responders} responders queried)"
-            )
-            return {"iteration_complete": True}
-
-        return {"iteration_complete": False}
+        return {"iteration_complete": True}
 
     return check_iteration
 
 
 def make_check_round_node() -> Callable[[MarketState], dict]:
-    """Create node that checks if round should continue.
+    """Node that decides whether to end the current round.
 
-    Returns:
-        Node function that sets round_complete flag.
+    Ends when:
+      1. Tick budget exhausted (``iteration >= max_iterations``).
+      2. Fewer than 2 active agents remain (at most one side left).
+      3. No active agent can post an improving order under the current
+         book (mechanism-level deadlock — keeps running would just burn
+         ticks with guaranteed non-improving draws).
+
+    Condition (3) matters because ZI-C refuses to post non-improving
+    orders; once every intra-marginal buyer's reservation is below the
+    standing bid (and analogously on the sell side), we'd loop to tick
+    cap with no further activity. Early exit keeps simulations fast.
     """
 
     def check_round(state: MarketState) -> dict:
-        """Check if the current round is complete."""
         iteration = state["iteration"]
         max_iterations = state["max_iterations"]
-
-        # Round complete if max iterations reached or no active agents
         if iteration >= max_iterations:
-            logger.info(f"Round {state['round']} complete: max iterations reached")
+            logger.info(f"Round {state['round']} complete: tick budget reached")
             return {"round_complete": True}
 
-        if len(state["active_agent_ids"]) < 2:
+        active_ids = state["active_agent_ids"]
+        if len(active_ids) < 2:
             logger.info(f"Round {state['round']} complete: insufficient active agents")
+            return {"round_complete": True}
+
+        if _deadlocked(state):
+            logger.info(
+                f"Round {state['round']} complete: no active agent can "
+                f"post an improving order (book frozen)"
+            )
             return {"round_complete": True}
 
         return {"round_complete": False}
@@ -242,18 +214,69 @@ def make_check_round_node() -> Callable[[MarketState], dict]:
     return check_round
 
 
-def make_next_iteration_node() -> Callable[[MarketState], dict]:
-    """Create node that advances to the next iteration.
+def _deadlocked(state: MarketState) -> bool:
+    """True when no active agent could post an improving non-loss order.
 
-    Returns:
-        Node function that increments iteration counter.
+    Only used for early-exit. A conservative predicate — we return True
+    only when both sides are provably frozen for every active agent.
+    ZI-U is never deadlocked from the mechanism's perspective (it
+    samples in ``[u_low, u_high]`` and may still cross), so any active
+    ZI-U or LLM agent is assumed live.
+    """
+    from .apply_order import PRICE_INCREMENT
+
+    standing_bid = state.get("standing_bid")
+    standing_ask = state.get("standing_ask")
+
+    # Book is empty — anyone can post.
+    if standing_bid is None and standing_ask is None:
+        return False
+
+    for agent in state["agents"]:
+        if not agent.get("active", True):
+            continue
+        if agent["id"] not in state["active_agent_ids"]:
+            continue
+
+        strategy = agent.get("strategy", "llm")
+        # Conservative: only ZI-C has a deterministic non-loss range we
+        # can reason about. LLM and ZI-U agents may still post (their
+        # choice function is not a pure price interval).
+        if strategy != "zi_c":
+            return False
+
+        reservation = agent["reservation_price"]
+        if agent["type"] == "buyer":
+            # Can this buyer cross the ask or improve the bid?
+            crosses = standing_ask is not None and standing_ask <= reservation
+            improves = (
+                standing_bid is None
+                or reservation > standing_bid + PRICE_INCREMENT - 1e-9
+            )
+            if crosses or improves:
+                return False
+        else:
+            crosses = standing_bid is not None and standing_bid >= reservation
+            improves = (
+                standing_ask is None
+                or reservation < standing_ask - PRICE_INCREMENT + 1e-9
+            )
+            if crosses or improves:
+                return False
+
+    return True
+
+
+def make_next_iteration_node() -> Callable[[MarketState], dict]:
+    """Advance to the next tick within a round.
+
+    The standing book persists across ticks within a round, so
+    standing_* fields are intentionally NOT reset here.
     """
 
     def next_iteration(state: MarketState) -> dict:
-        """Advance to the next iteration."""
         new_iteration = state["iteration"] + 1
-        logger.info(f"R{state['round']}: Advancing to iteration {new_iteration}")
-
+        logger.info(f"R{state['round']}: advancing to tick {new_iteration}")
         return {
             "iteration": new_iteration,
             "iteration_complete": False,
@@ -262,27 +285,21 @@ def make_next_iteration_node() -> Callable[[MarketState], dict]:
             "announcing_agent_id": None,
             "announced_price": None,
             "announcement_type": None,
-            "responding_agent_id": None,
-            "response_accepted": None,
+            "counterparty_agent_id": None,
             "potential_responder_ids": [],
             "current_responder_index": 0,
-            "announced_this_iteration": [],  # Reset for new iteration
             "last_announcement_reasoning": "",
-            "last_response_reasoning": "",
+            "last_counterparty_reasoning": "",
+            "last_order_outcome": None,
         }
 
     return next_iteration
 
 
 def make_next_round_node() -> Callable[[MarketState], dict]:
-    """Create node that advances to the next round.
-
-    Returns:
-        Node function that increments round counter and resets agents.
-    """
+    """Advance to the next round (or end the simulation)."""
 
     def next_round(state: MarketState) -> dict:
-        """Advance to the next round."""
         new_round = state["round"] + 1
         max_rounds = state["max_rounds"]
 
@@ -291,10 +308,14 @@ def make_next_round_node() -> Callable[[MarketState], dict]:
             logger.info(f"Simulation complete: all {max_rounds} rounds finished ({tx_count} total transactions)")
             return {"simulation_complete": True}
 
-        tx_in_round = sum(1 for t in state.get("transactions", []) if t["round"] == state["round"])
-        logger.info(f"Round {state['round']} completed with {tx_in_round} transaction(s). Advancing to round {new_round}")
+        tx_in_round = sum(
+            1 for t in state.get("transactions", []) if t["round"] == state["round"]
+        )
+        logger.info(
+            f"Round {state['round']} completed with {tx_in_round} transaction(s). "
+            f"Advancing to round {new_round}"
+        )
 
-        # Reactivate all agents for new round
         updated_agents = []
         all_agent_ids = []
         for agent in state["agents"]:
@@ -313,13 +334,18 @@ def make_next_round_node() -> Callable[[MarketState], dict]:
             "announcing_agent_id": None,
             "announced_price": None,
             "announcement_type": None,
-            "responding_agent_id": None,
-            "response_accepted": None,
+            "counterparty_agent_id": None,
+            # Order book clears at round boundary — G&S periods are
+            # independent, so standing orders do not carry over.
+            "standing_bid": None,
+            "standing_ask": None,
+            "standing_bid_agent_id": None,
+            "standing_ask_agent_id": None,
+            "last_order_outcome": None,
             "potential_responder_ids": [],
             "current_responder_index": 0,
-            "announced_this_iteration": [],  # Reset for new round
             "last_announcement_reasoning": "",
-            "last_response_reasoning": "",
+            "last_counterparty_reasoning": "",
         }
 
     return next_round

@@ -18,33 +18,32 @@ logger = logging.getLogger(__name__)
 
 
 def make_select_announcer_node() -> Callable[[MarketState], dict]:
-    """Create node that selects the next agent to make an announcement.
+    """Create node that selects the next agent to act on this tick.
+
+    Under the improvement-rule CDA, each tick is one randomly-chosen
+    active agent posting an order. Unlike the old mechanism, agents are
+    NOT filtered by "already announced this iteration" — the same agent
+    can act on multiple ticks per round as long as it is still active.
 
     Returns:
         Node function that updates announcing_agent_id.
     """
 
     def select_announcer(state: MarketState) -> dict:
-        """Select a random active agent to announce (who hasn't announced yet this iteration)."""
         active_ids = state["active_agent_ids"]
-        already_announced = state.get("announced_this_iteration", [])
 
-        # Filter out agents who already announced this iteration
-        eligible_ids = [aid for aid in active_ids if aid not in already_announced]
-
-        if not eligible_ids:
-            logger.info("No eligible agents remaining for announcements this iteration")
+        if not active_ids:
+            logger.info("No active agents remaining this round")
             return {
                 "announcing_agent_id": None,
                 "announcement_made": False,
             }
 
-        # Shuffle and pick first
-        shuffled = eligible_ids.copy()
+        shuffled = list(active_ids)
         random.shuffle(shuffled)
         announcer_id = shuffled[0]
 
-        logger.info(f"Selected agent {announcer_id} to announce")
+        logger.info(f"T{state['iteration']}: selected agent {announcer_id} to act")
         return {
             "announcing_agent_id": announcer_id,
         }
@@ -154,6 +153,8 @@ def make_announce_node(
                     zi_cfg=zi_cfg,
                     rng=zi_rng,
                     include_reasoning=include_reasoning,
+                    standing_bid=state.get("standing_bid"),
+                    standing_ask=state.get("standing_ask"),
                 )
             price = response.price
             reasoning = getattr(response, 'reasoning', '')
@@ -185,10 +186,6 @@ def make_announce_node(
                     "announcement_made": False,
                     "announced_price": None,
                     "tool_usage_log": tool_usage_log,
-                    "announced_this_iteration": state.get(
-                        "announced_this_iteration", []
-                    )
-                    + [agent_id],
                     "last_announcement_reasoning": reasoning,
                 }
 
@@ -214,16 +211,10 @@ def make_announce_node(
                 f"announced {announcement_type} at ${price:.2f}"
             )
 
-            # Track that this agent has announced this iteration
-            announced_this_iteration = state.get("announced_this_iteration", []) + [
-                agent_id
-            ]
-
             result = {
                 "announced_price": price,
                 "announcement_type": announcement_type,
                 "announcement_made": True,
-                "announced_this_iteration": announced_this_iteration,
                 "tool_usage_log": tool_usage_log,
                 "last_announcement_reasoning": reasoning,
             }
@@ -248,8 +239,6 @@ def make_announce_node(
                 "announcement_made": False,
                 "announced_price": None,
                 "last_error": str(e),
-                "announced_this_iteration": state.get("announced_this_iteration", [])
-                + [agent_id],
                 "last_announcement_reasoning": "",
             }
 
@@ -264,6 +253,13 @@ def _render_announcement_prompt(
 ) -> str:
     """Render the announcement prompt for an agent."""
     keywords = agent_prompts.main_keywords
+
+    # Render the standing book as human-readable strings so prompt
+    # templates can embed them without dealing with None.
+    standing_bid = state.get("standing_bid")
+    standing_ask = state.get("standing_ask")
+    standing_bid_str = f"${standing_bid:.2f}" if standing_bid is not None else "none"
+    standing_ask_str = f"${standing_ask:.2f}" if standing_ask is not None else "none"
 
     template_vars = {
         "role": keywords.role,
@@ -289,6 +285,10 @@ def _render_announcement_prompt(
         "action_prompt": agent_prompts.announcement_prompt,
         "persona": agent.get("persona", ""),
         "tools_preamble": prompts.tools_preamble,
+        # Improvement-rule CDA: the standing book is authoritative
+        # market state the agent needs to see.
+        "standing_bid": standing_bid_str,
+        "standing_ask": standing_ask_str,
     }
 
     # Use sentinel replacement for persona to avoid str.format() issues with curly braces

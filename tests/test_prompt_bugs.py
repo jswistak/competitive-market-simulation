@@ -16,7 +16,6 @@ from market_simulation.graph.nodes.control import (
     _update_agent_histories,
 )
 from market_simulation.graph.nodes.announce import _render_announcement_prompt
-from market_simulation.graph.nodes.respond import _render_response_prompt
 from market_simulation.graph.state import AgentState
 
 
@@ -38,7 +37,6 @@ def _make_state_for_history_test(
     responding_id,
     announced_price,
     announcement_type,
-    response_accepted,
     transaction_made,
     current_responder_index=1,
     potential_responder_ids=None,
@@ -59,12 +57,10 @@ def _make_state_for_history_test(
         "announcing_agent_id": announcing_id,
         "announced_price": announced_price,
         "announcement_type": announcement_type,
-        "responding_agent_id": responding_id,
-        "response_accepted": response_accepted,
+        "counterparty_agent_id": responding_id,
         "market_history_text": "",
         "iteration_records": [],
         "transactions": [],
-        "announced_this_iteration": [announcing_id],
         "announcement_made": True,
         "transaction_made": transaction_made,
         "iteration_complete": False,
@@ -84,79 +80,13 @@ def _make_state_for_history_test(
 # ===========================================================================
 
 
-class TestResponseHistoryWording:
-    """The phrase 'you rejected an offer to buy' is ambiguous for a seller.
-
-    It could mean:
-      (a) someone offered to buy from you and you rejected (intended)
-      (b) you were offered a chance to buy and rejected (wrong reading)
-
-    The fix changes 'an offer to buy' -> 'a buy offer' in both
-    control.py and config templates.
-    """
-
-    def test_seller_rejected_history_no_ambiguous_phrasing(self, sample_agents):
-        """Seller's history should not contain 'an offer to buy'."""
-        seller = sample_agents[3]  # seller, id=3, reservation_price=1.0
-        buyer = sample_agents[0]  # buyer, id=0, reservation_price=2.0
-
-        state = _make_state_for_history_test(
-            agents=sample_agents,
-            announcing_id=buyer["id"],
-            responding_id=seller["id"],
-            announced_price=1.53,
-            announcement_type="buy",
-            response_accepted=False,
-            transaction_made=False,
-        )
-
-        updated_agents = _update_agent_histories(state)
-        seller_updated = next(a for a in updated_agents if a["id"] == seller["id"])
-
-        assert "an offer to buy" not in seller_updated["own_history_prompt"]
-        assert "buy offer" in seller_updated["own_history_prompt"]
-
-    def test_buyer_rejected_history_no_ambiguous_phrasing(self, sample_agents):
-        """Buyer's history should not contain 'an offer to sell'."""
-        buyer = sample_agents[0]  # buyer, id=0
-        seller = sample_agents[3]  # seller, id=3
-
-        state = _make_state_for_history_test(
-            agents=sample_agents,
-            announcing_id=seller["id"],
-            responding_id=buyer["id"],
-            announced_price=2.50,
-            announcement_type="sell",
-            response_accepted=False,
-            transaction_made=False,
-        )
-
-        updated_agents = _update_agent_histories(state)
-        buyer_updated = next(a for a in updated_agents if a["id"] == buyer["id"])
-
-        assert "an offer to sell" not in buyer_updated["own_history_prompt"]
-        assert "sell offer" in buyer_updated["own_history_prompt"]
-
-    def test_seller_accepted_history_no_ambiguous_phrasing(self, sample_agents):
-        """Accepted transactions should also use unambiguous wording."""
-        seller = sample_agents[3]
-        buyer = sample_agents[0]
-
-        state = _make_state_for_history_test(
-            agents=sample_agents,
-            announcing_id=buyer["id"],
-            responding_id=seller["id"],
-            announced_price=1.80,
-            announcement_type="buy",
-            response_accepted=True,
-            transaction_made=True,
-        )
-
-        updated_agents = _update_agent_histories(state)
-        seller_updated = next(a for a in updated_agents if a["id"] == seller["id"])
-
-        assert "an offer to buy" not in seller_updated["own_history_prompt"]
-        assert "buy offer" in seller_updated["own_history_prompt"]
+# Note: TestResponseHistoryWording once checked that responders' logged
+# history used unambiguous wording ("buy offer" vs "an offer to buy").
+# Under the improvement-rule CDA, responders no longer log a new action
+# on a cross — the counterparty's standing order was logged when posted,
+# so there is no per-tick responder history to render. The
+# wording-of-the-config-template concern is still covered by
+# TestConfigResponseHistoryTemplate below (which lints YAMLs directly).
 
 
 # ===========================================================================
@@ -288,7 +218,6 @@ class TestHistoryTemplatesReachAgents:
             responding_id=seller["id"],
             announced_price=1.73,
             announcement_type="buy",
-            response_accepted=True,
             transaction_made=True,
         )
 
@@ -307,27 +236,10 @@ class TestHistoryTemplatesReachAgents:
             "CUSTOM-ANNOUNCE-TEMPLATE buy 1.73 accepted" in node_buyer["own_history_prompt"]
         )
 
-    def test_response_history_template_from_config_is_used(self, sample_agents):
-        sentinel = "CUSTOM-RESPOND {outcome} {opposite_announcement_type} {price:.2f}\n"
-        templates = PromptTemplates(response_history_template=sentinel)
-
-        buyer = sample_agents[0]
-        seller = sample_agents[3]
-        state = _make_state_for_history_test(
-            agents=sample_agents,
-            announcing_id=buyer["id"],
-            responding_id=seller["id"],
-            announced_price=1.42,
-            announcement_type="buy",
-            response_accepted=False,
-            transaction_made=False,
-        )
-
-        updated_agents = _update_agent_histories(state, templates)
-        seller_updated = next(a for a in updated_agents if a["id"] == seller["id"])
-
-        assert "CUSTOM-RESPOND rejected buy 1.42" in seller_updated["own_history_prompt"]
-        assert "In round" not in seller_updated["own_history_prompt"]
+    # The response_history_template is unused on the CDA path after the
+    # improvement-rule migration — responders on a cross don't log a
+    # separate action. The template field is still validated by
+    # TestConfigResponseHistoryTemplate at the YAML level.
 
     def test_market_history_accepted_template_from_config_is_used(self, base_market_state):
         sentinel = "MKT-ACCEPTED {announcement_type} {price:.2f}\n"
@@ -342,8 +254,7 @@ class TestHistoryTemplatesReachAgents:
             "announced_price": 2.25,
             "announcement_type": "sell",
             "announcing_agent_id": 3,
-            "responding_agent_id": 0,
-            "response_accepted": True,
+            "counterparty_agent_id": 0,
             "current_responder_index": 1,
             "potential_responder_ids": [0],
         }
@@ -365,8 +276,7 @@ class TestHistoryTemplatesReachAgents:
             "announced_price": 0.90,
             "announcement_type": "buy",
             "announcing_agent_id": 0,
-            "responding_agent_id": 3,
-            "response_accepted": False,
+            "counterparty_agent_id": 3,
             "current_responder_index": 1,
             "potential_responder_ids": [3],
         }
@@ -389,7 +299,7 @@ class TestHistoryTemplatesReachAgents:
             "announced_price": None,
             "announcement_type": None,
             "announcing_agent_id": None,
-            "responding_agent_id": None,
+            "counterparty_agent_id": None,
             "current_responder_index": 0,
             "potential_responder_ids": [],
         }
@@ -427,8 +337,7 @@ class TestHistoryTemplatesReachAgents:
             "announced_price": 1.50,
             "announcement_type": "buy",
             "announcing_agent_id": buyer["id"],
-            "responding_agent_id": 3,
-            "response_accepted": True,
+            "counterparty_agent_id": 3,
             "current_responder_index": 1,
             "potential_responder_ids": [3],
         }
@@ -551,38 +460,6 @@ class TestToolsPreambleWiring:
         )
 
         assert "PREAMBLE=USE-YOUR-TOOLS-SENTINEL" in prompt
-
-    def test_tools_preamble_available_in_response_prompt(
-        self, base_market_state, prompt_config
-    ):
-        prompt_config_with_preamble = PromptConfig(
-            general=PromptTemplates(
-                main_template=(
-                    "PREAMBLE={tools_preamble} "
-                    "You are a {role}. {verb} {preference} {condition}. "
-                    "Reservation: {reservation_price}. "
-                    "Rounds: {N_ROUNDS}. Iters: {N_ITER}. "
-                    "Buyers: {N_BUYERS}. Sellers: {N_SELLERS}. "
-                    "Market: {market_history}. Own: {own_history}. "
-                    "Round {round}/{N_ROUNDS} Iter {iteration}/{N_ITER}. "
-                    "{action_prompt}"
-                ),
-            ),
-            tools_preamble="RESPOND-PREAMBLE",
-            buyer=prompt_config.buyer,
-            seller=prompt_config.seller,
-        )
-
-        agent = base_market_state["agents"][0]
-        state_with_price = {**base_market_state, "announced_price": 1.50}
-        prompt = _render_response_prompt(
-            agent=agent,
-            state=state_with_price,
-            prompts=prompt_config_with_preamble,
-            agent_prompts=prompt_config_with_preamble.buyer,
-        )
-
-        assert "PREAMBLE=RESPOND-PREAMBLE" in prompt
 
     def test_empty_preamble_renders_empty_string(
         self, base_market_state, prompt_config

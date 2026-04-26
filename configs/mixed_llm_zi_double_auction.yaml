@@ -5,7 +5,7 @@
 # strong non-strategic control within a single simulation.
 experiment:
   n_rounds: 5
-  n_iterations: 11
+  max_ticks_per_round: 40
   n_simulations: 5
   random_seed: 42
   buyers:
