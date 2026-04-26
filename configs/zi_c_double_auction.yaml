@@ -4,22 +4,26 @@
 # inside its own viable range on every turn (buyers: [0, reservation];
 # sellers: [reservation, u_high]). No LLM is invoked — this config is
 # a pure stochastic baseline for comparison with LLM experiments.
+#
+# Pure-ZI runs use n_rounds=1: ZI agents do not observe history,
+# so rounds are independent and a multi-round simulation is statistically
+# equivalent to running more single-round simulations. We collect repeats
+# via n_simulations instead, which keeps the output schema (one row per
+# sim_id) consistent with LLM experiments and simplifies analysis.
 experiment:
-  n_rounds: 5
+  n_rounds: 1
   # n_iterations is legacy (old iteration-based CDA); no longer read by
   # the double-auction path. Retained here so non-DA configs sharing a
   # loader don't choke. The new knob is max_ticks_per_round.
   n_iterations: 11
-  # One tick = one randomly-chosen active agent posts an order into the
-  # central order book. 50 is comfortable for an 11-buyer / 11-seller
-  # market (Q* = 6) — leaves plenty of room for non-crossing standing
-  # orders and ZI-C "pass" ticks before the book freezes.
   # 300 ticks is about 2x headroom over the typical deadlock point for an
   # 11x11 Smith market (~140 ticks in practice). Low enough to keep runs
   # fast, high enough that deadlock detection — not the cap — ends
   # rounds in every observed ZI-C trajectory.
   max_ticks_per_round: 300
-  n_simulations: 10
+  # Bumped from 10 to 50 to preserve the original 10 sims x 5 rounds = 50
+  # round-trajectories under the new 1-round-per-sim convention.
+  n_simulations: 50
   random_seed: 42
   buyers:
     min: 0.8
