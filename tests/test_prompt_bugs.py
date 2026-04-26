@@ -37,7 +37,6 @@ def _make_state_for_history_test(
     responding_id,
     announced_price,
     announcement_type,
-    response_accepted,
     transaction_made,
     current_responder_index=1,
     potential_responder_ids=None,
@@ -58,8 +57,7 @@ def _make_state_for_history_test(
         "announcing_agent_id": announcing_id,
         "announced_price": announced_price,
         "announcement_type": announcement_type,
-        "responding_agent_id": responding_id,
-        "response_accepted": response_accepted,
+        "counterparty_agent_id": responding_id,
         "market_history_text": "",
         "iteration_records": [],
         "transactions": [],
@@ -220,7 +218,6 @@ class TestHistoryTemplatesReachAgents:
             responding_id=seller["id"],
             announced_price=1.73,
             announcement_type="buy",
-            response_accepted=True,
             transaction_made=True,
         )
 
@@ -257,8 +254,7 @@ class TestHistoryTemplatesReachAgents:
             "announced_price": 2.25,
             "announcement_type": "sell",
             "announcing_agent_id": 3,
-            "responding_agent_id": 0,
-            "response_accepted": True,
+            "counterparty_agent_id": 0,
             "current_responder_index": 1,
             "potential_responder_ids": [0],
         }
@@ -280,8 +276,7 @@ class TestHistoryTemplatesReachAgents:
             "announced_price": 0.90,
             "announcement_type": "buy",
             "announcing_agent_id": 0,
-            "responding_agent_id": 3,
-            "response_accepted": False,
+            "counterparty_agent_id": 3,
             "current_responder_index": 1,
             "potential_responder_ids": [3],
         }
@@ -304,7 +299,7 @@ class TestHistoryTemplatesReachAgents:
             "announced_price": None,
             "announcement_type": None,
             "announcing_agent_id": None,
-            "responding_agent_id": None,
+            "counterparty_agent_id": None,
             "current_responder_index": 0,
             "potential_responder_ids": [],
         }
@@ -342,8 +337,7 @@ class TestHistoryTemplatesReachAgents:
             "announced_price": 1.50,
             "announcement_type": "buy",
             "announcing_agent_id": buyer["id"],
-            "responding_agent_id": 3,
-            "response_accepted": True,
+            "counterparty_agent_id": 3,
             "current_responder_index": 1,
             "potential_responder_ids": [3],
         }

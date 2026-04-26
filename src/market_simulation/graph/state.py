@@ -40,7 +40,7 @@ class IterationRecord(TypedDict):
 
     Under the improvement-rule CDA (Gode & Sunder 1993), each tick is one
     agent posting an order; crossing orders transact at the standing
-    price automatically, so responding_agent_* fields are the opposite
+    price automatically, so counterparty_* fields refer to the opposite
     side of the book at the moment of the cross, not a separate query.
     """
 
@@ -52,10 +52,10 @@ class IterationRecord(TypedDict):
     announcement_type: str | None
     announcing_agent_id: int | None
     announcing_agent_reservation_price: float | None
-    responding_agent_id: int | None
-    responding_agent_reservation_price: float | None
+    counterparty_agent_id: int | None
+    counterparty_reservation_price: float | None
     announcement_reasoning: str
-    response_reasoning: str
+    counterparty_reasoning: str
     # Standing book snapshot AFTER this tick's effect. Either side may be
     # None when no standing order exists yet on that side.
     standing_bid: float | None
@@ -83,9 +83,7 @@ class MarketState(TypedDict):
     announcing_agent_id: int | None
     announced_price: float | None
     announcement_type: str | None  # "buy" or "sell"
-    responding_agent_id: int | None
-    response_accepted: bool | None
-
+    counterparty_agent_id: int | None
     # Continuous-double-auction order book (improvement-rule CDA).
     # Holds the best outstanding buy (standing_bid) and sell (standing_ask)
     # and the agent that posted each. None on a side means no outstanding
@@ -117,7 +115,7 @@ class MarketState(TypedDict):
 
     # Chain-of-thought reasoning
     last_announcement_reasoning: str
-    last_response_reasoning: str
+    last_counterparty_reasoning: str
 
     # Error handling
     last_error: str | None

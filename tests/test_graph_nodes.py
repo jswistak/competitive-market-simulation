@@ -176,8 +176,7 @@ class TestUpdateHistoryNode:
             "announced_price": 1.50,
             "announcement_type": "buy",
             "announcing_agent_id": 0,
-            "responding_agent_id": 3,
-            "response_accepted": True,
+            "counterparty_agent_id": 3,
             "current_responder_index": 1,
             "potential_responder_ids": [3],
         }
@@ -196,8 +195,7 @@ class TestUpdateHistoryNode:
             "announced_price": 1.50,
             "announcement_type": "buy",
             "announcing_agent_id": 0,
-            "responding_agent_id": 3,
-            "response_accepted": False,
+            "counterparty_agent_id": 3,
             "current_responder_index": 1,
             "potential_responder_ids": [3],  # all queried
         }
@@ -215,7 +213,7 @@ class TestUpdateHistoryNode:
             "announced_price": None,
             "announcement_type": None,
             "announcing_agent_id": None,
-            "responding_agent_id": None,
+            "counterparty_agent_id": None,
             "current_responder_index": 0,
             "potential_responder_ids": [],
         }
@@ -232,8 +230,7 @@ class TestUpdateHistoryNode:
             "announced_price": 1.50,
             "announcement_type": "buy",
             "announcing_agent_id": 0,
-            "responding_agent_id": 3,
-            "response_accepted": True,
+            "counterparty_agent_id": 3,
             "current_responder_index": 1,
             "potential_responder_ids": [3],
         }
@@ -254,8 +251,7 @@ class TestUpdateHistoryNode:
             "announced_price": 1.50,
             "announcement_type": "buy",
             "announcing_agent_id": 0,
-            "responding_agent_id": 3,
-            "response_accepted": True,
+            "counterparty_agent_id": 3,
             "current_responder_index": 1,
             "potential_responder_ids": [3],
         }
@@ -269,7 +265,7 @@ class TestUpdateHistoryNode:
         assert record["announcement_made"] is True
         assert record["transaction_made"] is True
         assert record["announcing_agent_id"] == 0
-        assert record["responding_agent_id"] == 3
+        assert record["counterparty_agent_id"] == 3
 
 # ===========================================================================
 # TestCheckIterationNode
@@ -346,10 +342,7 @@ class TestNextIterationNode:
         assert result["announcing_agent_id"] is None
         assert result["announced_price"] is None
         assert result["announcement_type"] is None
-        assert result["responding_agent_id"] is None
-        assert result["response_accepted"] is None
-
-
+        assert result["counterparty_agent_id"] is None
 # ===========================================================================
 # TestNextRoundNode
 # ===========================================================================

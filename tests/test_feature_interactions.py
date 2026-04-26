@@ -121,8 +121,7 @@ def _make_market_state(
         announcing_agent_id=None,
         announced_price=None,
         announcement_type=None,
-        responding_agent_id=None,
-        response_accepted=None,
+        counterparty_agent_id=None,
         market_history_text=market_history_text,
         iteration_records=iteration_records or [],
         transactions=transactions or [],
@@ -305,8 +304,8 @@ class TestPersonaPlusHistorySummary:
                     "announcement_made": True, "transaction_made": True,
                     "announcement_type": "buy", "announcing_agent_id": 0,
                     "announcing_agent_reservation_price": 2.0,
-                    "responding_agent_id": 1,
-                    "responding_agent_reservation_price": 1.0}]
+                    "counterparty_agent_id": 1,
+                    "counterparty_reservation_price": 1.0}]
         state = _make_market_state(
             agents,
             history_mode="summary",
@@ -424,8 +423,8 @@ class TestAllFeaturesDoubleAuction:
                     "announcement_made": True, "transaction_made": True,
                     "announcement_type": "buy", "announcing_agent_id": 0,
                     "announcing_agent_reservation_price": 2.0,
-                    "responding_agent_id": 1,
-                    "responding_agent_reservation_price": 1.0}]
+                    "counterparty_agent_id": 1,
+                    "counterparty_reservation_price": 1.0}]
         state = _make_market_state(
             agents,
             history_mode="summary",

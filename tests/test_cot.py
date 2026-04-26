@@ -26,19 +26,19 @@ class TestReasoningFieldReset:
         """next_iteration must reset reasoning fields to empty strings."""
         state = {**base_market_state}
         state["last_announcement_reasoning"] = "old announcement reasoning"
-        state["last_response_reasoning"] = "old response reasoning"
+        state["last_counterparty_reasoning"] = "old response reasoning"
 
         node = make_next_iteration_node()
         result = node(state)
 
         assert result["last_announcement_reasoning"] == ""
-        assert result["last_response_reasoning"] == ""
+        assert result["last_counterparty_reasoning"] == ""
 
     def test_next_round_resets_reasoning(self, base_market_state):
         """next_round must reset reasoning fields to empty strings."""
         state = {**base_market_state}
         state["last_announcement_reasoning"] = "old announcement reasoning"
-        state["last_response_reasoning"] = "old response reasoning"
+        state["last_counterparty_reasoning"] = "old response reasoning"
         state["round"] = 1
         state["max_rounds"] = 3
 
@@ -46,7 +46,7 @@ class TestReasoningFieldReset:
         result = node(state)
 
         assert result["last_announcement_reasoning"] == ""
-        assert result["last_response_reasoning"] == ""
+        assert result["last_counterparty_reasoning"] == ""
 
 
 # ===========================================================================
@@ -94,13 +94,12 @@ class TestStructuredOutputReasoning:
         state["announcement_type"] = "buy"
         state["announcement_made"] = True
         state["transaction_made"] = True
-        state["responding_agent_id"] = 3
-        state["response_accepted"] = True
+        state["counterparty_agent_id"] = 3
         state["iteration_complete"] = True
         state["potential_responder_ids"] = [3]
         state["current_responder_index"] = 1
         state["last_announcement_reasoning"] = "I bid low because market is quiet"
-        state["last_response_reasoning"] = "Price is above my reservation so I accept"
+        state["last_counterparty_reasoning"] = "Price is above my reservation so I accept"
 
         node = make_update_history_node()
         result = node(state)
@@ -108,5 +107,5 @@ class TestStructuredOutputReasoning:
         assert len(result["iteration_records"]) == 1
         record = result["iteration_records"][0]
         assert record["announcement_reasoning"] == "I bid low because market is quiet"
-        assert record["response_reasoning"] == "Price is above my reservation so I accept"
+        assert record["counterparty_reasoning"] == "Price is above my reservation so I accept"
 

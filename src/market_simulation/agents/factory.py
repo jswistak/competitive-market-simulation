@@ -151,8 +151,7 @@ def create_initial_state(
         announcing_agent_id=None,
         announced_price=None,
         announcement_type=None,
-        responding_agent_id=None,
-        response_accepted=None,
+        counterparty_agent_id=None,
         # Order book — empty at start of simulation.
         standing_bid=None,
         standing_ask=None,
@@ -173,7 +172,7 @@ def create_initial_state(
         tool_usage_log=[],
         # Chain-of-thought reasoning
         last_announcement_reasoning="",
-        last_response_reasoning="",
+        last_counterparty_reasoning="",
         # Error handling
         last_error=None,
         # Diagnostic counters

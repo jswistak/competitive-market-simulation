@@ -38,7 +38,7 @@ def make_update_history_node(
         )
 
         announcer_id = state.get("announcing_agent_id")
-        responder_id = state.get("responding_agent_id")
+        responder_id = state.get("counterparty_agent_id")
 
         announcing_rp = None
         responding_rp = None
@@ -57,14 +57,14 @@ def make_update_history_node(
             announcement_type=announcement_type if announcement_made else None,
             announcing_agent_id=announcer_id,
             announcing_agent_reservation_price=announcing_rp,
-            responding_agent_id=responder_id,
-            responding_agent_reservation_price=responding_rp,
+            counterparty_agent_id=responder_id,
+            counterparty_reservation_price=responding_rp,
             announcement_reasoning=state.get("last_announcement_reasoning", ""),
             # Under the CDA the counterparty does not take a fresh action
-            # on a cross, so this is "" in practice. Preserving the pass-
-            # through so callers that pre-set it (tests, legacy paths)
-            # still land it in the record.
-            response_reasoning=state.get("last_response_reasoning", ""),
+            # on a cross, so this is always "". The pass-through is kept
+            # so the column exists in the iteration history CSV alongside
+            # announcement_reasoning, even when always empty.
+            counterparty_reasoning=state.get("last_counterparty_reasoning", ""),
             standing_bid=state.get("standing_bid"),
             standing_ask=state.get("standing_ask"),
             order_outcome=outcome,
@@ -285,12 +285,11 @@ def make_next_iteration_node() -> Callable[[MarketState], dict]:
             "announcing_agent_id": None,
             "announced_price": None,
             "announcement_type": None,
-            "responding_agent_id": None,
-            "response_accepted": None,
+            "counterparty_agent_id": None,
             "potential_responder_ids": [],
             "current_responder_index": 0,
             "last_announcement_reasoning": "",
-            "last_response_reasoning": "",
+            "last_counterparty_reasoning": "",
             "last_order_outcome": None,
         }
 
@@ -335,8 +334,7 @@ def make_next_round_node() -> Callable[[MarketState], dict]:
             "announcing_agent_id": None,
             "announced_price": None,
             "announcement_type": None,
-            "responding_agent_id": None,
-            "response_accepted": None,
+            "counterparty_agent_id": None,
             # Order book clears at round boundary — G&S periods are
             # independent, so standing orders do not carry over.
             "standing_bid": None,
@@ -347,7 +345,7 @@ def make_next_round_node() -> Callable[[MarketState], dict]:
             "potential_responder_ids": [],
             "current_responder_index": 0,
             "last_announcement_reasoning": "",
-            "last_response_reasoning": "",
+            "last_counterparty_reasoning": "",
         }
 
     return next_round
