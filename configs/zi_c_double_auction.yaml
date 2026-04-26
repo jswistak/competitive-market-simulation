@@ -12,10 +12,6 @@
 # sim_id) consistent with LLM experiments and simplifies analysis.
 experiment:
   n_rounds: 1
-  # n_iterations is legacy (old iteration-based CDA); no longer read by
-  # the double-auction path. Retained here so non-DA configs sharing a
-  # loader don't choke. The new knob is max_ticks_per_round.
-  n_iterations: 11
   # 300 ticks is about 2x headroom over the typical deadlock point for an
   # 11x11 Smith market (~140 ticks in practice). Low enough to keep runs
   # fast, high enough that deadlock detection — not the cap — ends

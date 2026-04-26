@@ -186,10 +186,6 @@ def make_announce_node(
                     "announcement_made": False,
                     "announced_price": None,
                     "tool_usage_log": tool_usage_log,
-                    "announced_this_iteration": state.get(
-                        "announced_this_iteration", []
-                    )
-                    + [agent_id],
                     "last_announcement_reasoning": reasoning,
                 }
 
@@ -215,16 +211,10 @@ def make_announce_node(
                 f"announced {announcement_type} at ${price:.2f}"
             )
 
-            # Track that this agent has announced this iteration
-            announced_this_iteration = state.get("announced_this_iteration", []) + [
-                agent_id
-            ]
-
             result = {
                 "announced_price": price,
                 "announcement_type": announcement_type,
                 "announcement_made": True,
-                "announced_this_iteration": announced_this_iteration,
                 "tool_usage_log": tool_usage_log,
                 "last_announcement_reasoning": reasoning,
             }
@@ -249,8 +239,6 @@ def make_announce_node(
                 "announcement_made": False,
                 "announced_price": None,
                 "last_error": str(e),
-                "announced_this_iteration": state.get("announced_this_iteration", [])
-                + [agent_id],
                 "last_announcement_reasoning": "",
             }
 

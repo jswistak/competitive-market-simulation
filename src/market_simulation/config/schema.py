@@ -188,7 +188,6 @@ class ExperimentConfig(BaseModel):
     include_reasoning: bool = True
 
     n_rounds: int = 5
-    n_iterations: int = 10
     n_simulations: int = 10
     buyers: AgentPricesConfig = Field(default_factory=AgentPricesConfig)
     sellers: AgentPricesConfig = Field(default_factory=AgentPricesConfig)
@@ -366,11 +365,10 @@ class SimulationConfig(BaseModel):
 
         The CDA migration (improvement-rule, automatic crossing, tick-based
         periods) replaced the old iteration/response loop. Period length is
-        now set by max_ticks_per_round instead of derived from
-        n_iterations × responder count, so there is no sensible default —
-        the right value depends on market size and desired trading density.
-        Fail fast at config load rather than silently running with an
-        implicit value.
+        now set by max_ticks_per_round directly; there is no sensible
+        default since the right value depends on market size and desired
+        trading density. Fail fast at config load rather than silently
+        running with an implicit value.
         """
         if (
             self.experiment.auction_type == AuctionType.DOUBLE_AUCTION

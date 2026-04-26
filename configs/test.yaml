@@ -1,7 +1,6 @@
 # Minimal test configuration for quick validation
 experiment:
   n_rounds: 1
-  n_iterations: 3
   max_ticks_per_round: 50
   n_simulations: 1
   buyers:

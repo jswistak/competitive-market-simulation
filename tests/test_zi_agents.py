@@ -257,7 +257,6 @@ class TestDeterminism:
 def _smith_experiment_with_strategy(strategy: str) -> ExperimentConfig:
     return ExperimentConfig(
         n_rounds=2,
-        n_iterations=6,
         max_ticks_per_round=40,
         n_simulations=1,
         buyers=AgentPricesConfig(min=0.8, max=3.2, num=5, strategies=strategy),

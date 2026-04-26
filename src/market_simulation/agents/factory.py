@@ -163,8 +163,6 @@ def create_initial_state(
         market_history_text="",
         iteration_records=[],
         transactions=[],
-        # Iteration tracking
-        announced_this_iteration=[],
         # Control flow flags
         announcement_made=False,
         transaction_made=False,

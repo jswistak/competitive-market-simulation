@@ -16,7 +16,6 @@ from market_simulation.graph.nodes.control import (
     _update_agent_histories,
 )
 from market_simulation.graph.nodes.announce import _render_announcement_prompt
-from market_simulation.graph.nodes.respond import _render_response_prompt
 from market_simulation.graph.state import AgentState
 
 
@@ -64,7 +63,6 @@ def _make_state_for_history_test(
         "market_history_text": "",
         "iteration_records": [],
         "transactions": [],
-        "announced_this_iteration": [announcing_id],
         "announcement_made": True,
         "transaction_made": transaction_made,
         "iteration_complete": False,
@@ -468,38 +466,6 @@ class TestToolsPreambleWiring:
         )
 
         assert "PREAMBLE=USE-YOUR-TOOLS-SENTINEL" in prompt
-
-    def test_tools_preamble_available_in_response_prompt(
-        self, base_market_state, prompt_config
-    ):
-        prompt_config_with_preamble = PromptConfig(
-            general=PromptTemplates(
-                main_template=(
-                    "PREAMBLE={tools_preamble} "
-                    "You are a {role}. {verb} {preference} {condition}. "
-                    "Reservation: {reservation_price}. "
-                    "Rounds: {N_ROUNDS}. Iters: {N_ITER}. "
-                    "Buyers: {N_BUYERS}. Sellers: {N_SELLERS}. "
-                    "Market: {market_history}. Own: {own_history}. "
-                    "Round {round}/{N_ROUNDS} Iter {iteration}/{N_ITER}. "
-                    "{action_prompt}"
-                ),
-            ),
-            tools_preamble="RESPOND-PREAMBLE",
-            buyer=prompt_config.buyer,
-            seller=prompt_config.seller,
-        )
-
-        agent = base_market_state["agents"][0]
-        state_with_price = {**base_market_state, "announced_price": 1.50}
-        prompt = _render_response_prompt(
-            agent=agent,
-            state=state_with_price,
-            prompts=prompt_config_with_preamble,
-            agent_prompts=prompt_config_with_preamble.buyer,
-        )
-
-        assert "PREAMBLE=RESPOND-PREAMBLE" in prompt
 
     def test_empty_preamble_renders_empty_string(
         self, base_market_state, prompt_config

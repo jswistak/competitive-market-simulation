@@ -1,4 +1,4 @@
-"""Tests for graph node functions (announce, respond, transaction, control flow)."""
+"""Tests for graph node functions (announce, control flow)."""
 
 import pytest
 from unittest.mock import MagicMock, patch
@@ -7,11 +7,6 @@ from market_simulation.graph.nodes.announce import (
     make_select_announcer_node,
     make_announce_node,
 )
-from market_simulation.graph.nodes.respond import (
-    make_select_responders_node,
-    make_respond_node,
-)
-from market_simulation.graph.nodes.transaction import make_record_transaction_node
 from market_simulation.graph.nodes.control import (
     make_update_history_node,
     make_check_iteration_node,
@@ -22,8 +17,6 @@ from market_simulation.graph.nodes.control import (
 from market_simulation.llm.response_schemas import (
     AnnouncementResponse,
     AnnouncementResponseWithReasoning,
-    AcceptRejectResponse,
-    AcceptRejectResponseWithReasoning,
 )
 
 
@@ -105,20 +98,6 @@ class TestAnnounceNode:
 
         assert result["announcement_made"] is False
 
-    def test_tracks_announced_this_iteration(self, base_market_state, mock_llm, prompt_config):
-        state = {**base_market_state, "announcing_agent_id": 0, "announced_this_iteration": []}
-        node = make_announce_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert 0 in result["announced_this_iteration"]
-
-    def test_appends_to_existing_announced_list(self, base_market_state, mock_llm, prompt_config):
-        state = {**base_market_state, "announcing_agent_id": 1, "announced_this_iteration": [0]}
-        node = make_announce_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["announced_this_iteration"] == [0, 1]
-
     def test_llm_exception(self, base_market_state, mock_llm, prompt_config):
         mock_llm.invoke_structured.side_effect = RuntimeError("API error")
         state = {**base_market_state, "announcing_agent_id": 0}
@@ -179,354 +158,6 @@ class TestAnnounceNode:
         result = node(state, _make_config())
 
         assert result["constraint_violations"] == 3
-
-    def test_none_price_adds_to_announced_this_iteration(self, base_market_state, mock_llm, prompt_config):
-        """price=None should still mark agent as having announced to prevent infinite loops."""
-        mock_llm.invoke_structured.return_value = AnnouncementResponseWithReasoning(price=None, reasoning="")
-        state = {**base_market_state, "announcing_agent_id": 0, "announced_this_iteration": []}
-        node = make_announce_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["announcement_made"] is False
-        assert 0 in result["announced_this_iteration"]
-
-    def test_exception_adds_to_announced_this_iteration(self, base_market_state, mock_llm, prompt_config):
-        """LLM exception should still mark agent as having announced to prevent infinite loops."""
-        mock_llm.invoke_structured.side_effect = RuntimeError("API error")
-        state = {**base_market_state, "announcing_agent_id": 0, "announced_this_iteration": [1]}
-        node = make_announce_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["announcement_made"] is False
-        assert 0 in result["announced_this_iteration"]
-        assert 1 in result["announced_this_iteration"]
-
-
-# ===========================================================================
-# TestSelectRespondersNode
-# ===========================================================================
-
-
-class TestSelectRespondersNode:
-    """Tests for select_responders node."""
-
-    def test_buyers_respond_to_sell(self, base_market_state):
-        # Seller (id=3) announces sell -> buyers should respond
-        state = {
-            **base_market_state,
-            "announcing_agent_id": 3,
-            "announcement_type": "sell",
-        }
-        node = make_select_responders_node()
-        result = node(state)
-
-        # Buyers are ids 0, 1, 2
-        assert set(result["potential_responder_ids"]) == {0, 1, 2}
-        assert result["current_responder_index"] == 0
-
-    def test_sellers_respond_to_buy(self, base_market_state):
-        # Buyer (id=0) announces buy -> sellers should respond
-        state = {
-            **base_market_state,
-            "announcing_agent_id": 0,
-            "announcement_type": "buy",
-        }
-        node = make_select_responders_node()
-        result = node(state)
-
-        # Sellers are ids 3, 4, 5
-        assert set(result["potential_responder_ids"]) == {3, 4, 5}
-
-    def test_only_active_agents_respond(self, base_market_state):
-        # Remove seller 4 and 5 from active
-        state = {
-            **base_market_state,
-            "active_agent_ids": [0, 1, 2, 3],
-            "announcing_agent_id": 0,
-            "announcement_type": "buy",
-        }
-        node = make_select_responders_node()
-        result = node(state)
-
-        assert result["potential_responder_ids"] == [3]
-
-    def test_no_opposite_type_agents(self, base_market_state):
-        # Only buyers active
-        state = {
-            **base_market_state,
-            "active_agent_ids": [0, 1, 2],
-            "announcing_agent_id": 0,
-            "announcement_type": "buy",
-        }
-        node = make_select_responders_node()
-        result = node(state)
-
-        assert result["potential_responder_ids"] == []
-
-    def test_none_announcement_type(self, base_market_state):
-        state = {**base_market_state, "announcement_type": None}
-        node = make_select_responders_node()
-        result = node(state)
-
-        assert result["potential_responder_ids"] == []
-        assert result["current_responder_index"] == 0
-
-    def test_announcer_not_found_returns_empty(self, base_market_state):
-        """When announcing agent ID doesn't match any agent, return empty responders."""
-        state = {
-            **base_market_state,
-            "announcing_agent_id": 999,  # nonexistent
-            "announcement_type": "buy",
-        }
-        node = make_select_responders_node()
-        result = node(state)
-
-        assert result["potential_responder_ids"] == []
-        assert result["current_responder_index"] == 0
-
-
-# ===========================================================================
-# TestRespondNode
-# ===========================================================================
-
-
-class TestRespondNode:
-    """Tests for respond node."""
-
-    def test_accept_response(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
-        state = {
-            **base_market_state,
-            "potential_responder_ids": [3],
-            "current_responder_index": 0,
-            "announcing_agent_id": 0,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-        }
-        node = make_respond_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["transaction_made"] is True
-        assert result["response_accepted"] is True
-        assert result["responding_agent_id"] == 3
-
-    def test_reject_response(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
-        state = {
-            **base_market_state,
-            "potential_responder_ids": [3],
-            "current_responder_index": 0,
-            "announcing_agent_id": 0,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-        }
-        node = make_respond_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["transaction_made"] is False
-        assert result["response_accepted"] is False
-
-    def test_increments_responder_index(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
-        state = {
-            **base_market_state,
-            "potential_responder_ids": [3, 4, 5],
-            "current_responder_index": 0,
-            "announcing_agent_id": 0,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-        }
-        node = make_respond_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["current_responder_index"] == 1
-
-    def test_index_exceeds_list(self, base_market_state, mock_llm, prompt_config):
-        state = {
-            **base_market_state,
-            "potential_responder_ids": [3],
-            "current_responder_index": 1,  # past the end
-            "announcing_agent_id": 0,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-        }
-        node = make_respond_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["transaction_made"] is False
-        assert result["responding_agent_id"] is None
-
-    def test_llm_exception(self, base_market_state, mock_llm, prompt_config):
-        mock_llm.invoke_structured.side_effect = RuntimeError("LLM failed")
-        state = {
-            **base_market_state,
-            "potential_responder_ids": [3],
-            "current_responder_index": 0,
-            "announcing_agent_id": 0,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-        }
-        node = make_respond_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["response_accepted"] is False
-        assert result["current_responder_index"] == 1
-
-    def test_seller_accepting_below_reservation_increments_violations(
-        self, base_market_state, mock_llm, prompt_config
-    ):
-        # Seller 3 has reservation_price=1.0, accepting buy at $0.50 is a violation
-        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
-        state = {
-            **base_market_state,
-            "potential_responder_ids": [3],
-            "current_responder_index": 0,
-            "announcing_agent_id": 0,
-            "announced_price": 0.50,
-            "announcement_type": "buy",
-        }
-        node = make_respond_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["response_accepted"] is True
-        assert result["constraint_violations"] == 1
-
-    def test_buyer_accepting_above_reservation_increments_violations(
-        self, base_market_state, mock_llm, prompt_config
-    ):
-        # Buyer 0 has reservation_price=2.0, accepting sell at $3.00 is a violation
-        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
-        state = {
-            **base_market_state,
-            "potential_responder_ids": [0],
-            "current_responder_index": 0,
-            "announcing_agent_id": 3,
-            "announced_price": 3.00,
-            "announcement_type": "sell",
-        }
-        node = make_respond_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["response_accepted"] is True
-        assert result["constraint_violations"] == 1
-
-    def test_no_violation_on_reject(self, base_market_state, mock_llm, prompt_config):
-        # Rejecting a bad price is not a violation
-        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=False, reasoning="")
-        state = {
-            **base_market_state,
-            "potential_responder_ids": [3],
-            "current_responder_index": 0,
-            "announcing_agent_id": 0,
-            "announced_price": 0.50,
-            "announcement_type": "buy",
-        }
-        node = make_respond_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["response_accepted"] is False
-        assert "constraint_violations" not in result
-
-    def test_no_violation_when_accept_within_bounds(self, base_market_state, mock_llm, prompt_config):
-        # Seller 3 (reservation=1.0) accepting $1.50 is fine
-        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(accept=True, reasoning="")
-        state = {
-            **base_market_state,
-            "potential_responder_ids": [3],
-            "current_responder_index": 0,
-            "announcing_agent_id": 0,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-        }
-        node = make_respond_node(mock_llm, prompt_config)
-        result = node(state, _make_config())
-
-        assert result["response_accepted"] is True
-        assert "constraint_violations" not in result
-
-
-# ===========================================================================
-# TestRecordTransactionNode
-# ===========================================================================
-
-
-class TestRecordTransactionNode:
-    """Tests for record_transaction node."""
-
-    def test_buy_announcement_transaction(self, base_market_state):
-        state = {
-            **base_market_state,
-            "transaction_made": True,
-            "announcing_agent_id": 0,    # buyer announces buy
-            "responding_agent_id": 3,    # seller responds
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-        }
-        node = make_record_transaction_node()
-        result = node(state)
-
-        assert len(result["transactions"]) == 1
-        tx = result["transactions"][0]
-        assert tx["buyer_id"] == 0   # announcer is buyer
-        assert tx["seller_id"] == 3  # responder is seller
-        assert tx["price"] == 1.50
-
-    def test_sell_announcement_transaction(self, base_market_state):
-        state = {
-            **base_market_state,
-            "transaction_made": True,
-            "announcing_agent_id": 3,    # seller announces sell
-            "responding_agent_id": 0,    # buyer responds
-            "announced_price": 2.00,
-            "announcement_type": "sell",
-        }
-        node = make_record_transaction_node()
-        result = node(state)
-
-        tx = result["transactions"][0]
-        assert tx["buyer_id"] == 0   # responder is buyer
-        assert tx["seller_id"] == 3  # announcer is seller
-
-    def test_agents_removed_from_active(self, base_market_state):
-        state = {
-            **base_market_state,
-            "transaction_made": True,
-            "announcing_agent_id": 0,
-            "responding_agent_id": 3,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-        }
-        node = make_record_transaction_node()
-        result = node(state)
-
-        assert 0 not in result["active_agent_ids"]
-        assert 3 not in result["active_agent_ids"]
-        assert len(result["active_agent_ids"]) == 4  # 6 - 2
-
-    def test_agents_deactivated(self, base_market_state):
-        state = {
-            **base_market_state,
-            "transaction_made": True,
-            "announcing_agent_id": 0,
-            "responding_agent_id": 3,
-            "announced_price": 1.50,
-            "announcement_type": "buy",
-        }
-        node = make_record_transaction_node()
-        result = node(state)
-
-        for agent in result["agents"]:
-            if agent["id"] in (0, 3):
-                assert agent["active"] is False
-            else:
-                assert agent["active"] is True
-
-    def test_no_transaction(self, base_market_state):
-        state = {**base_market_state, "transaction_made": False}
-        node = make_record_transaction_node()
-        result = node(state)
-
-        assert result == {}
 
 
 # ===========================================================================
@@ -718,12 +349,6 @@ class TestNextIterationNode:
         assert result["responding_agent_id"] is None
         assert result["response_accepted"] is None
 
-    def test_clears_announced_this_iteration(self, base_market_state):
-        state = {**base_market_state, "iteration": 1, "announced_this_iteration": [0, 1, 2]}
-        node = make_next_iteration_node()
-        result = node(state)
-        assert result["announced_this_iteration"] == []
-
 
 # ===========================================================================
 # TestNextRoundNode
@@ -784,7 +409,6 @@ class TestNextRoundNode:
         assert result["transaction_made"] is False
         assert result["announcement_made"] is False
         assert result["round_complete"] is False
-        assert result["announced_this_iteration"] == []
 
     def test_boundary_new_round_equals_max_rounds_not_complete(self, base_market_state):
         """When round 1 -> 2 and max_rounds=2, simulation is NOT complete (round 2 still runs)."""

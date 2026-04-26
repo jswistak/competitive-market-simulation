@@ -1,7 +1,6 @@
 # Configuration for Test 3 from Smith (1962)
 experiment:
   n_rounds: 4
-  n_iterations: 21
   max_ticks_per_round: 88
   n_simulations: 10
   buyers:

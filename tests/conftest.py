@@ -68,7 +68,6 @@ def prompt_config(buyer_keywords, seller_keywords):
 def experiment_config():
     return ExperimentConfig(
         n_rounds=2,
-        n_iterations=3,
         n_simulations=1,
         # Small tick budget is plenty for the tiny markets these tests
         # build around the fixture. Individual tests override it when
@@ -172,7 +171,6 @@ def base_market_state(sample_agents):
         market_history_text="",
         iteration_records=[],
         transactions=[],
-        announced_this_iteration=[],
         announcement_made=False,
         transaction_made=False,
         iteration_complete=False,

@@ -37,10 +37,9 @@ class TestSchemaDefaults:
         assert cfg.max_retries == 5
 
     def test_experiment_config_defaults(self):
-        """ExperimentConfig should default to 5 rounds, 10 iters, 10 sims."""
+        """ExperimentConfig should default to 5 rounds, 10 sims."""
         cfg = ExperimentConfig()
         assert cfg.n_rounds == 5
-        assert cfg.n_iterations == 10
         assert cfg.n_simulations == 10
 
     def test_agent_prices_config_defaults(self):
@@ -96,10 +95,9 @@ class TestSchemaValidation:
             AgentKeywords(role="buyer")  # missing verb, preference, condition
 
     def test_experiment_config_custom_values(self):
-        """ExperimentConfig should accept custom round/iteration counts."""
-        cfg = ExperimentConfig(n_rounds=3, n_iterations=5, n_simulations=2)
+        """ExperimentConfig should accept custom round / sim counts."""
+        cfg = ExperimentConfig(n_rounds=3, n_simulations=2)
         assert cfg.n_rounds == 3
-        assert cfg.n_iterations == 5
         assert cfg.n_simulations == 2
 
 
@@ -115,7 +113,7 @@ class TestLoadConfig:
         """load_config should parse a YAML file given a full path."""
         config_data = {
             "experiment": {
-                "n_rounds": 1, "n_iterations": 2, "n_simulations": 1,
+                "n_rounds": 1, "n_simulations": 1,
                 "max_ticks_per_round": 10,
             },
             "llm": {"provider": "openai", "model": "gpt-4o-mini"},

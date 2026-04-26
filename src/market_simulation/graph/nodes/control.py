@@ -289,7 +289,6 @@ def make_next_iteration_node() -> Callable[[MarketState], dict]:
             "response_accepted": None,
             "potential_responder_ids": [],
             "current_responder_index": 0,
-            "announced_this_iteration": [],
             "last_announcement_reasoning": "",
             "last_response_reasoning": "",
             "last_order_outcome": None,
@@ -347,7 +346,6 @@ def make_next_round_node() -> Callable[[MarketState], dict]:
             "last_order_outcome": None,
             "potential_responder_ids": [],
             "current_responder_index": 0,
-            "announced_this_iteration": [],
             "last_announcement_reasoning": "",
             "last_response_reasoning": "",
         }
