@@ -231,9 +231,21 @@ class PromptTemplates(BaseModel):
     main_template: str = ""
 
     # Per-agent "own history" entries (injected via {own_history}).
+    # The generic announcement_history_template is used for traded
+    # ({outcome}=accepted) and posted ({outcome}=posted) outcomes.
+    # Non-improving orders use a dedicated template that carries the
+    # rejection *reason* — without it the agent only sees the word
+    # "rejected" with no signal of why, making the own_history strictly
+    # less informative than the market_history broadcast to other
+    # agents.
     announcement_history_template: str = (
         "In round {round} at iteration {iteration}, your offer to {announcement_type} "
         "for ${price:.2f} was {outcome}.\n"
+    )
+    announcement_history_non_improving_template: str = (
+        "In round {round} at iteration {iteration}, your offer to "
+        "{announcement_type} for ${price:.2f} was rejected because it did "
+        "not improve the standing book.\n"
     )
     response_history_template: str = (
         "In round {round} at iteration {iteration}, you {outcome} a "
