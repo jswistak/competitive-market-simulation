@@ -187,6 +187,7 @@ class TestDynamicParticipantCount:
 
 HISTORY_TEMPLATE_FIELDS = (
     "announcement_history_template",
+    "announcement_history_non_improving_template",
     "response_history_template",
     "market_history_accepted_template",
     "market_history_posted_template",

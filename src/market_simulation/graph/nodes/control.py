@@ -196,13 +196,24 @@ def _update_agent_histories(
             agent_copy["own_history_data"] = agent["own_history_data"] + [history_entry]
 
             ann_type = "buy" if agent["type"] == "buyer" else "sell"
-            entry = templates.announcement_history_template.format(
-                round=state["round"],
-                iteration=state["iteration"],
-                announcement_type=ann_type,
-                price=state["announced_price"],
-                outcome=label,
-            )
+            # Non-improving orders use a dedicated template that includes
+            # the rejection reason. Other outcomes use the generic
+            # template with the {outcome} label substituted.
+            if outcome == "non_improving":
+                entry = templates.announcement_history_non_improving_template.format(
+                    round=state["round"],
+                    iteration=state["iteration"],
+                    announcement_type=ann_type,
+                    price=state["announced_price"],
+                )
+            else:
+                entry = templates.announcement_history_template.format(
+                    round=state["round"],
+                    iteration=state["iteration"],
+                    announcement_type=ann_type,
+                    price=state["announced_price"],
+                    outcome=label,
+                )
             agent_copy["own_history_prompt"] = agent["own_history_prompt"] + entry
 
         updated.append(agent_copy)
