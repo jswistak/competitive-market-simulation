@@ -3,7 +3,13 @@
 import numpy as np
 from typing import Any
 
-from ..config.schema import ExperimentConfig, AuctionConfig, AuctionType, PersonaConfig
+from ..config.schema import (
+    ExperimentConfig,
+    AuctionConfig,
+    AuctionType,
+    PersonaConfig,
+    Strategy,
+)
 from ..graph.state import (
     MarketState,
     AgentState,
@@ -12,6 +18,22 @@ from ..graph.state import (
     EnglishAuctionState,
     DutchAuctionState,
 )
+
+
+def _normalize_strategies(
+    strategies: Strategy | list[Strategy],
+    num: int,
+) -> list[Strategy]:
+    """Expand a strategy spec into a per-agent list of length `num`.
+
+    Length mismatch is already caught at config load by
+    ``AgentPricesConfig._validate_strategies_length`` /
+    ``BiddersConfig._validate_strategies_length``; this helper trusts the
+    invariant.
+    """
+    if isinstance(strategies, list):
+        return list(strategies)
+    return [strategies] * num
 
 
 def create_agents(
@@ -41,6 +63,7 @@ def create_agents(
         ),
         2,
     )
+    buyer_strategies = _normalize_strategies(config.buyers.strategies, config.buyers.num)
 
     for i, price in enumerate(buyer_prices):
         persona_text = personas.buyers.get(i, personas.buyer_default)
@@ -52,6 +75,7 @@ def create_agents(
             own_history_prompt="",
             own_history_data=[],
             persona=persona_text,
+            strategy=buyer_strategies[i],
         )
         agents.append(agent)
 
@@ -64,6 +88,7 @@ def create_agents(
         ),
         2,
     )
+    seller_strategies = _normalize_strategies(config.sellers.strategies, config.sellers.num)
 
     id_offset = config.buyers.num
     for i, price in enumerate(seller_prices):
@@ -76,6 +101,7 @@ def create_agents(
             own_history_prompt="",
             own_history_data=[],
             persona=persona_text,
+            strategy=seller_strategies[i],
         )
         agents.append(agent)
 
@@ -100,12 +126,21 @@ def create_initial_state(
     agents = create_agents(config, personas=personas)
     all_agent_ids = [agent["id"] for agent in agents]
 
+    # CDA-only factory: max_ticks_per_round is required at config load
+    # (SimulationConfig._require_max_ticks_for_cda). Safe to assert here.
+    assert config.max_ticks_per_round is not None, (
+        "max_ticks_per_round must be set for double_auction configs"
+    )
+
     return MarketState(
         # Experiment context
         round=1,
         iteration=1,
         max_rounds=config.n_rounds,
-        max_iterations=config.n_iterations,
+        # max_iterations holds the tick budget per round under the
+        # improvement-rule CDA. One tick = one randomly-chosen active
+        # agent attempts to post an order.
+        max_iterations=config.max_ticks_per_round,
         simulation_id=simulation_id,
         # Agent management
         agents=agents,
@@ -116,14 +151,17 @@ def create_initial_state(
         announcing_agent_id=None,
         announced_price=None,
         announcement_type=None,
-        responding_agent_id=None,
-        response_accepted=None,
+        counterparty_agent_id=None,
+        # Order book — empty at start of simulation.
+        standing_bid=None,
+        standing_ask=None,
+        standing_bid_agent_id=None,
+        standing_ask_agent_id=None,
+        last_order_outcome=None,
         # History
         market_history_text="",
         iteration_records=[],
         transactions=[],
-        # Iteration tracking
-        announced_this_iteration=[],
         # Control flow flags
         announcement_made=False,
         transaction_made=False,
@@ -134,11 +172,10 @@ def create_initial_state(
         tool_usage_log=[],
         # Chain-of-thought reasoning
         last_announcement_reasoning="",
-        last_response_reasoning="",
+        last_counterparty_reasoning="",
         # Error handling
         last_error=None,
         # Diagnostic counters
-        parse_failures=0,
         constraint_violations=0,
         # History display configuration
         history_mode=config.history.mode,
@@ -178,6 +215,8 @@ def create_bidders(
     if personas is None:
         personas = PersonaConfig()
 
+    bidder_strategies = _normalize_strategies(bc.strategies, bc.num)
+
     bidders: list[BidderState] = []
     for i, val in enumerate(values):
         persona_text = personas.bidders.get(i, personas.bidder_default)
@@ -189,6 +228,7 @@ def create_bidders(
                 own_history_prompt="",
                 own_history_data=[],
                 persona=persona_text,
+                strategy=bidder_strategies[i],
             )
         )
     return bidders
@@ -228,7 +268,6 @@ def create_auction_initial_state(
         "all_bid_records": [],
         "market_history_text": "",
         "tool_usage_log": [],
-        "parse_failures": 0,
         "constraint_violations": 0,
     }
 

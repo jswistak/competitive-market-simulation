@@ -104,9 +104,10 @@ def _build_summary(state: dict, last_n_events: int) -> str:
             f"Acceptance rate: {rate:.0%} ({n_accepted}/{distinct_announcements})"
         )
 
-    # Current round context
+    # Current round context (don't echo the round number — the agent
+    # is intentionally kept unaware of which round it is)
     round_txns = [t for t in transactions if t["round"] == current_round]
-    parts.append(f"Transactions in current round ({current_round}): {len(round_txns)}")
+    parts.append(f"Transactions so far this round: {len(round_txns)}")
 
     # Last N raw events for recency
     if last_n_events > 0:

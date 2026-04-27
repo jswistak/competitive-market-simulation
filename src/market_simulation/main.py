@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 
+import numpy as np
 import typer
 from rich.console import Console
 from rich.progress import (
@@ -14,13 +15,12 @@ from rich.progress import (
 )
 from rich.logging import RichHandler
 
-from .config import load_config, SimulationConfig
+from .config import load_config
 from .config.schema import AuctionType
-from .llm import create_llm
 from .llm.factory import create_tool_augmented_llm
 from .graph import build_market_graph, build_auction_graph
 from .agents import create_initial_state, create_auction_initial_state
-from .tracing import create_tracing_manager
+from .tracing import create_tracing_manager, LLMCallLogger
 from .output import ResultsSaver
 from .tools.sandbox import SandboxManager
 
@@ -121,7 +121,7 @@ def run(
         console.print(f"Auction type: [cyan]double_auction[/]")
         console.print(f"Simulations: [cyan]{cfg.experiment.n_simulations}[/]")
         console.print(f"Rounds: [cyan]{cfg.experiment.n_rounds}[/]")
-        console.print(f"Iterations: [cyan]{cfg.experiment.n_iterations}[/]")
+        console.print(f"Max ticks/round: [cyan]{cfg.experiment.max_ticks_per_round}[/]")
     console.print(f"Tracing: [cyan]{'enabled' if trace else 'disabled'}[/]")
     if cfg.tools.enabled:
         tool_types = []
@@ -134,17 +134,43 @@ def run(
         console.print("Tools: [cyan]disabled[/]")
     console.print()
 
+    # Determine whether any configured agent uses an LLM strategy.
+    # If all agents are zero-intelligence we can skip creating the LLM
+    # provider (and its API client) entirely.
+    def _uses_llm(strategies) -> bool:
+        if isinstance(strategies, list):
+            return any(s == "llm" for s in strategies)
+        return strategies == "llm"
+
+    if is_auction and auction_config:
+        any_llm = _uses_llm(auction_config.bidders.strategies)
+    else:
+        any_llm = _uses_llm(cfg.experiment.buyers.strategies) or _uses_llm(
+            cfg.experiment.sellers.strategies
+        )
+
     # Create sandbox manager if E2B is enabled
     sandbox_manager: SandboxManager | None = None
-    if cfg.tools.enabled and cfg.tools.enable_code_interpreter:
+    if any_llm and cfg.tools.enabled and cfg.tools.enable_code_interpreter:
         sandbox_manager = SandboxManager(
             enabled=True,
             timeout=cfg.tools.e2b_timeout,
         )
 
-    # Create LLM provider (with optional tool augmentation)
-    llm = create_tool_augmented_llm(cfg.llm, cfg.tools, sandbox_manager)
-    logger.info(f"Created {llm.provider_name} provider with model {llm.model_name}")
+    # Create LLM provider only if at least one agent uses it.
+    llm = None
+    if any_llm:
+        llm = create_tool_augmented_llm(cfg.llm, cfg.tools, sandbox_manager)
+        logger.info(f"Created {llm.provider_name} provider with model {llm.model_name}")
+    else:
+        console.print("[yellow]All agents are zero-intelligence — skipping LLM provider creation[/]")
+
+    # Seed the ZI RNG. Prefer experiment.random_seed; fall back to auction
+    # random_seed for auction runs so existing auction configs keep working.
+    seed = cfg.experiment.random_seed
+    if seed is None and is_auction and auction_config is not None:
+        seed = auction_config.random_seed
+    zi_rng = np.random.default_rng(seed)
 
     # Create tracing manager
     tracing = create_tracing_manager(cfg.tracing)
@@ -189,11 +215,23 @@ def run(
             )
 
     # Build graph and calculate recursion limit
-    if is_auction and auction_config and cfg.prompts.auction:
+    if is_auction and auction_config:
+        if any_llm and not cfg.prompts.auction:
+            raise typer.BadParameter(
+                f"Auction type '{cfg.experiment.auction_type.value}' with "
+                f"strategy='llm' requires 'prompts.auction' to be configured."
+            )
         graph = build_auction_graph(
             cfg.experiment.auction_type, llm, cfg.prompts.auction,
-            random_seed=auction_config.random_seed,
+            # Use the resolved `seed` (experiment.random_seed first,
+            # auction.random_seed fallback) so mechanism-level randomness
+            # (e.g. Dutch bidder shuffle) follows the same precedence as
+            # the ZI RNG. Without this, setting only experiment.random_seed
+            # would leave the shuffle non-deterministic.
+            random_seed=seed,
             include_reasoning=cfg.experiment.include_reasoning,
+            zi_config=cfg.zi,
+            rng=zi_rng,
         )
         n_bidders = auction_config.bidders.num
         n_rounds = auction_config.n_rounds
@@ -207,12 +245,6 @@ def run(
             recursion_limit = n_rounds * n_bidders * 3 + 50
 
         n_sims = auction_config.n_simulations
-    elif is_auction and auction_config and not cfg.prompts.auction:
-        raise typer.BadParameter(
-            f"Auction type '{cfg.experiment.auction_type.value}' requires "
-            f"'prompts.auction' to be configured. Please add auction prompt "
-            f"settings to your config file."
-        )
     elif is_auction and not auction_config:
         raise typer.BadParameter(
             f"Auction type '{cfg.experiment.auction_type.value}' requires "
@@ -220,18 +252,31 @@ def run(
         )
     else:
         logger.info("No auction type specified — defaulting to double-auction mode")
-        graph = build_market_graph(llm, cfg.prompts, include_reasoning=cfg.experiment.include_reasoning)
-        max_nodes_per_iteration = 10  # approximate
-        recursion_limit = (
-            cfg.experiment.n_rounds
-            * cfg.experiment.n_iterations
-            * max_nodes_per_iteration
-            * (cfg.experiment.buyers.num + cfg.experiment.sellers.num)
+        graph = build_market_graph(
+            llm, cfg.prompts,
+            include_reasoning=cfg.experiment.include_reasoning,
+            zi_config=cfg.zi,
+            rng=zi_rng,
         )
+        # CDA recursion bound: each tick runs 6 nodes
+        # (select_announcer, announce, apply_order, update_history,
+        # check_round, next_iteration). Plus a next_round cycle per
+        # round. Use a generous multiplier for safety.
+        max_ticks = cfg.experiment.max_ticks_per_round
+        nodes_per_tick = 6
+        nodes_per_round = max_ticks * nodes_per_tick + 4
+        recursion_limit = cfg.experiment.n_rounds * nodes_per_round + 50
         n_sims = cfg.experiment.n_simulations
 
-    # Clamp recursion limit between 100 and 15000
-    recursion_limit = max(100, min(recursion_limit, 15000))
+    if cfg.experiment.recursion_limit is not None:
+        logger.info(
+            f"Recursion limit overridden by config: {cfg.experiment.recursion_limit} "
+            f"(calculated: {recursion_limit})"
+        )
+        recursion_limit = cfg.experiment.recursion_limit
+    else:
+        recursion_limit = max(100, min(recursion_limit, 500_000))
+    logger.info(f"Using recursion limit: {recursion_limit}")
 
     # Run simulations
     with Progress(
@@ -248,6 +293,12 @@ def run(
 
             # Start file logging for this simulation
             results_saver.start_simulation_logging(sim_id)
+
+            # Create LLM call logger for this simulation
+            llm_logger: LLMCallLogger | None = None
+            if cfg.tracing.llm_call_logging:
+                llm_log_path = results_saver.logs_dir / f"llm_calls_{sim_id}.jsonl"
+                llm_logger = LLMCallLogger(llm_log_path)
 
             # Create initial state
             if is_auction and auction_config:
@@ -267,6 +318,8 @@ def run(
                     recursion_limit=recursion_limit,
                     initial_state=initial_state,
                 ) as graph_config:
+                    if llm_logger:
+                        graph_config.setdefault("callbacks", []).append(llm_logger)
                     final_state = graph.invoke(initial_state, config=graph_config)
 
                     # Update trace output with results
@@ -289,21 +342,18 @@ def run(
                 else:
                     results_saver.save_simulation(final_state, sim_id)
 
-                n_parse_failures = final_state.get("parse_failures", 0)
                 n_violations = final_state.get("constraint_violations", 0)
 
                 if is_auction:
                     n_results = len(final_state.get("auction_results", []))
                     logger.info(
                         f"Simulation {sim_id} complete: {n_results} auction rounds, "
-                        f"{n_parse_failures} parse failures, "
                         f"{n_violations} constraint violations"
                     )
                 else:
                     n_transactions = len(final_state["transactions"])
                     logger.info(
                         f"Simulation {sim_id} complete: {n_transactions} transactions, "
-                        f"{n_parse_failures} parse failures, "
                         f"{n_violations} constraint violations"
                     )
 
@@ -313,6 +363,10 @@ def run(
                     console.print_exception()
 
             finally:
+                # Close LLM call logger
+                if llm_logger:
+                    llm_logger.close()
+
                 # Stop file logging for this simulation
                 results_saver.stop_simulation_logging(sim_id)
 
@@ -420,7 +474,7 @@ def validate(
         else:
             console.print(f"  Simulations: {cfg.experiment.n_simulations}")
             console.print(f"  Rounds: {cfg.experiment.n_rounds}")
-            console.print(f"  Iterations: {cfg.experiment.n_iterations}")
+            console.print(f"  Max ticks/round: {cfg.experiment.max_ticks_per_round}")
             console.print(f"  Buyers: {cfg.experiment.buyers.num}")
             console.print(f"  Sellers: {cfg.experiment.sellers.num}")
     except Exception as e:

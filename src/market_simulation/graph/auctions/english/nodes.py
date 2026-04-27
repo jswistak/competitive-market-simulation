@@ -9,12 +9,14 @@ active bidder remains, or the safety limit (max_bidding_rounds) is hit.
 import logging
 from typing import Callable
 
+import numpy as np
 from langchain_core.runnables import RunnableConfig
 
 from ...state import EnglishAuctionState, BidRecord, AuctionResult
+from ....agents import zi as zi_decisions
 from ....llm.providers.base import LLMProvider
 from ....llm.response_schemas import EnglishBidResponse, EnglishBidResponseWithReasoning
-from ....config.schema import AuctionPromptConfig
+from ....config.schema import AuctionPromptConfig, ZIConfig
 from ..base import render_auction_prompt
 
 logger = logging.getLogger(__name__)
@@ -26,12 +28,18 @@ logger = logging.getLogger(__name__)
 
 
 def make_solicit_bid_node(
-    llm: LLMProvider,
+    llm: LLMProvider | None,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
     response_schema: type[EnglishBidResponse] = EnglishBidResponseWithReasoning,
+    zi_config: ZIConfig | None = None,
+    rng: np.random.Generator | None = None,
 ) -> Callable[[EnglishAuctionState, RunnableConfig], dict]:
     """Create node that asks the current active bidder for a bid or pass."""
+
+    zi_cfg = zi_config or ZIConfig()
+    zi_rng = rng if rng is not None else np.random.default_rng()
+    include_reasoning = response_schema is EnglishBidResponseWithReasoning
 
     def solicit_bid(state: EnglishAuctionState, config: RunnableConfig) -> dict:
         active_ids = state["active_bidder_ids"]
@@ -55,37 +63,52 @@ def make_solicit_bid_node(
 
         standing = state["standing_bid"]
         min_bid = standing + state["min_increment"]
-
-        prompt = render_auction_prompt(
-            template=prompts.system_template,
-            bidder=bidder,
-            state=state,
-            extra_vars={
-                "action_prompt": prompts.english_bid_prompt,
-                "auction_type": state["auction_type"],
-                "value_explanation": prompts.value_explanation,
-                "standing_bid": standing,
-                "min_bid": min_bid,
-                "min_increment": state["min_increment"],
-                "n_bidders": len(state["bidders"]),
-                "n_active": len(active_ids),
-            },
-        )
-
-        callbacks = config.get("callbacks", []) if config else []
-        if not callbacks and callbacks_factory:
-            callbacks = callbacks_factory()
+        strategy = bidder.get("strategy", "llm")
 
         try:
-            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            if strategy == "llm":
+                if llm is None:
+                    raise RuntimeError(
+                        "Bidder has strategy='llm' but no LLM provider was supplied"
+                    )
+                prompt = render_auction_prompt(
+                    template=prompts.system_template,
+                    bidder=bidder,
+                    state=state,
+                    extra_vars={
+                        "action_prompt": prompts.english_bid_prompt,
+                        "auction_type": state["auction_type"],
+                        "value_explanation": prompts.value_explanation,
+                        "standing_bid": standing,
+                        "min_bid": min_bid,
+                        "min_increment": state["min_increment"],
+                        "n_bidders": len(state["bidders"]),
+                        "n_active": len(active_ids),
+                    },
+                )
+
+                callbacks = config.get("callbacks", []) if config else []
+                if not callbacks and callbacks_factory:
+                    callbacks = callbacks_factory()
+
+                response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            else:
+                response = zi_decisions.decide_english(
+                    bidder=bidder,
+                    standing_bid=standing,
+                    min_increment=state["min_increment"],
+                    zi_cfg=zi_cfg,
+                    rng=zi_rng,
+                    include_reasoning=include_reasoning,
+                )
             reasoning = getattr(response, 'reasoning', '')
             logger.debug(
                 f"Bidder {bidder_id} structured response: action={response.action}, "
                 f"bid={response.bid}, reasoning='{reasoning[:100]}...'"
             )
 
-            # Capture tool log
-            tool_log_entries = getattr(llm, "last_tool_log", [])
+            # Capture tool log (ZI path has none)
+            tool_log_entries = getattr(llm, "last_tool_log", []) if strategy == "llm" else []
             tool_usage_log = [
                 {
                     **entry,
@@ -162,7 +185,10 @@ def make_solicit_bid_node(
             }
 
         except Exception as e:
-            logger.error(f"LLM call failed for bidder {bidder_id}: {e}")
+            if strategy == "llm":
+                logger.error(f"LLM call failed for bidder {bidder_id}: {e}")
+            else:
+                logger.error(f"ZI decision failed for bidder {bidder_id} ({strategy}): {e}")
             # Drop bidder on LLM failure
             new_active = [aid for aid in active_ids if aid != bidder_id]
             return {
@@ -344,8 +370,12 @@ def _settle(state: EnglishAuctionState) -> dict:
 # ------------------------------------------------------------------
 
 
-def make_update_english_history_node() -> Callable[[EnglishAuctionState], dict]:
+def make_update_english_history_node(
+    prompts: AuctionPromptConfig | None = None,
+) -> Callable[[EnglishAuctionState], dict]:
     """Create node that updates histories after an English/Open-Outcry round."""
+
+    templates = prompts if prompts is not None else AuctionPromptConfig()
 
     def update_english_history(state: EnglishAuctionState) -> dict:
         results = state["auction_results"]
@@ -355,17 +385,25 @@ def make_update_english_history_node() -> Callable[[EnglishAuctionState], dict]:
         latest = results[-1]
         round_num = latest["round"]
         auction_type = latest["auction_type"]
+        winner_id = latest["winner_id"]
+        payment = latest["payment"]
+        winning_bid = latest["winning_bid"]
 
         # Market history
-        if latest["winner_id"] is not None:
-            history_line = (
-                f"Round {round_num} ({auction_type}): "
-                f"Bidder {latest['winner_id']} won at "
-                f"${latest['winning_bid']:.2f}, "
-                f"payment=${latest['payment']:.2f}.\n"
+        if winner_id is not None:
+            history_line = templates.market_history_winner_template.format(
+                round=round_num,
+                auction_type=auction_type,
+                winner_id=winner_id,
+                winning_bid=winning_bid,
+                payment=payment,
+                second_highest_bid=None,
             )
         else:
-            history_line = f"Round {round_num} ({auction_type}): No bids placed.\n"
+            history_line = templates.market_history_no_winner_template.format(
+                round=round_num,
+                auction_type=auction_type,
+            )
 
         new_history = state["market_history_text"] + history_line
 
@@ -373,7 +411,7 @@ def make_update_english_history_node() -> Callable[[EnglishAuctionState], dict]:
         updated_bidders = []
         for bidder in state["bidders"]:
             bidder_copy = {**bidder}
-            won = latest["winner_id"] == bidder["id"]
+            won = winner_id == bidder["id"]
 
             # Find this bidder's highest bid in the round
             my_bids = [
@@ -383,14 +421,17 @@ def make_update_english_history_node() -> Callable[[EnglishAuctionState], dict]:
             highest_bid = max(my_bids) if my_bids else None
 
             if highest_bid is not None:
-                outcome = "won" if won else "lost"
-                entry_text = (
-                    f"Round {round_num}: Your highest bid was "
-                    f"${highest_bid:.2f} and you {outcome}."
-                )
-                if won and latest["payment"] is not None:
-                    entry_text += f" Payment: ${latest['payment']:.2f}."
-                entry_text += "\n"
+                if won:
+                    entry_text = templates.english_bidder_won_template.format(
+                        round=round_num,
+                        my_bid=highest_bid,
+                        payment=payment if payment is not None else 0.0,
+                    )
+                else:
+                    entry_text = templates.english_bidder_lost_template.format(
+                        round=round_num,
+                        my_bid=highest_bid,
+                    )
                 bidder_copy["own_history_prompt"] = (
                     bidder["own_history_prompt"] + entry_text
                 )
@@ -401,14 +442,16 @@ def make_update_english_history_node() -> Callable[[EnglishAuctionState], dict]:
                         "highest_bid": highest_bid,
                         "n_bids": len(my_bids),
                         "won": won,
-                        "payment": latest["payment"] if won else 0.0,
+                        "payment": payment if won else 0.0,
                     }
                 ]
             else:
                 # Bidder dropped out immediately or was never active
+                entry_text = templates.english_bidder_no_bid_template.format(
+                    round=round_num,
+                )
                 bidder_copy["own_history_prompt"] = (
-                    bidder["own_history_prompt"]
-                    + f"Round {round_num}: You did not bid.\n"
+                    bidder["own_history_prompt"] + entry_text
                 )
                 bidder_copy["own_history_data"] = bidder["own_history_data"] + [
                     {

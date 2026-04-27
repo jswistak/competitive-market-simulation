@@ -10,12 +10,14 @@ import logging
 import random
 from typing import Callable
 
+import numpy as np
 from langchain_core.runnables import RunnableConfig
 
 from ...state import DutchAuctionState, BidRecord, AuctionResult
+from ....agents import zi as zi_decisions
 from ....llm.providers.base import LLMProvider
 from ....llm.response_schemas import AcceptRejectResponse, AcceptRejectResponseWithReasoning
-from ....config.schema import AuctionPromptConfig
+from ....config.schema import AuctionPromptConfig, ZIConfig
 from ..base import render_auction_prompt
 
 logger = logging.getLogger(__name__)
@@ -68,12 +70,18 @@ def make_announce_price_node(
 
 
 def make_solicit_acceptance_node(
-    llm: LLMProvider,
+    llm: LLMProvider | None,
     prompts: AuctionPromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
     response_schema: type[AcceptRejectResponse] = AcceptRejectResponseWithReasoning,
+    zi_config: ZIConfig | None = None,
+    rng: np.random.Generator | None = None,
 ) -> Callable[[DutchAuctionState, RunnableConfig], dict]:
     """Create node that asks the current bidder to accept or reject the price."""
+
+    zi_cfg = zi_config or ZIConfig()
+    zi_rng = rng if rng is not None else np.random.default_rng()
+    include_reasoning = response_schema is AcceptRejectResponseWithReasoning
 
     def solicit_acceptance(state: DutchAuctionState, config: RunnableConfig) -> dict:
         idx = state["current_bidder_index"]
@@ -84,34 +92,48 @@ def make_solicit_acceptance_node(
 
         bidder = bidders[idx]
         current_price = state["current_price"]
-
-        prompt = render_auction_prompt(
-            template=prompts.system_template,
-            bidder=bidder,
-            state=state,
-            extra_vars={
-                "action_prompt": prompts.dutch_accept_prompt,
-                "auction_type": state["auction_type"],
-                "value_explanation": prompts.value_explanation,
-                "current_price": current_price,
-                "n_bidders": len(bidders),
-            },
-        )
-
-        callbacks = config.get("callbacks", []) if config else []
-        if not callbacks and callbacks_factory:
-            callbacks = callbacks_factory()
+        strategy = bidder.get("strategy", "llm")
 
         try:
-            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            if strategy == "llm":
+                if llm is None:
+                    raise RuntimeError(
+                        "Bidder has strategy='llm' but no LLM provider was supplied"
+                    )
+                prompt = render_auction_prompt(
+                    template=prompts.system_template,
+                    bidder=bidder,
+                    state=state,
+                    extra_vars={
+                        "action_prompt": prompts.dutch_accept_prompt,
+                        "auction_type": state["auction_type"],
+                        "value_explanation": prompts.value_explanation,
+                        "current_price": current_price,
+                        "n_bidders": len(bidders),
+                    },
+                )
+
+                callbacks = config.get("callbacks", []) if config else []
+                if not callbacks and callbacks_factory:
+                    callbacks = callbacks_factory()
+
+                response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            else:
+                response = zi_decisions.decide_dutch_accept(
+                    bidder=bidder,
+                    current_price=current_price,
+                    zi_cfg=zi_cfg,
+                    rng=zi_rng,
+                    include_reasoning=include_reasoning,
+                )
             reasoning = getattr(response, 'reasoning', '')
             logger.debug(
                 f"Bidder {bidder['id']} structured response: accept={response.accept}, "
                 f"reasoning='{reasoning[:100]}...'"
             )
 
-            # Capture tool log
-            tool_log_entries = getattr(llm, "last_tool_log", [])
+            # Capture tool log (ZI path has none)
+            tool_log_entries = getattr(llm, "last_tool_log", []) if strategy == "llm" else []
             tool_usage_log = [
                 {
                     **entry,
@@ -173,7 +195,10 @@ def make_solicit_acceptance_node(
             }
 
         except Exception as e:
-            logger.error(f"LLM call failed for bidder {bidder['id']}: {e}")
+            if strategy == "llm":
+                logger.error(f"LLM call failed for bidder {bidder['id']}: {e}")
+            else:
+                logger.error(f"ZI decision failed for bidder {bidder['id']} ({strategy}): {e}")
             new_idx = idx + 1
             return {
                 "current_bidder_index": new_idx,
@@ -299,8 +324,18 @@ def make_settle_dutch_node() -> Callable[[DutchAuctionState], dict]:
 # ------------------------------------------------------------------
 
 
-def make_update_dutch_history_node() -> Callable[[DutchAuctionState], dict]:
-    """Create node that updates histories after a Dutch round."""
+def make_update_dutch_history_node(
+    prompts: AuctionPromptConfig | None = None,
+) -> Callable[[DutchAuctionState], dict]:
+    """Create node that updates histories after a Dutch round.
+
+    Args:
+        prompts: Auction prompt configuration supplying the history templates.
+            If ``None``, schema defaults are used (preserves legacy wording
+            for unit tests constructed without a config).
+    """
+
+    templates = prompts if prompts is not None else AuctionPromptConfig()
 
     def update_dutch_history(state: DutchAuctionState) -> dict:
         results = state["auction_results"]
@@ -309,18 +344,23 @@ def make_update_dutch_history_node() -> Callable[[DutchAuctionState], dict]:
 
         latest = results[-1]
         round_num = latest["round"]
+        winner_id = latest["winner_id"]
+        payment = latest["payment"]
 
         # Market history
-        if latest["winner_id"] is not None:
-            history_line = (
-                f"Round {round_num} (dutch): "
-                f"Bidder {latest['winner_id']} accepted at "
-                f"${latest['payment']:.2f}.\n"
+        if winner_id is not None:
+            history_line = templates.market_history_winner_template.format(
+                round=round_num,
+                auction_type="dutch",
+                winner_id=winner_id,
+                winning_bid=payment,
+                payment=payment,
+                second_highest_bid=None,
             )
         else:
-            history_line = (
-                f"Round {round_num} (dutch): "
-                f"No one accepted. Price reached floor.\n"
+            history_line = templates.market_history_no_winner_template.format(
+                round=round_num,
+                auction_type="dutch",
             )
 
         new_history = state["market_history_text"] + history_line
@@ -329,43 +369,46 @@ def make_update_dutch_history_node() -> Callable[[DutchAuctionState], dict]:
         updated_bidders = []
         for bidder in state["bidders"]:
             bidder_copy = {**bidder}
-            won = latest["winner_id"] == bidder["id"]
+            won = winner_id == bidder["id"]
 
             if won:
-                entry_text = (
-                    f"Round {round_num}: You accepted at "
-                    f"${latest['payment']:.2f}.\n"
+                entry_text = templates.dutch_bidder_accepted_template.format(
+                    round=round_num,
+                    payment=payment,
                 )
-                bidder_copy["own_history_data"] = bidder["own_history_data"] + [
-                    {
-                        "round": round_num,
-                        "action": "dutch_accept",
-                        "price": latest["payment"],
-                        "won": True,
-                        "payment": latest["payment"],
-                    }
-                ]
+                history_record = {
+                    "round": round_num,
+                    "action": "dutch_accept",
+                    "price": payment,
+                    "won": True,
+                    "payment": payment,
+                }
+            elif winner_id is not None:
+                entry_text = templates.dutch_bidder_rejected_other_winner_template.format(
+                    round=round_num,
+                    winner_id=winner_id,
+                    payment=payment,
+                )
+                history_record = {
+                    "round": round_num,
+                    "action": "dutch_reject",
+                    "price": None,
+                    "won": False,
+                    "payment": 0.0,
+                }
             else:
-                entry_text = (
-                    f"Round {round_num}: You did not accept. "
+                entry_text = templates.dutch_bidder_rejected_no_winner_template.format(
+                    round=round_num,
                 )
-                if latest["winner_id"] is not None:
-                    entry_text += (
-                        f"Bidder {latest['winner_id']} won at "
-                        f"${latest['payment']:.2f}.\n"
-                    )
-                else:
-                    entry_text += "No one accepted.\n"
-                bidder_copy["own_history_data"] = bidder["own_history_data"] + [
-                    {
-                        "round": round_num,
-                        "action": "dutch_reject",
-                        "price": None,
-                        "won": False,
-                        "payment": 0.0,
-                    }
-                ]
+                history_record = {
+                    "round": round_num,
+                    "action": "dutch_reject",
+                    "price": None,
+                    "won": False,
+                    "payment": 0.0,
+                }
 
+            bidder_copy["own_history_data"] = bidder["own_history_data"] + [history_record]
             bidder_copy["own_history_prompt"] = (
                 bidder["own_history_prompt"] + entry_text
             )

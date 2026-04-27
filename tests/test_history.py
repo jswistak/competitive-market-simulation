@@ -117,7 +117,7 @@ class TestBuildMarketHistorySummary:
         ]
         state = _make_state(transactions=transactions, iteration_records=records, current_round=2)
         result = build_market_history_for_prompt(state, mode="summary", last_n_events=0)
-        assert "Transactions in current round (2): 1" in result
+        assert "Transactions so far this round: 1" in result
 
 
 class TestBuildOwnHistorySummary:
@@ -335,7 +335,7 @@ class TestSummaryIntegration:
         # Acceptance rate: 3 transactions / 5 distinct announcements = 60%
         assert "Acceptance rate: 60% (3/5)" in result
         # Current round transactions
-        assert "Transactions in current round (2): 1" in result
+        assert "Transactions so far this round: 1" in result
         # Bid-ask info present
         assert "Latest bid" in result
         assert "Latest ask" in result

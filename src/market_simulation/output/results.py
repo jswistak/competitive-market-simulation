@@ -48,7 +48,7 @@ class ResultsSaver:
         """Save the configuration used for this experiment."""
         config_path = self.output_dir / "config_used.yaml"
         with open(config_path, "w") as f:
-            yaml.dump(self.config.model_dump(), f, default_flow_style=False)
+            yaml.dump(self.config.model_dump(mode="json"), f, default_flow_style=False)
 
     def start_simulation_logging(self, simulation_id: int) -> None:
         """Start logging to a file for this simulation.
@@ -202,43 +202,3 @@ class ResultsSaver:
             "experiment_name": self.experiment_name,
             "data_files": list(self.data_dir.glob("*.csv")),
         }
-
-
-def save_simulation_results(
-    state: MarketState,
-    output_dir: Path,
-    simulation_id: int,
-    config: SimulationConfig | None = None,
-) -> Path:
-    """Convenience function to save simulation results.
-
-    Args:
-        state: Final simulation state.
-        output_dir: Output directory path.
-        simulation_id: Simulation identifier.
-        config: Optional configuration to save.
-
-    Returns:
-        Path to the data directory.
-    """
-    output_dir = Path(output_dir)
-    data_dir = output_dir / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
-
-    # Save iteration history
-    if state["iteration_records"]:
-        df_iterations = pd.DataFrame(state["iteration_records"])
-        df_iterations.to_csv(
-            data_dir / f"iteration_history_{simulation_id}.csv",
-            index=False,
-        )
-
-    # Save transactions
-    if state["transactions"]:
-        df_transactions = pd.DataFrame(state["transactions"])
-        df_transactions.to_csv(
-            data_dir / f"transactions_{simulation_id}.csv",
-            index=False,
-        )
-
-    return data_dir

@@ -25,6 +25,7 @@ class GeminiProvider(LLMProvider):
             temperature=self.config.temperature,
             max_output_tokens=self.config.max_tokens,
             thinking_level="low",
+            include_thoughts=True,
         )
 
     def _max_tokens_kwargs(self, max_tokens: int) -> dict[str, Any]:
@@ -36,6 +37,7 @@ class GeminiProvider(LLMProvider):
         prompt: str,
         schema: type[PydanticBaseModel],
         callbacks: list[Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> PydanticBaseModel:
         """Invoke Gemini with structured output using native JSON schema.
 
@@ -53,5 +55,7 @@ class GeminiProvider(LLMProvider):
         config: dict[str, Any] = {}
         if callbacks:
             config["callbacks"] = callbacks
+        if metadata:
+            config["metadata"] = metadata
 
         return structured_model.invoke([message], config=config)

@@ -46,17 +46,12 @@ from market_simulation.graph.nodes.announce import (
     _render_announcement_prompt,
     make_announce_node,
 )
-from market_simulation.graph.nodes.respond import (
-    _render_response_prompt,
-    make_respond_node,
-)
 from market_simulation.graph.history import (
     build_market_history_for_prompt,
     build_own_history_for_prompt,
 )
 from market_simulation.llm.response_schemas import (
     AnnouncementResponseWithReasoning,
-    AcceptRejectResponseWithReasoning,
 )
 
 
@@ -126,12 +121,10 @@ def _make_market_state(
         announcing_agent_id=None,
         announced_price=None,
         announcement_type=None,
-        responding_agent_id=None,
-        response_accepted=None,
+        counterparty_agent_id=None,
         market_history_text=market_history_text,
         iteration_records=iteration_records or [],
         transactions=transactions or [],
-        announced_this_iteration=[],
         announcement_made=False,
         transaction_made=False,
         iteration_complete=False,
@@ -139,7 +132,6 @@ def _make_market_state(
         simulation_complete=False,
         tool_usage_log=[],
         last_error=None,
-        parse_failures=0,
         constraint_violations=0,
         history_mode=history_mode,
         history_summary_last_n=summary_last_n,
@@ -312,8 +304,8 @@ class TestPersonaPlusHistorySummary:
                     "announcement_made": True, "transaction_made": True,
                     "announcement_type": "buy", "announcing_agent_id": 0,
                     "announcing_agent_reservation_price": 2.0,
-                    "responding_agent_id": 1,
-                    "responding_agent_reservation_price": 1.0}]
+                    "counterparty_agent_id": 1,
+                    "counterparty_reservation_price": 1.0}]
         state = _make_market_state(
             agents,
             history_mode="summary",
@@ -329,33 +321,6 @@ class TestPersonaPlusHistorySummary:
         assert "Completed transactions: 1" in result
         # Own history in summary mode should include counts
         assert "Total actions: 1" in result
-
-    def test_persona_and_summary_history_in_response(self):
-        agents = self._make_agents_with_personas()
-        transactions = [{"round": 1, "iteration": 1, "price": 1.5,
-                         "buyer_id": 0, "seller_id": 1, "announcement_type": "buy"}]
-        records = [{"round": 1, "iteration": 1, "price": 1.5,
-                    "announcement_made": True, "transaction_made": True,
-                    "announcement_type": "buy", "announcing_agent_id": 0,
-                    "announcing_agent_reservation_price": 2.0,
-                    "responding_agent_id": 1,
-                    "responding_agent_reservation_price": 1.0}]
-        state = _make_market_state(
-            agents,
-            history_mode="summary",
-            own_history_mode="summary",
-            market_history_text="Round 1: trade at $1.50",
-            transactions=transactions,
-            iteration_records=records,
-        )
-        state["announcing_agent_id"] = 0
-        state["announced_price"] = 1.80
-        state["announcement_type"] = "buy"
-        prompts = _make_prompt_config()
-        result = _render_response_prompt(agents[1], state, prompts, prompts.seller)
-        assert "cautious" in result
-        assert "Completed transactions: 1" in result
-
 
 # ===========================================================================
 # 3. Persona + Structured output in double-auction
@@ -387,39 +352,6 @@ class TestPersonaPlusCoT:
         result = node(state, {})
         assert result["announced_price"] == 1.60
         assert result["announcement_made"] is True
-
-    def test_respond_node_with_persona_and_structured_output(self):
-        """Full integration: persona agent + structured output in respond node."""
-        prompts = _make_prompt_config()
-        mock_llm = MagicMock()
-        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(
-            accept=False, reasoning="Price is above my reservation."
-        )
-        mock_llm.last_tool_log = []
-
-        node = make_respond_node(mock_llm, prompts)
-        agents = [
-            AgentState(
-                id=0, type="buyer", reservation_price=2.0, active=True,
-                own_history_prompt="", own_history_data=[],
-                persona="You are aggressive.",
-            ),
-            AgentState(
-                id=1, type="seller", reservation_price=1.0, active=True,
-                own_history_prompt="", own_history_data=[],
-                persona="You are cautious.",
-            ),
-        ]
-        state = _make_market_state(agents)
-        state["announcing_agent_id"] = 1
-        state["announced_price"] = 2.50
-        state["announcement_type"] = "sell"
-        state["potential_responder_ids"] = [0]
-        state["current_responder_index"] = 0
-        state["responding_agent_id"] = 0
-        result = node(state, {})
-        assert result["response_accepted"] is False
-
 
 # ===========================================================================
 # 4. Structured output + History summary in double-auction
@@ -491,8 +423,8 @@ class TestAllFeaturesDoubleAuction:
                     "announcement_made": True, "transaction_made": True,
                     "announcement_type": "buy", "announcing_agent_id": 0,
                     "announcing_agent_reservation_price": 2.0,
-                    "responding_agent_id": 1,
-                    "responding_agent_reservation_price": 1.0}]
+                    "counterparty_agent_id": 1,
+                    "counterparty_reservation_price": 1.0}]
         state = _make_market_state(
             agents,
             history_mode="summary",
@@ -506,39 +438,6 @@ class TestAllFeaturesDoubleAuction:
         assert result["announced_price"] == 1.40
         assert result["announcement_made"] is True
 
-    def test_full_respond_with_all_features(self):
-        """Response with persona, structured output, and summary history all enabled."""
-        prompts = _make_prompt_config()
-        mock_llm = MagicMock()
-        mock_llm.invoke_structured.return_value = AcceptRejectResponseWithReasoning(
-            accept=True, reasoning="Price is reasonable."
-        )
-        mock_llm.last_tool_log = []
-
-        node = make_respond_node(mock_llm, prompts)
-        agents = [
-            AgentState(
-                id=0, type="buyer", reservation_price=2.0, active=True,
-                own_history_prompt="", own_history_data=[],
-                persona="You are aggressive.",
-            ),
-            AgentState(
-                id=1, type="seller", reservation_price=1.0, active=True,
-                own_history_prompt="", own_history_data=[],
-                persona="You are cautious.",
-            ),
-        ]
-        state = _make_market_state(agents, history_mode="summary")
-        state["announcing_agent_id"] = 1
-        state["announced_price"] = 1.80
-        state["announcement_type"] = "sell"
-        state["potential_responder_ids"] = [0]
-        state["current_responder_index"] = 0
-        state["responding_agent_id"] = 0
-        result = node(state, {})
-        assert result["response_accepted"] is True
-
-
 # ===========================================================================
 # 6. Config cross-compatibility
 # ===========================================================================
@@ -550,6 +449,7 @@ class TestConfigCrossCompatibility:
     def test_all_features_enabled_config(self):
         cfg = SimulationConfig(
             experiment=ExperimentConfig(
+                max_ticks_per_round=50,
                 history=HistoryConfig(mode="summary", own_history_mode="summary"),
             ),
             personas=PersonaConfig(
@@ -591,6 +491,7 @@ class TestConfigCrossCompatibility:
         cfg = SimulationConfig(
             experiment=ExperimentConfig(
                 auction_type=AuctionType.DOUBLE_AUCTION,
+                max_ticks_per_round=50,
                 history=HistoryConfig(
                     mode="summary",
                     own_history_mode="summary",
@@ -618,7 +519,7 @@ class TestFactoryCrossCompatibility:
     def test_create_initial_state_with_all_double_auction_features(self):
         config = ExperimentConfig(
             n_rounds=3,
-            n_iterations=5,
+            max_ticks_per_round=20,
             buyers=AgentPricesConfig(min=1.0, max=2.0, num=2),
             sellers=AgentPricesConfig(min=1.0, max=2.0, num=2),
             history=HistoryConfig(mode="summary", own_history_mode="summary"),

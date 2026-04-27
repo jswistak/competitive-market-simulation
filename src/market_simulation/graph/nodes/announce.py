@@ -4,45 +4,46 @@ import random
 import logging
 from typing import Callable, Any
 
+import numpy as np
 from langchain_core.runnables import RunnableConfig
 
 from ..state import MarketState
 from ..history import build_market_history_for_prompt, build_own_history_for_prompt
+from ...agents import zi as zi_decisions
 from ...llm.providers.base import LLMProvider
 from ...llm.response_schemas import AnnouncementResponse, AnnouncementResponseWithReasoning
-from ...config.schema import PromptConfig
+from ...config.schema import PromptConfig, ZIConfig
 
 logger = logging.getLogger(__name__)
 
 
 def make_select_announcer_node() -> Callable[[MarketState], dict]:
-    """Create node that selects the next agent to make an announcement.
+    """Create node that selects the next agent to act on this tick.
+
+    Under the improvement-rule CDA, each tick is one randomly-chosen
+    active agent posting an order. Unlike the old mechanism, agents are
+    NOT filtered by "already announced this iteration" — the same agent
+    can act on multiple ticks per round as long as it is still active.
 
     Returns:
         Node function that updates announcing_agent_id.
     """
 
     def select_announcer(state: MarketState) -> dict:
-        """Select a random active agent to announce (who hasn't announced yet this iteration)."""
         active_ids = state["active_agent_ids"]
-        already_announced = state.get("announced_this_iteration", [])
 
-        # Filter out agents who already announced this iteration
-        eligible_ids = [aid for aid in active_ids if aid not in already_announced]
-
-        if not eligible_ids:
-            logger.info("No eligible agents remaining for announcements this iteration")
+        if not active_ids:
+            logger.info("No active agents remaining this round")
             return {
                 "announcing_agent_id": None,
                 "announcement_made": False,
             }
 
-        # Shuffle and pick first
-        shuffled = eligible_ids.copy()
+        shuffled = list(active_ids)
         random.shuffle(shuffled)
         announcer_id = shuffled[0]
 
-        logger.info(f"Selected agent {announcer_id} to announce")
+        logger.info(f"T{state['iteration']}: selected agent {announcer_id} to act")
         return {
             "announcing_agent_id": announcer_id,
         }
@@ -51,26 +52,36 @@ def make_select_announcer_node() -> Callable[[MarketState], dict]:
 
 
 def make_announce_node(
-    llm: LLMProvider,
+    llm: LLMProvider | None,
     prompts: PromptConfig,
     callbacks_factory: Callable[[], list] | None = None,
     response_schema: type[AnnouncementResponse] = AnnouncementResponseWithReasoning,
+    zi_config: ZIConfig | None = None,
+    rng: np.random.Generator | None = None,
 ) -> Callable[[MarketState, RunnableConfig], dict]:
     """Create node that handles agent price announcements.
 
     Args:
-        llm: LLM provider for generating announcements.
+        llm: LLM provider for generating announcements. May be ``None`` if
+            all configured agents use a zero-intelligence strategy.
         prompts: Prompt configuration.
         callbacks_factory: Optional factory for tracing callbacks (deprecated,
             prefer passing callbacks via graph config).
         response_schema: Pydantic schema for structured output.
+        zi_config: Hyperparameters for zero-intelligence sampling.
+        rng: Seeded NumPy ``Generator`` for ZI randomness. Constructed
+            per-factory call so the graph stays deterministic under a seed.
 
     Returns:
         Node function that generates price announcement.
     """
 
+    zi_cfg = zi_config or ZIConfig()
+    zi_rng = rng if rng is not None else np.random.default_rng()
+    include_reasoning = response_schema is AnnouncementResponseWithReasoning
+
     def announce(state: MarketState, config: RunnableConfig) -> dict:
-        """Agent announces a price via LLM call."""
+        """Agent announces a price via LLM call or ZI sampling."""
         agent_id = state["announcing_agent_id"]
 
         if agent_id is None:
@@ -91,45 +102,68 @@ def make_announce_node(
                 "last_error": f"Agent {agent_id} not found",
             }
 
-        # Determine agent type and get appropriate config
         agent_type = agent["type"]
-        if agent_type == "buyer":
-            agent_prompts = prompts.buyer
-        else:
-            agent_prompts = prompts.seller
-
-        if agent_prompts is None:
-            logger.error(f"No prompts configured for {agent_type}")
-            return {"announcement_made": False, "announced_price": None}
-
-        # Render prompt
-        prompt = _render_announcement_prompt(
-            agent=agent,
-            state=state,
-            prompts=prompts,
-            agent_prompts=agent_prompts,
-        )
-
-        logger.debug(
-            f"Announcement prompt for agent {agent_id} (truncated): '{prompt[:200]}...'"
-        )
-
-        # Get callbacks from config (propagated from graph.invoke)
-        # Falls back to callbacks_factory for backwards compatibility
-        callbacks = config.get("callbacks", []) if config else []
-        if not callbacks and callbacks_factory:
-            callbacks = callbacks_factory()
+        strategy = agent.get("strategy", "llm")
 
         try:
-            response = llm.invoke_structured(prompt, response_schema, callbacks=callbacks)
+            if strategy == "llm":
+                if llm is None:
+                    raise RuntimeError(
+                        "Agent has strategy='llm' but no LLM provider was supplied"
+                    )
+                if agent_type == "buyer":
+                    agent_prompts = prompts.buyer
+                else:
+                    agent_prompts = prompts.seller
+
+                if agent_prompts is None:
+                    logger.error(f"No prompts configured for {agent_type}")
+                    return {"announcement_made": False, "announced_price": None}
+
+                prompt = _render_announcement_prompt(
+                    agent=agent,
+                    state=state,
+                    prompts=prompts,
+                    agent_prompts=agent_prompts,
+                )
+                logger.debug(
+                    f"Announcement prompt for agent {agent_id} (truncated): "
+                    f"'{prompt[:200]}...'"
+                )
+
+                callbacks = config.get("callbacks", []) if config else []
+                if not callbacks and callbacks_factory:
+                    callbacks = callbacks_factory()
+
+                call_metadata = {
+                    "agent_id": agent_id,
+                    "agent_type": agent_type,
+                    "action": "announce",
+                    "round": state["round"],
+                    "iteration": state["iteration"],
+                    "simulation_id": state["simulation_id"],
+                    "strategy": strategy,
+                }
+                response = llm.invoke_structured(
+                    prompt, response_schema, callbacks=callbacks, metadata=call_metadata,
+                )
+            else:
+                response = zi_decisions.decide_announce(
+                    agent=agent,
+                    zi_cfg=zi_cfg,
+                    rng=zi_rng,
+                    include_reasoning=include_reasoning,
+                    standing_bid=state.get("standing_bid"),
+                    standing_ask=state.get("standing_ask"),
+                )
             price = response.price
             reasoning = getattr(response, 'reasoning', '')
             logger.debug(
                 f"Structured announcement for agent {agent_id}: price={price}, reasoning='{reasoning[:100]}...'"
             )
 
-            # Capture tool usage log if available
-            tool_log_entries = getattr(llm, "last_tool_log", [])
+            # Capture tool usage log if available (ZI path has none)
+            tool_log_entries = getattr(llm, "last_tool_log", []) if strategy == "llm" else []
             tool_usage_log = [
                 {
                     **entry,
@@ -152,10 +186,6 @@ def make_announce_node(
                     "announcement_made": False,
                     "announced_price": None,
                     "tool_usage_log": tool_usage_log,
-                    "announced_this_iteration": state.get(
-                        "announced_this_iteration", []
-                    )
-                    + [agent_id],
                     "last_announcement_reasoning": reasoning,
                 }
 
@@ -181,16 +211,10 @@ def make_announce_node(
                 f"announced {announcement_type} at ${price:.2f}"
             )
 
-            # Track that this agent has announced this iteration
-            announced_this_iteration = state.get("announced_this_iteration", []) + [
-                agent_id
-            ]
-
             result = {
                 "announced_price": price,
                 "announcement_type": announcement_type,
                 "announcement_made": True,
-                "announced_this_iteration": announced_this_iteration,
                 "tool_usage_log": tool_usage_log,
                 "last_announcement_reasoning": reasoning,
             }
@@ -201,15 +225,20 @@ def make_announce_node(
             return result
 
         except Exception as e:
-            logger.error(
-                f"LLM call failed for agent {agent_id} (R{state['round']}/I{state['iteration']}): {e}"
-            )
+            if strategy == "llm":
+                logger.error(
+                    f"LLM call failed for agent {agent_id} "
+                    f"(R{state['round']}/I{state['iteration']}): {e}"
+                )
+            else:
+                logger.error(
+                    f"ZI decision failed for agent {agent_id} ({strategy}) "
+                    f"(R{state['round']}/I{state['iteration']}): {e}"
+                )
             return {
                 "announcement_made": False,
                 "announced_price": None,
                 "last_error": str(e),
-                "announced_this_iteration": state.get("announced_this_iteration", [])
-                + [agent_id],
                 "last_announcement_reasoning": "",
             }
 
@@ -224,6 +253,13 @@ def _render_announcement_prompt(
 ) -> str:
     """Render the announcement prompt for an agent."""
     keywords = agent_prompts.main_keywords
+
+    # Render the standing book as human-readable strings so prompt
+    # templates can embed them without dealing with None.
+    standing_bid = state.get("standing_bid")
+    standing_ask = state.get("standing_ask")
+    standing_bid_str = f"${standing_bid:.2f}" if standing_bid is not None else "none"
+    standing_ask_str = f"${standing_ask:.2f}" if standing_ask is not None else "none"
 
     template_vars = {
         "role": keywords.role,
@@ -248,6 +284,11 @@ def _render_announcement_prompt(
         "iteration": state["iteration"],
         "action_prompt": agent_prompts.announcement_prompt,
         "persona": agent.get("persona", ""),
+        "tools_preamble": prompts.tools_preamble,
+        # Improvement-rule CDA: the standing book is authoritative
+        # market state the agent needs to see.
+        "standing_bid": standing_bid_str,
+        "standing_ask": standing_ask_str,
     }
 
     # Use sentinel replacement for persona to avoid str.format() issues with curly braces

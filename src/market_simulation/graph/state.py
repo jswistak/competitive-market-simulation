@@ -3,6 +3,8 @@
 from typing import Annotated, Literal, NotRequired, TypedDict
 from operator import add
 
+from ..config.schema import Strategy
+
 
 class AgentState(TypedDict):
     """State for a single market agent."""
@@ -14,6 +16,12 @@ class AgentState(TypedDict):
     own_history_prompt: str  # History for prompt rendering
     own_history_data: list[dict]  # Data for CSV export
     persona: str  # Per-agent persona text
+    # Decision-making strategy: LLM or zero-intelligence variant.
+    # Optional at the TypedDict level; the factory always sets it, but
+    # tests/legacy callers that bypass the factory may omit it. Every
+    # consumer must read with ``agent.get("strategy", "llm")`` so a
+    # missing key routes to the LLM path.
+    strategy: NotRequired[Strategy]
 
 
 class Transaction(TypedDict):
@@ -28,7 +36,13 @@ class Transaction(TypedDict):
 
 
 class IterationRecord(TypedDict):
-    """Record of an iteration's events."""
+    """Record of one tick (a single agent's order attempt) in a CDA round.
+
+    Under the improvement-rule CDA (Gode & Sunder 1993), each tick is one
+    agent posting an order; crossing orders transact at the standing
+    price automatically, so counterparty_* fields refer to the opposite
+    side of the book at the moment of the cross, not a separate query.
+    """
 
     round: int
     iteration: int
@@ -38,10 +52,15 @@ class IterationRecord(TypedDict):
     announcement_type: str | None
     announcing_agent_id: int | None
     announcing_agent_reservation_price: float | None
-    responding_agent_id: int | None
-    responding_agent_reservation_price: float | None
+    counterparty_agent_id: int | None
+    counterparty_reservation_price: float | None
     announcement_reasoning: str
-    response_reasoning: str
+    counterparty_reasoning: str
+    # Standing book snapshot AFTER this tick's effect. Either side may be
+    # None when no standing order exists yet on that side.
+    standing_bid: float | None
+    standing_ask: float | None
+    order_outcome: NotRequired[str]  # "traded" | "posted" | "non_improving" | "no_announcement"
 
 
 class MarketState(TypedDict):
@@ -59,14 +78,25 @@ class MarketState(TypedDict):
     active_agent_ids: list[int]  # IDs of agents still in round
     potential_responder_ids: list[int]  # IDs of agents who can respond
     current_responder_index: int  # Index in potential_responder_ids
-    announced_this_iteration: list[int]  # IDs of agents who already announced this iteration
 
     # Current turn state
     announcing_agent_id: int | None
     announced_price: float | None
     announcement_type: str | None  # "buy" or "sell"
-    responding_agent_id: int | None
-    response_accepted: bool | None
+    counterparty_agent_id: int | None
+    # Continuous-double-auction order book (improvement-rule CDA).
+    # Holds the best outstanding buy (standing_bid) and sell (standing_ask)
+    # and the agent that posted each. None on a side means no outstanding
+    # order. Cleared at round boundary in next_round.
+    standing_bid: float | None
+    standing_ask: float | None
+    standing_bid_agent_id: int | None
+    standing_ask_agent_id: int | None
+    # Outcome tag written by apply_order for the current tick. Values:
+    # "traded" (a cross executed), "posted" (improving order accepted into
+    # the book), "non_improving" (order discarded by mechanism),
+    # "no_announcement" (agent chose not to act).
+    last_order_outcome: str | None
 
     # History (using add reducer for appending)
     market_history_text: str  # Text history for prompts
@@ -85,13 +115,12 @@ class MarketState(TypedDict):
 
     # Chain-of-thought reasoning
     last_announcement_reasoning: str
-    last_response_reasoning: str
+    last_counterparty_reasoning: str
 
     # Error handling
     last_error: str | None
 
     # Diagnostic counters
-    parse_failures: int
     constraint_violations: int
 
     # History display configuration
@@ -114,6 +143,7 @@ class BidderState(TypedDict):
     own_history_prompt: str  # History for prompt rendering
     own_history_data: list[dict]  # Data for CSV export
     persona: str  # Per-bidder persona text
+    strategy: NotRequired[Strategy]  # See AgentState; same optionality rules apply.
 
 
 class BidRecord(TypedDict):
@@ -172,7 +202,6 @@ class SealedBidState(TypedDict):
     tool_usage_log: Annotated[list[dict], add]
 
     # Diagnostics
-    parse_failures: int
     constraint_violations: int
 
 
@@ -216,7 +245,6 @@ class EnglishAuctionState(TypedDict):
     tool_usage_log: Annotated[list[dict], add]
 
     # Diagnostics
-    parse_failures: int
     constraint_violations: int
 
 
@@ -259,7 +287,6 @@ class DutchAuctionState(TypedDict):
     tool_usage_log: Annotated[list[dict], add]
 
     # Diagnostics
-    parse_failures: int
     constraint_violations: int
 
 
