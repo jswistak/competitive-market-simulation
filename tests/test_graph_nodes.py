@@ -187,7 +187,10 @@ class TestUpdateHistoryNode:
         assert "$1.50" in result["market_history_text"]
         assert len(result["iteration_records"]) == 1
 
-    def test_all_rejected_history(self, base_market_state):
+    def test_posted_announcement_history(self, base_market_state):
+        """An improving order that posted to the book (no cross yet) renders
+        the posted-but-not-traded line, distinguishable from a non_improving
+        drop."""
         state = {
             **base_market_state,
             "announcement_made": True,
@@ -195,14 +198,14 @@ class TestUpdateHistoryNode:
             "announced_price": 1.50,
             "announcement_type": "buy",
             "announcing_agent_id": 0,
-            "counterparty_agent_id": 3,
-            "current_responder_index": 1,
-            "potential_responder_ids": [3],  # all queried
+            "last_order_outcome": "posted",
         }
         node = make_update_history_node()
         result = node(state)
 
-        assert "no one responded" in result["market_history_text"]
+        text = result["market_history_text"]
+        assert "$1.50" in text
+        assert "posted" in text.lower()
 
     def test_no_announcement_history(self, base_market_state):
         state = {
@@ -266,6 +269,103 @@ class TestUpdateHistoryNode:
         assert record["transaction_made"] is True
         assert record["announcing_agent_id"] == 0
         assert record["counterparty_agent_id"] == 3
+
+    def test_non_improving_renders_distinct_market_history_line(
+        self, base_market_state
+    ):
+        """A non-improving order must produce its own market-history entry,
+        not silently fall through to the no-announcement template."""
+        state = {
+            **base_market_state,
+            # apply_order resets announcement_made=False on non_improving;
+            # the price/type stay populated from announce.
+            "announcement_made": False,
+            "transaction_made": False,
+            "announced_price": 0.50,
+            "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            "last_order_outcome": "non_improving",
+        }
+        node = make_update_history_node()
+        result = node(state)
+
+        text = result["market_history_text"]
+        assert "$0.50" in text
+        assert "rejected" in text.lower()
+        assert "no announcement was made" not in text
+
+    def test_non_improving_records_announcer_attempt(self, base_market_state):
+        """The announcer's own_history must record a non-improving attempt
+        as 'rejected', so the agent can see what they tried and learn."""
+        state = {
+            **base_market_state,
+            "announcement_made": False,
+            "transaction_made": False,
+            "announced_price": 0.50,
+            "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            "last_order_outcome": "non_improving",
+        }
+        node = make_update_history_node()
+        result = node(state)
+
+        announcer = next(a for a in result["agents"] if a["id"] == 0)
+        assert len(announcer["own_history_data"]) == 1
+        entry = announcer["own_history_data"][0]
+        assert entry["action"] == "announce"
+        assert entry["price"] == 0.50
+        assert entry["outcome"] == "rejected"
+        assert "rejected" in announcer["own_history_prompt"]
+
+    def test_posted_outcome_distinct_from_traded_in_own_history(
+        self, base_market_state
+    ):
+        """A posted-but-not-traded order must be labelled 'posted' in the
+        announcer's own_history, distinguishable from 'accepted' (traded)
+        and 'rejected' (non_improving)."""
+        state = {
+            **base_market_state,
+            "announcement_made": True,
+            "transaction_made": False,
+            "announced_price": 1.50,
+            "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            "last_order_outcome": "posted",
+        }
+        node = make_update_history_node()
+        result = node(state)
+
+        announcer = next(a for a in result["agents"] if a["id"] == 0)
+        assert len(announcer["own_history_data"]) == 1
+        entry = announcer["own_history_data"][0]
+        assert entry["outcome"] == "posted"
+        assert "posted" in announcer["own_history_prompt"]
+        # Must NOT use the old conflated "rejected" wording for posts.
+        assert "rejected" not in announcer["own_history_prompt"]
+
+    def test_non_improving_iteration_record_captures_attempted_price(
+        self, base_market_state
+    ):
+        """Even though apply_order resets announcement_made for
+        non_improving, the IterationRecord must still capture the price
+        the agent attempted — otherwise the CSV loses the data."""
+        state = {
+            **base_market_state,
+            "announcement_made": False,
+            "transaction_made": False,
+            "announced_price": 0.50,
+            "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            "last_order_outcome": "non_improving",
+        }
+        node = make_update_history_node()
+        result = node(state)
+
+        record = result["iteration_records"][0]
+        assert record["price"] == 0.50
+        assert record["announcement_type"] == "buy"
+        assert record["order_outcome"] == "non_improving"
+        assert record["announcing_agent_id"] == 0
 
 # ===========================================================================
 # TestCheckIterationNode

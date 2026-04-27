@@ -33,9 +33,18 @@ def make_update_history_node(
         announcement_type = state.get("announcement_type")
         announcement_made = state.get("announcement_made", False)
         transaction_made = state.get("transaction_made", False)
-        outcome = state.get("last_order_outcome") or (
-            "no_announcement" if not announcement_made else "posted"
-        )
+        # Resolve the order outcome. Prefer the explicit tag from
+        # apply_order; if absent (e.g. legacy callers / hand-built test
+        # states), infer it from the (transaction_made, announcement_made)
+        # pair so this node stays drop-in compatible.
+        if state.get("last_order_outcome"):
+            outcome = state["last_order_outcome"]
+        elif transaction_made and announcement_made:
+            outcome = "traded"
+        elif announcement_made:
+            outcome = "posted"
+        else:
+            outcome = "no_announcement"
 
         announcer_id = state.get("announcing_agent_id")
         responder_id = state.get("counterparty_agent_id")
@@ -48,13 +57,20 @@ def make_update_history_node(
             if responder_id is not None and agent["id"] == responder_id:
                 responding_rp = agent["reservation_price"]
 
+        # The agent attempted an announcement whenever the mechanism saw a
+        # non-None price — including non_improving outcomes that apply_order
+        # silently drops. We capture the attempted price/type in the record
+        # so downstream analysis can see what the agent tried even when the
+        # order didn't enter the book.
+        attempted = outcome in ("traded", "posted", "non_improving")
+
         record = IterationRecord(
             round=round_num,
             iteration=tick,
-            price=price if announcement_made else None,
+            price=price if attempted else None,
             announcement_made=announcement_made,
             transaction_made=transaction_made,
-            announcement_type=announcement_type if announcement_made else None,
+            announcement_type=announcement_type if attempted else None,
             announcing_agent_id=announcer_id,
             announcing_agent_reservation_price=announcing_rp,
             counterparty_agent_id=responder_id,
@@ -70,27 +86,34 @@ def make_update_history_node(
             order_outcome=outcome,
         )
 
-        # Market-history text — one line per tick. Use existing templates
-        # so downstream prompt rendering keeps working. "accepted"
-        # corresponds to a cross; "rejected" here reads as "the order
-        # posted or was discarded without trading," which is close
-        # enough for prompt purposes.
+        # Market-history text — one line per tick, branched on the
+        # mechanism's outcome tag. Each branch covers one of the four
+        # possible outcomes; non_improving used to fall through to the
+        # no_announcement template, which conflated "agent passed" with
+        # "agent tried and was dropped" in the LLM's view of the market.
         history_update = ""
-        if transaction_made and announcement_made:
+        if outcome == "traded":
             history_update = templates.market_history_accepted_template.format(
                 round=round_num,
                 iteration=tick,
                 announcement_type=announcement_type,
                 price=price,
             )
-        elif announcement_made and outcome == "posted":
+        elif outcome == "posted":
             history_update = templates.market_history_rejected_template.format(
                 round=round_num,
                 iteration=tick,
                 announcement_type=announcement_type,
                 price=price,
             )
-        elif not announcement_made:
+        elif outcome == "non_improving":
+            history_update = templates.market_history_non_improving_template.format(
+                round=round_num,
+                iteration=tick,
+                announcement_type=announcement_type,
+                price=price,
+            )
+        else:  # no_announcement
             history_update = templates.market_history_no_announcement_template.format(
                 round=round_num,
                 iteration=tick,
@@ -98,7 +121,7 @@ def make_update_history_node(
 
         new_history = state["market_history_text"] + history_update
 
-        updated_agents = _update_agent_histories(state, templates)
+        updated_agents = _update_agent_histories(state, templates, outcome=outcome)
 
         return {
             "iteration_records": [record],
@@ -109,9 +132,17 @@ def make_update_history_node(
     return update_history
 
 
+_OUTCOME_LABELS = {
+    "traded": "accepted",
+    "posted": "posted",
+    "non_improving": "rejected",
+}
+
+
 def _update_agent_histories(
     state: MarketState,
     templates: PromptTemplates | None = None,
+    outcome: str | None = None,
 ) -> list[dict]:
     """Append per-agent history rows for the announcer on this tick.
 
@@ -120,27 +151,51 @@ def _update_agent_histories(
     they don't make a new decision. We therefore only log the announcer's
     action here; the counterparty's original posting was logged on an
     earlier tick.
+
+    The announcer's history captures three distinct outcomes the agent
+    can experience for an emitted price (``state.last_order_outcome``):
+      * ``traded``        → ``"accepted"`` (a cross executed)
+      * ``posted``        → ``"posted"`` (improving order entered the book)
+      * ``non_improving`` → ``"rejected"`` (mechanism dropped the order)
+    Previously a posted-but-not-yet-traded order was also labelled
+    ``"rejected"``, conflating it with non-improving drops. The richer
+    label lets an LLM tell the difference between "my order is on the
+    book waiting for a counterparty" and "my order was dropped, try
+    something different next time."
     """
     if templates is None:
         templates = PromptTemplates()
 
     agents = state["agents"]
     announcer_id = state.get("announcing_agent_id")
-    announcement_made = state.get("announcement_made", False)
-    transaction_made = state.get("transaction_made", False)
+    if outcome is None:
+        # Direct callers (legacy tests) may invoke without a precomputed
+        # outcome. Apply the same fallback as update_history.
+        if state.get("last_order_outcome"):
+            outcome = state["last_order_outcome"]
+        elif state.get("transaction_made") and state.get("announcement_made"):
+            outcome = "traded"
+        elif state.get("announcement_made"):
+            outcome = "posted"
+        else:
+            outcome = "no_announcement"
+    label = _OUTCOME_LABELS.get(outcome)
 
     updated = []
     for agent in agents:
         agent_copy = {**agent}
 
-        if agent["id"] == announcer_id and announcement_made:
-            outcome = "accepted" if transaction_made else "rejected"
+        if (
+            announcer_id is not None
+            and agent["id"] == announcer_id
+            and label is not None
+        ):
             history_entry = {
                 "round": state["round"],
                 "iteration": state["iteration"],
                 "action": "announce",
                 "price": state["announced_price"],
-                "outcome": outcome,
+                "outcome": label,
             }
             agent_copy["own_history_data"] = agent["own_history_data"] + [history_entry]
 
@@ -150,7 +205,7 @@ def _update_agent_histories(
                 iteration=state["iteration"],
                 announcement_type=ann_type,
                 price=state["announced_price"],
-                outcome=outcome,
+                outcome=label,
             )
             agent_copy["own_history_prompt"] = agent["own_history_prompt"] + entry
 

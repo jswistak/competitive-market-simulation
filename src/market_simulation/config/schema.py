@@ -241,13 +241,25 @@ class PromptTemplates(BaseModel):
     )
 
     # Shared market-history entries (injected via {market_history}).
+    # Used by the improvement-rule CDA path. Each renders one of the four
+    # possible per-tick outcomes:
+    #   accepted        — order crossed the book, trade executed
+    #   posted          — order improved the book and is now standing
+    #   non_improving   — order failed the improvement rule and was dropped
+    #   no_announcement — agent passed (didn't emit a price)
     market_history_accepted_template: str = (
         "In round {round} at iteration {iteration}, an announcement to "
         "{announcement_type} for ${price:.2f} was accepted.\n"
     )
     market_history_rejected_template: str = (
         "In round {round} at iteration {iteration}, an announcement to "
-        "{announcement_type} for ${price:.2f} was made but no one responded.\n"
+        "{announcement_type} for ${price:.2f} was posted as the new best "
+        "{announcement_type} but no one crossed it yet.\n"
+    )
+    market_history_non_improving_template: str = (
+        "In round {round} at iteration {iteration}, an announcement to "
+        "{announcement_type} for ${price:.2f} was rejected because it did "
+        "not improve the standing book.\n"
     )
     market_history_no_announcement_template: str = (
         "In round {round} at iteration {iteration}, no announcement was made.\n"
