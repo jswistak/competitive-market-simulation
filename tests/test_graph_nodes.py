@@ -304,8 +304,10 @@ class TestUpdateHistoryNode:
         assert "no announcement was made" not in text
 
     def test_non_improving_records_announcer_attempt(self, base_market_state):
-        """The announcer's own_history must record a non-improving attempt
-        as 'rejected', so the agent can see what they tried and learn."""
+        """The announcer's own_history must record a non-improving
+        attempt with the rejection *reason* (not just the word
+        'rejected'), so the agent has the same signal in their
+        own_history that the market_history broadcasts to others."""
         state = {
             **base_market_state,
             "announcement_made": True,
@@ -323,8 +325,12 @@ class TestUpdateHistoryNode:
         entry = announcer["own_history_data"][0]
         assert entry["action"] == "announce"
         assert entry["price"] == 0.50
+        # Structured field stays as the short label for analysis filters.
         assert entry["outcome"] == "rejected"
-        assert "rejected" in announcer["own_history_prompt"]
+        # Rendered prompt text must include the rejection reason.
+        prompt_history = announcer["own_history_prompt"]
+        assert "rejected" in prompt_history
+        assert "did not improve the standing book" in prompt_history
 
     def test_posted_outcome_distinct_from_traded_in_own_history(
         self, base_market_state
@@ -516,7 +522,8 @@ class TestUpdateHistoryNode:
             agent_prompts=prompts.buyer,
         )
 
-        # All four outcome wordings must appear in the rendered prompt.
+        # All four outcome wordings must appear in the rendered prompt
+        # (these assertions match the market_history block).
         assert "for $2.00 was accepted" in rendered, "Case 1 (traded) missing"
         assert (
             "for $1.60 was posted as the new best buy" in rendered
@@ -524,8 +531,26 @@ class TestUpdateHistoryNode:
         assert (
             "for $2.10 was rejected because it did not improve"
             in rendered
-        ), "Case 3 (non_improving) missing"
+        ), "Case 3 (non_improving) missing in market_history"
         assert "no announcement was made" in rendered, "Case 4 missing"
+
+        # Case 3's announcer (seller id=3) must also see the rejection
+        # *reason* in their own_history when their prompt is rendered —
+        # the symmetric counterpart to the market_history broadcast.
+        seller_3 = next(a for a in state["agents"] if a["id"] == 3)
+        rendered_seller = _render_announcement_prompt(
+            agent=seller_3,
+            state=state,
+            prompts=prompts,
+            agent_prompts=prompts.seller,
+        )
+        # OWN=[...] block contains seller 3's own_history; the
+        # market_history block contains everyone's, so we slice on the
+        # explicit delimiter to test the own block specifically.
+        own_block = rendered_seller.split("OWN=[", 1)[1].split("]", 1)[0]
+        assert (
+            "for $2.10 was rejected because it did not improve" in own_block
+        ), "Case 3 reason missing from own_history"
 
     def test_non_improving_contributes_to_summary_mode_aggregates(
         self, base_market_state
