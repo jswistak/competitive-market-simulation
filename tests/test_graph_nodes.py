@@ -6,7 +6,15 @@ from unittest.mock import MagicMock, patch
 from market_simulation.graph.nodes.announce import (
     make_select_announcer_node,
     make_announce_node,
+    _render_announcement_prompt,
 )
+from market_simulation.config.schema import (
+    PromptConfig,
+    PromptTemplates,
+    AgentPromptConfig,
+    AgentKeywords,
+)
+from market_simulation.graph.history import build_market_history_for_prompt
 from market_simulation.graph.nodes.control import (
     make_update_history_node,
     make_check_iteration_node,
@@ -408,6 +416,156 @@ class TestUpdateHistoryNode:
         for before, after in zip(agents_before, updated):
             assert after["own_history_data"] == before["own_history_data"]
             assert after["own_history_prompt"] == before["own_history_prompt"]
+
+    def test_all_four_outcomes_appear_in_rendered_llm_prompt(
+        self, sample_agents, base_market_state
+    ):
+        """End-to-end: each of the four order_outcome values must produce
+        a rendered line in the LLM's prompt string. This is the regression
+        test for the whole point of PR #21 — every case must reach the
+        agent's view of the market.
+
+        The chain is: update_history writes a line into market_history_text
+        based on outcome → build_market_history_for_prompt(mode='full')
+        returns the text unchanged → _render_announcement_prompt
+        substitutes it into {market_history}. Each link is tested
+        individually elsewhere; this test asserts the whole chain.
+        """
+        prompts = PromptConfig(
+            general=PromptTemplates(
+                main_template=(
+                    "Reservation: {reservation_price}. "
+                    "Rounds: {N_ROUNDS}. Iters: {N_ITER}. "
+                    "Buyers: {N_BUYERS}. Sellers: {N_SELLERS}. "
+                    "MARKET=[{market_history}] OWN=[{own_history}] "
+                    "{action_prompt}"
+                ),
+            ),
+            buyer=AgentPromptConfig(
+                main_keywords=AgentKeywords(
+                    role="buyer", verb="buy",
+                    preference="lowest", condition="above",
+                ),
+                response_prompt="",
+                announcement_prompt="Announce.",
+            ),
+            seller=AgentPromptConfig(
+                main_keywords=AgentKeywords(
+                    role="seller", verb="sell",
+                    preference="highest", condition="below",
+                ),
+                response_prompt="",
+                announcement_prompt="Announce.",
+            ),
+        )
+        node = make_update_history_node(prompts)
+
+        # Run update_history once per outcome, threading the
+        # accumulating market_history_text through each call.
+        state = {**base_market_state}
+
+        # Case 1 — traded
+        state = {
+            **state, "iteration": 1,
+            "announcement_made": True, "transaction_made": True,
+            "announced_price": 2.00, "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            "last_order_outcome": "traded",
+        }
+        out = node(state)
+        state = {**state, **out, "agents": out["agents"]}
+
+        # Case 2 — posted
+        state = {
+            **state, "iteration": 2,
+            "announcement_made": True, "transaction_made": False,
+            "announced_price": 1.60, "announcement_type": "buy",
+            "announcing_agent_id": 1,
+            "last_order_outcome": "posted",
+        }
+        out = node(state)
+        state = {**state, **out, "agents": out["agents"]}
+
+        # Case 3 — non_improving (announcement_made=True post-fix)
+        state = {
+            **state, "iteration": 3,
+            "announcement_made": True, "transaction_made": False,
+            "announced_price": 2.10, "announcement_type": "sell",
+            "announcing_agent_id": 3,
+            "last_order_outcome": "non_improving",
+        }
+        out = node(state)
+        state = {**state, **out, "agents": out["agents"]}
+
+        # Case 4 — no_announcement
+        state = {
+            **state, "iteration": 4,
+            "announcement_made": False, "transaction_made": False,
+            "announced_price": None, "announcement_type": None,
+            "announcing_agent_id": None,
+            "last_order_outcome": "no_announcement",
+        }
+        out = node(state)
+        state = {**state, **out, "agents": out["agents"]}
+
+        # Render the prompt for an agent on the next tick.
+        rendered = _render_announcement_prompt(
+            agent=state["agents"][0],
+            state=state,
+            prompts=prompts,
+            agent_prompts=prompts.buyer,
+        )
+
+        # All four outcome wordings must appear in the rendered prompt.
+        assert "for $2.00 was accepted" in rendered, "Case 1 (traded) missing"
+        assert (
+            "for $1.60 was posted as the new best buy" in rendered
+        ), "Case 2 (posted) missing"
+        assert (
+            "for $2.10 was rejected because it did not improve"
+            in rendered
+        ), "Case 3 (non_improving) missing"
+        assert "no announcement was made" in rendered, "Case 4 missing"
+
+    def test_non_improving_contributes_to_summary_mode_aggregates(
+        self, base_market_state
+    ):
+        """After Commit 1 (announcement_made=True for non_improving),
+        summary-mode market history must include non_improving prices in
+        the bid/ask aggregates and the acceptance-rate denominator.
+        Before the fix, non_improving rows had announcement_made=False
+        and were silently filtered out by build_market_history_for_prompt's
+        summary-mode aggregator at history.py:76,98.
+        """
+        records = [
+            # One traded buy at $1.50
+            {"round": 1, "iteration": 1, "announcement_made": True,
+             "transaction_made": True, "price": 1.50,
+             "announcement_type": "buy", "order_outcome": "traded"},
+            # One non_improving sell at $2.10 (the case in question)
+            {"round": 1, "iteration": 2, "announcement_made": True,
+             "transaction_made": False, "price": 2.10,
+             "announcement_type": "sell", "order_outcome": "non_improving"},
+        ]
+        state = {
+            **base_market_state,
+            "iteration_records": records,
+            "transactions": [
+                {"round": 1, "iteration": 1, "price": 1.50,
+                 "buyer_id": 0, "seller_id": 3, "announcement_type": "buy"},
+            ],
+        }
+
+        summary = build_market_history_for_prompt(state, mode="summary",
+                                                  last_n_events=0)
+
+        # The non_improving sell at $2.10 must surface in the bid/ask spread.
+        assert "$2.10" in summary, "non_improving sell price missing from summary"
+        # Acceptance rate denominator includes the non_improving attempt.
+        # 1 traded out of 2 announcements = 50%.
+        assert "50%" in summary or "(1/2)" in summary, (
+            "non_improving must count toward acceptance-rate denominator"
+        )
 
 
 # ===========================================================================
