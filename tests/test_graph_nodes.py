@@ -13,6 +13,7 @@ from market_simulation.graph.nodes.control import (
     make_check_round_node,
     make_next_iteration_node,
     make_next_round_node,
+    _update_agent_histories,
 )
 from market_simulation.llm.response_schemas import (
     AnnouncementResponse,
@@ -367,6 +368,47 @@ class TestUpdateHistoryNode:
         assert record["announcement_type"] == "buy"
         assert record["order_outcome"] == "non_improving"
         assert record["announcing_agent_id"] == 0
+
+    def test_legacy_fallback_for_traded(self, base_market_state):
+        """Pre-PR-#18 callers that don't set last_order_outcome should
+        still resolve to a 'traded' outcome via the (transaction_made,
+        announcement_made) fallback. Locks in backward compatibility."""
+        state = {
+            **base_market_state,
+            "announcement_made": True,
+            "transaction_made": True,
+            "announced_price": 1.50,
+            "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            # last_order_outcome intentionally unset
+        }
+        node = make_update_history_node()
+        result = node(state)
+
+        # Market history renders the accepted template.
+        assert "accepted" in result["market_history_text"].lower()
+        # Announcer's own_history records the trade.
+        announcer = next(a for a in result["agents"] if a["id"] == 0)
+        assert len(announcer["own_history_data"]) == 1
+        assert announcer["own_history_data"][0]["outcome"] == "accepted"
+
+    def test_no_announcer_skips_history_update(self, base_market_state):
+        """When announcing_agent_id is None, no agent should receive a
+        history entry — even if a populated outcome was passed in. Locks
+        in the announcer_id guard so callers can't accidentally write
+        ghost actions to all agents."""
+        agents_before = base_market_state["agents"]
+
+        updated = _update_agent_histories(
+            {**base_market_state, "announcing_agent_id": None,
+             "announced_price": 0.50},
+            outcome="non_improving",
+        )
+
+        for before, after in zip(agents_before, updated):
+            assert after["own_history_data"] == before["own_history_data"]
+            assert after["own_history_prompt"] == before["own_history_prompt"]
+
 
 # ===========================================================================
 # TestCheckIterationNode
