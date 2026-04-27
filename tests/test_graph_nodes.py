@@ -277,9 +277,9 @@ class TestUpdateHistoryNode:
         not silently fall through to the no-announcement template."""
         state = {
             **base_market_state,
-            # apply_order resets announcement_made=False on non_improving;
-            # the price/type stay populated from announce.
-            "announcement_made": False,
+            # announcement_made stays True for non_improving — the agent
+            # emitted a price; the order was just dropped from the book.
+            "announcement_made": True,
             "transaction_made": False,
             "announced_price": 0.50,
             "announcement_type": "buy",
@@ -299,7 +299,7 @@ class TestUpdateHistoryNode:
         as 'rejected', so the agent can see what they tried and learn."""
         state = {
             **base_market_state,
-            "announcement_made": False,
+            "announcement_made": True,
             "transaction_made": False,
             "announced_price": 0.50,
             "announcement_type": "buy",
@@ -346,12 +346,13 @@ class TestUpdateHistoryNode:
     def test_non_improving_iteration_record_captures_attempted_price(
         self, base_market_state
     ):
-        """Even though apply_order resets announcement_made for
-        non_improving, the IterationRecord must still capture the price
-        the agent attempted — otherwise the CSV loses the data."""
+        """The IterationRecord must capture the price the agent
+        attempted on a non_improving outcome. Since announcement_made
+        consistently means 'agent emitted a price', the field should be
+        True here even though the order was dropped from the book."""
         state = {
             **base_market_state,
-            "announcement_made": False,
+            "announcement_made": True,
             "transaction_made": False,
             "announced_price": 0.50,
             "announcement_type": "buy",

@@ -57,20 +57,13 @@ def make_update_history_node(
             if responder_id is not None and agent["id"] == responder_id:
                 responding_rp = agent["reservation_price"]
 
-        # The agent attempted an announcement whenever the mechanism saw a
-        # non-None price — including non_improving outcomes that apply_order
-        # silently drops. We capture the attempted price/type in the record
-        # so downstream analysis can see what the agent tried even when the
-        # order didn't enter the book.
-        attempted = outcome in ("traded", "posted", "non_improving")
-
         record = IterationRecord(
             round=round_num,
             iteration=tick,
-            price=price if attempted else None,
+            price=price if announcement_made else None,
             announcement_made=announcement_made,
             transaction_made=transaction_made,
-            announcement_type=announcement_type if attempted else None,
+            announcement_type=announcement_type if announcement_made else None,
             announcing_agent_id=announcer_id,
             announcing_agent_reservation_price=announcing_rp,
             counterparty_agent_id=responder_id,
