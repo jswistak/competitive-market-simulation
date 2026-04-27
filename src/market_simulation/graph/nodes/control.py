@@ -93,7 +93,7 @@ def make_update_history_node(
                 price=price,
             )
         elif outcome == "posted":
-            history_update = templates.market_history_rejected_template.format(
+            history_update = templates.market_history_posted_template.format(
                 round=round_num,
                 iteration=tick,
                 announcement_type=announcement_type,

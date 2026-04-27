@@ -251,7 +251,7 @@ class PromptTemplates(BaseModel):
         "In round {round} at iteration {iteration}, an announcement to "
         "{announcement_type} for ${price:.2f} was accepted.\n"
     )
-    market_history_rejected_template: str = (
+    market_history_posted_template: str = (
         "In round {round} at iteration {iteration}, an announcement to "
         "{announcement_type} for ${price:.2f} was posted as the new best "
         "{announcement_type} but no one crossed it yet.\n"

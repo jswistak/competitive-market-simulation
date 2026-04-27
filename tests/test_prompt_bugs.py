@@ -189,7 +189,8 @@ HISTORY_TEMPLATE_FIELDS = (
     "announcement_history_template",
     "response_history_template",
     "market_history_accepted_template",
-    "market_history_rejected_template",
+    "market_history_posted_template",
+    "market_history_non_improving_template",
     "market_history_no_announcement_template",
 )
 
@@ -263,10 +264,10 @@ class TestHistoryTemplatesReachAgents:
         assert "MKT-ACCEPTED sell 2.25" in result["market_history_text"]
         assert "In round" not in result["market_history_text"]
 
-    def test_market_history_rejected_template_from_config_is_used(self, base_market_state):
-        sentinel = "MKT-REJECTED {announcement_type} {price:.2f}\n"
+    def test_market_history_posted_template_from_config_is_used(self, base_market_state):
+        sentinel = "MKT-POSTED {announcement_type} {price:.2f}\n"
         prompts = PromptConfig(
-            general=PromptTemplates(market_history_rejected_template=sentinel),
+            general=PromptTemplates(market_history_posted_template=sentinel),
         )
 
         state = {
@@ -282,7 +283,7 @@ class TestHistoryTemplatesReachAgents:
         }
         result = make_update_history_node(prompts)(state)
 
-        assert "MKT-REJECTED buy 0.90" in result["market_history_text"]
+        assert "MKT-POSTED buy 0.90" in result["market_history_text"]
         assert "In round" not in result["market_history_text"]
 
     def test_market_history_no_announcement_template_from_config_is_used(self, base_market_state):
@@ -321,7 +322,7 @@ class TestHistoryTemplatesReachAgents:
             market_history_accepted_template=(
                 "Announcement to {announcement_type} for ${price:.2f} was accepted.\n"
             ),
-            market_history_rejected_template=(
+            market_history_posted_template=(
                 "Announcement to {announcement_type} for ${price:.2f} got no takers.\n"
             ),
             market_history_no_announcement_template="No announcement was made.\n",
