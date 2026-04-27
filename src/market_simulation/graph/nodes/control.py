@@ -106,11 +106,13 @@ def make_update_history_node(
                 announcement_type=announcement_type,
                 price=price,
             )
-        else:  # no_announcement
+        elif outcome == "no_announcement":
             history_update = templates.market_history_no_announcement_template.format(
                 round=round_num,
                 iteration=tick,
             )
+        else:
+            raise ValueError(f"unknown order_outcome {outcome!r}")
 
         new_history = state["market_history_text"] + history_update
 
@@ -172,17 +174,18 @@ def _update_agent_histories(
             outcome = "posted"
         else:
             outcome = "no_announcement"
-    label = _OUTCOME_LABELS.get(outcome)
+    if outcome == "no_announcement":
+        # Nothing to record on a pass; short-circuit without iterating.
+        return [{**a} for a in agents]
+    if outcome not in _OUTCOME_LABELS:
+        raise ValueError(f"unknown order_outcome {outcome!r}")
+    label = _OUTCOME_LABELS[outcome]
 
     updated = []
     for agent in agents:
         agent_copy = {**agent}
 
-        if (
-            announcer_id is not None
-            and agent["id"] == announcer_id
-            and label is not None
-        ):
+        if announcer_id is not None and agent["id"] == announcer_id:
             history_entry = {
                 "round": state["round"],
                 "iteration": state["iteration"],
