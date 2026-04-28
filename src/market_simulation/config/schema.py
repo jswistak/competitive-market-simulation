@@ -3,7 +3,23 @@
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class _StrictModel(BaseModel):
+    """Base for every config model in this module.
+
+    ``extra='forbid'`` makes Pydantic refuse to load a YAML that
+    contains keys we haven't defined here. The point is to catch
+    typos and stale fields up front instead of having Pydantic
+    silently drop them — which, before this was tightened, allowed
+    YAMLs to "configure" things that the runtime never saw (the
+    classic example being PR #21's rename leaving the YAML's
+    ``market_history_rejected_template`` permanently invisible).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
 
 Strategy = Literal["llm", "zi_c", "zi_u"]
 
@@ -25,7 +41,7 @@ class AuctionType(str, Enum):
 # --- LLM & tool configs ---
 
 
-class LLMConfig(BaseModel):
+class LLMConfig(_StrictModel):
     """LLM provider configuration."""
 
     provider: Literal["openai", "anthropic", "gemini", "deepseek"] = "openai"
@@ -36,7 +52,7 @@ class LLMConfig(BaseModel):
     max_retries: int = 5
 
 
-class ToolConfig(BaseModel):
+class ToolConfig(_StrictModel):
     """Tool availability configuration for agents."""
 
     enabled: bool = False
@@ -49,7 +65,7 @@ class ToolConfig(BaseModel):
 # --- Double auction configs (existing) ---
 
 
-class AgentPricesConfig(BaseModel):
+class AgentPricesConfig(_StrictModel):
     """Reservation price distribution for agents."""
 
     min: float = 0.8
@@ -66,7 +82,7 @@ class AgentPricesConfig(BaseModel):
         return self
 
 
-class HistoryConfig(BaseModel):
+class HistoryConfig(_StrictModel):
     """Configuration for how market history is presented in prompts."""
 
     mode: Literal["full", "summary"] = "full"
@@ -77,7 +93,7 @@ class HistoryConfig(BaseModel):
 # --- Auction-specific configs ---
 
 
-class BiddersConfig(BaseModel):
+class BiddersConfig(_StrictModel):
     """Bidder private-value distribution for auctions."""
 
     num: int = 5
@@ -95,7 +111,7 @@ class BiddersConfig(BaseModel):
         return self
 
 
-class AuctionConfig(BaseModel):
+class AuctionConfig(_StrictModel):
     """Mechanism parameters for auctions (non-double-auction)."""
 
     n_rounds: int = 10
@@ -118,7 +134,7 @@ class AuctionConfig(BaseModel):
     random_seed: int | None = None  # Seed for random operations (shuffling, sampling)
 
 
-class AuctionPromptConfig(BaseModel):
+class AuctionPromptConfig(_StrictModel):
     """Prompt templates specific to auction mechanisms."""
 
     system_template: str = ""
@@ -176,7 +192,7 @@ class AuctionPromptConfig(BaseModel):
     )
 
 
-class ExperimentConfig(BaseModel):
+class ExperimentConfig(_StrictModel):
     """Experiment parameters."""
 
     auction_type: AuctionType = AuctionType.DOUBLE_AUCTION
@@ -210,7 +226,7 @@ class ExperimentConfig(BaseModel):
     random_seed: int | None = None
 
 
-class TracingConfig(BaseModel):
+class TracingConfig(_StrictModel):
     """Langfuse tracing configuration."""
 
     enabled: bool = True
@@ -220,7 +236,7 @@ class TracingConfig(BaseModel):
     langfuse_host: str = "https://cloud.langfuse.com"
 
 
-class PromptTemplates(BaseModel):
+class PromptTemplates(_StrictModel):
     """Prompt templates for agent communication."""
 
     main_template: str = ""
@@ -268,7 +284,7 @@ class PromptTemplates(BaseModel):
     )
 
 
-class AgentKeywords(BaseModel):
+class AgentKeywords(_StrictModel):
     """Keywords for prompt substitution.
 
     ``profit_formula`` is optional; templates reference it as
@@ -286,14 +302,14 @@ class AgentKeywords(BaseModel):
     order_outcomes: str = ""
 
 
-class AgentPromptConfig(BaseModel):
+class AgentPromptConfig(_StrictModel):
     """Agent-specific prompt configuration."""
 
     main_keywords: AgentKeywords
     announcement_prompt: str
 
 
-class PromptConfig(BaseModel):
+class PromptConfig(_StrictModel):
     """Complete prompt configuration."""
 
     general: PromptTemplates = Field(default_factory=PromptTemplates)
@@ -303,7 +319,7 @@ class PromptConfig(BaseModel):
     auction: AuctionPromptConfig | None = None
 
 
-class PersonaConfig(BaseModel):
+class PersonaConfig(_StrictModel):
     """Per-agent persona/prompt customization."""
 
     buyer_default: str = ""
@@ -315,7 +331,7 @@ class PersonaConfig(BaseModel):
     bidders: dict[int, str] = Field(default_factory=dict)
 
 
-class ZIConfig(BaseModel):
+class ZIConfig(_StrictModel):
     """Zero-intelligence trader sampling hyperparameters.
 
     ZI-C (constrained) always respects reservation price / private value and
@@ -332,7 +348,7 @@ class ZIConfig(BaseModel):
     bid_prob: float = 0.5  # english bid-or-pass
 
 
-class SimulationConfig(BaseModel):
+class SimulationConfig(_StrictModel):
     """Complete simulation configuration."""
 
     experiment: ExperimentConfig = Field(default_factory=ExperimentConfig)

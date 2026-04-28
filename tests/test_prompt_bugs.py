@@ -25,9 +25,13 @@ from market_simulation.graph.state import AgentState
 
 CONFIGS_DIR = Path(__file__).parent.parent / "configs"
 
-# All yaml configs that ship with the project (excluding config_used.yaml which is generated)
+# Configs that ship under the strict (extra='forbid') schema. Scoped
+# to configs/final/ — the canonical home for new configs after the
+# user's planned cleanup of legacy YAMLs in configs/*.yaml. Add
+# subdirectories or specific files here as the cleanup progresses.
 SHIPPED_CONFIGS = sorted(
-    p for p in CONFIGS_DIR.glob("*.yaml") if p.name != "config_used.yaml"
+    p for p in (CONFIGS_DIR / "final").glob("*.yaml")
+    if p.name != "config_used.yaml"
 )
 
 
