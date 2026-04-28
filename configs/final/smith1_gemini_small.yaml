@@ -58,6 +58,11 @@ prompts:
       for ${price:.2f} was {outcome}.
 
       '
+    announcement_history_non_improving_template: 'In round {round}, your offer to
+      {announcement_type} for ${price:.2f} was rejected because it did not improve
+      the standing book.
+
+      '
     main_template: 'You are a {role} participating in a market for a good you need
       to {verb}. Your task is to {verb} a unit of the good at the {preference} possible
       price but not {condition} your reservation price.
