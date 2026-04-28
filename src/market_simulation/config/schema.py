@@ -228,9 +228,21 @@ class PromptTemplates(BaseModel):
     main_template: str = ""
 
     # Per-agent "own history" entries (injected via {own_history}).
+    # The generic announcement_history_template is used for traded
+    # ({outcome}=accepted) and posted ({outcome}=posted) outcomes.
+    # Non-improving orders use a dedicated template that carries the
+    # rejection *reason* — without it the agent only sees the word
+    # "rejected" with no signal of why, making the own_history strictly
+    # less informative than the market_history broadcast to other
+    # agents.
     announcement_history_template: str = (
         "In round {round} at iteration {iteration}, your offer to {announcement_type} "
         "for ${price:.2f} was {outcome}.\n"
+    )
+    announcement_history_non_improving_template: str = (
+        "In round {round} at iteration {iteration}, your offer to "
+        "{announcement_type} for ${price:.2f} was rejected because it did "
+        "not improve the standing book.\n"
     )
     response_history_template: str = (
         "In round {round} at iteration {iteration}, you {outcome} a "
@@ -238,13 +250,25 @@ class PromptTemplates(BaseModel):
     )
 
     # Shared market-history entries (injected via {market_history}).
+    # Used by the improvement-rule CDA path. Each renders one of the four
+    # possible per-tick outcomes:
+    #   accepted        — order crossed the book, trade executed
+    #   posted          — order improved the book and is now standing
+    #   non_improving   — order failed the improvement rule and was dropped
+    #   no_announcement — agent passed (didn't emit a price)
     market_history_accepted_template: str = (
         "In round {round} at iteration {iteration}, an announcement to "
         "{announcement_type} for ${price:.2f} was accepted.\n"
     )
-    market_history_rejected_template: str = (
+    market_history_posted_template: str = (
         "In round {round} at iteration {iteration}, an announcement to "
-        "{announcement_type} for ${price:.2f} was made but no one responded.\n"
+        "{announcement_type} for ${price:.2f} was posted as the new best "
+        "{announcement_type} but no one crossed it yet.\n"
+    )
+    market_history_non_improving_template: str = (
+        "In round {round} at iteration {iteration}, an announcement to "
+        "{announcement_type} for ${price:.2f} was rejected because it did "
+        "not improve the standing book.\n"
     )
     market_history_no_announcement_template: str = (
         "In round {round} at iteration {iteration}, no announcement was made.\n"

@@ -47,6 +47,9 @@ class IterationRecord(TypedDict):
     round: int
     iteration: int
     price: float | None
+    # True when the agent emitted a non-None price this tick, regardless
+    # of whether the mechanism accepted the order. ``order_outcome``
+    # carries the disposition (traded / posted / non_improving).
     announcement_made: bool
     transaction_made: bool
     announcement_type: str | None
@@ -104,6 +107,9 @@ class MarketState(TypedDict):
     transactions: Annotated[list[Transaction], add]
 
     # Control flow flags
+    # announcement_made: True when the announce node emitted a non-None
+    # price; stays True through apply_order even if the order is dropped
+    # as non-improving. ``last_order_outcome`` carries the disposition.
     announcement_made: bool
     transaction_made: bool
     iteration_complete: bool

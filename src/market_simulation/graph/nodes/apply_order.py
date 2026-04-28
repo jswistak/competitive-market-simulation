@@ -78,14 +78,18 @@ def make_apply_order_node() -> Callable[[MarketState], dict]:
                     "standing_bid_agent_id": announcer_id,
                     "last_order_outcome": "posted",
                 }
-            # Non-improving — discard.
+            # Non-improving — discard. Keep announcement_made=True so it
+            # consistently means "agent emitted a price"; order_outcome
+            # carries the disposition (the order was dropped from the
+            # book). Without this, history.py's summary-mode aggregates
+            # silently filter the dropped attempts out of the bid/ask
+            # statistics and acceptance-rate denominator.
             logger.info(
                 f"R{state['round']}/T{state['iteration']}: agent {announcer_id} "
                 f"bid ${price:.2f} not improving (standing_bid=${standing_bid:.2f}); discarded"
             )
             return {
                 "transaction_made": False,
-                "announcement_made": False,
                 "last_order_outcome": "non_improving",
             }
 
@@ -116,9 +120,9 @@ def make_apply_order_node() -> Callable[[MarketState], dict]:
             f"R{state['round']}/T{state['iteration']}: agent {announcer_id} "
             f"ask ${price:.2f} not improving (standing_ask=${standing_ask:.2f}); discarded"
         )
+        # See the buy-side branch above for why announcement_made stays True.
         return {
             "transaction_made": False,
-            "announcement_made": False,
             "last_order_outcome": "non_improving",
         }
 
