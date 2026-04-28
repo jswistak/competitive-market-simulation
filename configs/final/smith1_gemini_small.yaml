@@ -12,7 +12,6 @@ experiment:
     summary_last_n_events: 3
   include_reasoning: false
   max_ticks_per_round: 200
-  n_iterations: 11
   n_rounds: 5
   n_simulations: 1
   random_seed: null
@@ -129,9 +128,9 @@ prompts:
       no announcement was made.
 
       '
-    market_history_rejected_template: 'In round {round} at iteration {iteration},
-      an announcement to {announcement_type} for ${price:.2f} was made but no one
-      responded.
+    market_history_posted_template: 'In round {round} at iteration {iteration},
+      an announcement to {announcement_type} for ${price:.2f} was posted as the new
+      best {announcement_type} but no one crossed it yet.
 
       '
     response_history_template: 'In round {round}, you {outcome} a {opposite_announcement_type}
