@@ -1,18 +1,21 @@
 """Announcement-related graph nodes."""
 
-import random
 import logging
-from typing import Callable, Any
+import random
+from typing import Any, Callable
 
 import numpy as np
 from langchain_core.runnables import RunnableConfig
 
-from ..state import MarketState
-from ..history import build_market_history_for_prompt, build_own_history_for_prompt
 from ...agents import zi as zi_decisions
-from ...llm.providers.base import LLMProvider
-from ...llm.response_schemas import AnnouncementResponse, AnnouncementResponseWithReasoning
 from ...config.schema import PromptConfig, ZIConfig
+from ...llm.providers.base import LLMProvider
+from ...llm.response_schemas import (
+    AnnouncementResponse,
+    AnnouncementResponseWithReasoning,
+)
+from ..history import build_market_history_for_prompt, build_own_history_for_prompt
+from ..state import MarketState
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +148,10 @@ def make_announce_node(
                     "strategy": strategy,
                 }
                 response = llm.invoke_structured(
-                    prompt, response_schema, callbacks=callbacks, metadata=call_metadata,
+                    prompt,
+                    response_schema,
+                    callbacks=callbacks,
+                    metadata=call_metadata,
                 )
             else:
                 response = zi_decisions.decide_announce(
@@ -157,13 +163,15 @@ def make_announce_node(
                     standing_ask=state.get("standing_ask"),
                 )
             price = response.price
-            reasoning = getattr(response, 'reasoning', '')
+            reasoning = getattr(response, "reasoning", "")
             logger.debug(
                 f"Structured announcement for agent {agent_id}: price={price}, reasoning='{reasoning[:100]}...'"
             )
 
             # Capture tool usage log if available (ZI path has none)
-            tool_log_entries = getattr(llm, "last_tool_log", []) if strategy == "llm" else []
+            tool_log_entries = (
+                getattr(llm, "last_tool_log", []) if strategy == "llm" else []
+            )
             tool_usage_log = [
                 {
                     **entry,
@@ -267,6 +275,7 @@ def _render_announcement_prompt(
         "preference": keywords.preference,
         "condition": keywords.condition,
         "profit_formula": keywords.profit_formula,
+        "order_outcomes": keywords.order_outcomes,
         "reservation_price": agent["reservation_price"],
         "N_ROUNDS": state["max_rounds"],
         "N_ITER": state["max_iterations"],
@@ -297,5 +306,3 @@ def _render_announcement_prompt(
     template = prompts.general.main_template.replace("{persona}", "<<PERSONA>>")
     result = template.format(**template_vars)
     return result.replace("<<PERSONA>>", persona_text)
-
-

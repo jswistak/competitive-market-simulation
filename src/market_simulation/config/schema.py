@@ -5,7 +5,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-
 Strategy = Literal["llm", "zi_c", "zi_u"]
 
 # --- Auction type enum ---
@@ -147,8 +146,7 @@ class AuctionPromptConfig(BaseModel):
         "Round {round}: You accepted at ${payment:.2f}.\n"
     )
     dutch_bidder_rejected_other_winner_template: str = (
-        "Round {round}: You did not accept. "
-        "Bidder {winner_id} won at ${payment:.2f}.\n"
+        "Round {round}: You did not accept. Bidder {winner_id} won at ${payment:.2f}.\n"
     )
     dutch_bidder_rejected_no_winner_template: str = (
         "Round {round}: You did not accept. No one accepted.\n"
@@ -168,8 +166,7 @@ class AuctionPromptConfig(BaseModel):
     # --- Sealed-bid per-bidder history ---
     # Format keys: round, my_bid, payment (when won).
     sealed_bidder_won_template: str = (
-        "Round {round}: You bid ${my_bid:.2f} and won. "
-        "Payment: ${payment:.2f}.\n"
+        "Round {round}: You bid ${my_bid:.2f} and won. Payment: ${payment:.2f}.\n"
     )
     sealed_bidder_lost_template: str = (
         "Round {round}: You bid ${my_bid:.2f} and lost.\n"
@@ -269,6 +266,7 @@ class AgentKeywords(BaseModel):
     preference: str
     condition: str
     profit_formula: str = ""
+    order_outcomes: str = ""
 
 
 class AgentPromptConfig(BaseModel):
@@ -343,6 +341,7 @@ class SimulationConfig(BaseModel):
         exact invariant ZI-C is supposed to preserve. Fail early at config
         load instead.
         """
+
         def _uses_zi_c(strategies) -> bool:
             if isinstance(strategies, list):
                 return "zi_c" in strategies
