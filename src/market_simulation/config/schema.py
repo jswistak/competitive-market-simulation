@@ -285,6 +285,8 @@ class AgentKeywords(BaseModel):
     verb: str
     preference: str
     condition: str
+    profit_formula: str = ""
+    order_outcomes: str = ""
 
 
 class AgentPromptConfig(BaseModel):
