@@ -77,22 +77,17 @@ def _make_prompt_config():
             announcement_history_template=(
                 "Round {round} iter {iteration}: {announcement_type} ${price:.2f} {outcome}.\n"
             ),
-            response_history_template=(
-                "Round {round} iter {iteration}: {outcome} {opposite_announcement_type} ${price:.2f}.\n"
-            ),
         ),
         buyer=AgentPromptConfig(
             main_keywords=AgentKeywords(
                 role="buyer", verb="buy", preference="lowest", condition="above"
             ),
-            response_prompt="Sell at ${price:.2f}. Buy? yes/no.",
             announcement_prompt="Announce bid price as number.",
         ),
         seller=AgentPromptConfig(
             main_keywords=AgentKeywords(
                 role="seller", verb="sell", preference="highest", condition="below"
             ),
-            response_prompt="Buy at ${price:.2f}. Sell? yes/no.",
             announcement_prompt="Announce ask price as number.",
         ),
     )

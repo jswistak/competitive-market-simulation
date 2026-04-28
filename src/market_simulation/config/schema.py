@@ -34,8 +34,6 @@ class LLMConfig(BaseModel):
     max_tokens: int = 10
     max_tokens_with_tools: int = 1024
     max_retries: int = 5
-    retry_base_delay: float = 1.0
-    retry_backoff_factor: float = 2.0
 
 
 class ToolConfig(BaseModel):
@@ -244,11 +242,6 @@ class PromptTemplates(BaseModel):
         "{announcement_type} for ${price:.2f} was rejected because it did "
         "not improve the standing book.\n"
     )
-    response_history_template: str = (
-        "In round {round} at iteration {iteration}, you {outcome} a "
-        "{opposite_announcement_type} offer for ${price:.2f}.\n"
-    )
-
     # Shared market-history entries (injected via {market_history}).
     # Used by the improvement-rule CDA path. Each renders one of the four
     # possible per-tick outcomes:
@@ -297,7 +290,6 @@ class AgentPromptConfig(BaseModel):
     """Agent-specific prompt configuration."""
 
     main_keywords: AgentKeywords
-    response_prompt: str
     announcement_prompt: str
 
 
@@ -336,7 +328,7 @@ class ZIConfig(BaseModel):
     u_high: float = 10.0
     # Probabilities used by ZI-U where a node can choose *not* to act at all.
     announce_prob: float = 0.5  # double-auction announce
-    accept_prob: float = 0.5  # double-auction respond, dutch acceptance
+    accept_prob: float = 0.5  # dutch acceptance (DA respond was removed in PR #18)
     bid_prob: float = 0.5  # english bid-or-pass
 
 

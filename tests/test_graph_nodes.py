@@ -452,7 +452,6 @@ class TestUpdateHistoryNode:
                     role="buyer", verb="buy",
                     preference="lowest", condition="above",
                 ),
-                response_prompt="",
                 announcement_prompt="Announce.",
             ),
             seller=AgentPromptConfig(
@@ -460,7 +459,6 @@ class TestUpdateHistoryNode:
                     role="seller", verb="sell",
                     preference="highest", condition="below",
                 ),
-                response_prompt="",
                 announcement_prompt="Announce.",
             ),
         )

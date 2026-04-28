@@ -1,5 +1,4 @@
 experiment:
-  auction: null
   auction_type: double_auction
   buyers:
     max: 3.25
@@ -27,11 +26,8 @@ llm:
   max_tokens_with_tools: 1024
   model: gemini-3-flash-preview
   provider: gemini
-  retry_backoff_factor: 2.0
-  retry_base_delay: 1.0
   temperature: 1.0
 prompts:
-  auction: null
   buyer:
     announcement_prompt: 'Do you want to announce a bid to buy? If so, what is your
       bid price? It must be strictly higher than the current standing bid (or be the
@@ -57,10 +53,6 @@ prompts:
       profit_formula: your reservation price and your transaction price
       role: buyer
       verb: buy
-    response_prompt: 'Someone is offering to sell at ${price:.2f}. Do you accept this
-      offer and buy at this price?
-
-      '
   general:
     announcement_history_template: 'In round {round}, your offer to {announcement_type}
       for ${price:.2f} was {outcome}.
@@ -133,10 +125,6 @@ prompts:
       best {announcement_type} but no one crossed it yet.
 
       '
-    response_history_template: 'In round {round}, you {outcome} a {opposite_announcement_type}
-      offer for ${price:.2f}.
-
-      '
   seller:
     announcement_prompt: 'Do you want to announce an offer to sell? If so, what is
       your asking price? It must be strictly lower than the current standing ask (or
@@ -161,10 +149,6 @@ prompts:
       profit_formula: your transaction price and your reservation price
       role: seller
       verb: sell
-    response_prompt: 'Someone is offering to buy at ${price:.2f}. Do you accept this
-      offer and sell at this price?
-
-      '
   tools_preamble: ''
 tools:
   enabled: false

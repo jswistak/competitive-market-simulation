@@ -85,28 +85,10 @@ def _make_state_for_history_test(
 # Under the improvement-rule CDA, responders no longer log a new action
 # on a cross — the counterparty's standing order was logged when posted,
 # so there is no per-tick responder history to render. The
-# wording-of-the-config-template concern is still covered by
-# TestConfigResponseHistoryTemplate below (which lints YAMLs directly).
-
-
-# ===========================================================================
-# Bug 2 continued: Config response_history_template
-# ===========================================================================
-
-
-class TestConfigResponseHistoryTemplate:
-    """All config files should use unambiguous response history wording."""
-
-    @pytest.mark.parametrize("config_path", SHIPPED_CONFIGS, ids=lambda p: p.name)
-    def test_response_history_template_unambiguous(self, config_path):
-        config = load_config(config_path)
-        template = config.prompts.general.response_history_template
-
-        # Should NOT use "an offer to {type}" phrasing
-        assert "an offer to" not in template, (
-            f"{config_path.name}: response_history_template still uses "
-            f"ambiguous 'an offer to' phrasing"
-        )
+# wording-of-the-config-template concern was previously covered by
+# TestConfigResponseHistoryTemplate, deleted alongside the removal of
+# PromptTemplates.response_history_template (the field had no live
+# reader after PR #18 deleted the responder loop).
 
 
 # ===========================================================================
@@ -188,7 +170,6 @@ class TestDynamicParticipantCount:
 HISTORY_TEMPLATE_FIELDS = (
     "announcement_history_template",
     "announcement_history_non_improving_template",
-    "response_history_template",
     "market_history_accepted_template",
     "market_history_posted_template",
     "market_history_non_improving_template",
@@ -238,10 +219,9 @@ class TestHistoryTemplatesReachAgents:
             "CUSTOM-ANNOUNCE-TEMPLATE buy 1.73 accepted" in node_buyer["own_history_prompt"]
         )
 
-    # The response_history_template is unused on the CDA path after the
-    # improvement-rule migration — responders on a cross don't log a
-    # separate action. The template field is still validated by
-    # TestConfigResponseHistoryTemplate at the YAML level.
+    # response_history_template was removed from PromptTemplates after
+    # PR #18 deleted the responder loop. No CDA path reads it, so the
+    # corresponding test was deleted alongside the field.
 
     def test_market_history_accepted_template_from_config_is_used(self, base_market_state):
         sentinel = "MKT-ACCEPTED {announcement_type} {price:.2f}\n"
@@ -316,9 +296,6 @@ class TestHistoryTemplatesReachAgents:
         round_free = PromptTemplates(
             announcement_history_template=(
                 "Your offer to {announcement_type} for ${price:.2f} was {outcome}.\n"
-            ),
-            response_history_template=(
-                "You {outcome} a {opposite_announcement_type} offer for ${price:.2f}.\n"
             ),
             market_history_accepted_template=(
                 "Announcement to {announcement_type} for ${price:.2f} was accepted.\n"
