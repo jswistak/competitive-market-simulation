@@ -439,7 +439,7 @@ class TestUpdateHistoryNode:
         """
         prompts = PromptConfig(
             general=PromptTemplates(
-                main_template=(
+                user_template=(
                     "Reservation: {reservation_price}. "
                     "Rounds: {N_ROUNDS}. Iters: {N_ITER}. "
                     "Buyers: {N_BUYERS}. Sellers: {N_SELLERS}. "
@@ -513,7 +513,7 @@ class TestUpdateHistoryNode:
         state = {**state, **out, "agents": out["agents"]}
 
         # Render the prompt for an agent on the next tick.
-        rendered = _render_announcement_prompt(
+        _, rendered = _render_announcement_prompt(
             agent=state["agents"][0],
             state=state,
             prompts=prompts,
@@ -536,7 +536,7 @@ class TestUpdateHistoryNode:
         # *reason* in their own_history when their prompt is rendered —
         # the symmetric counterpart to the market_history broadcast.
         seller_3 = next(a for a in state["agents"] if a["id"] == 3)
-        rendered_seller = _render_announcement_prompt(
+        _, rendered_seller = _render_announcement_prompt(
             agent=seller_3,
             state=state,
             prompts=prompts,

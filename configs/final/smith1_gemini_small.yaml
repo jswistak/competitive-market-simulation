@@ -61,7 +61,7 @@ prompts:
       the standing book.
 
       '
-    main_template: 'You are a {role} participating in a market for a good you need
+    system_template: 'You are a {role} participating in a market for a good you need
       to {verb}. Your task is to {verb} a unit of the good at the {preference} possible
       price but not {condition} your reservation price.
 
@@ -92,7 +92,8 @@ prompts:
       unit of the good and are able to transact irrespective of whether you transacted
       in the previous round. You can only make one transaction per round.
 
-      Market history:
+      '
+    user_template: 'Market history:
 
       {market_history}
 
@@ -108,7 +109,7 @@ prompts:
 
       Current standing ask: {standing_ask}
 
-      
+
       Your reservation price is ${reservation_price:.2f}.
       Under no condition can you {verb} {condition} your reservation price.
 

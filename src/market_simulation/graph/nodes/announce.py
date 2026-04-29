@@ -123,15 +123,15 @@ def make_announce_node(
                     logger.error(f"No prompts configured for {agent_type}")
                     return {"announcement_made": False, "announced_price": None}
 
-                prompt = _render_announcement_prompt(
+                system_prompt, user_prompt = _render_announcement_prompt(
                     agent=agent,
                     state=state,
                     prompts=prompts,
                     agent_prompts=agent_prompts,
                 )
                 logger.debug(
-                    f"Announcement prompt for agent {agent_id} (truncated): "
-                    f"'{prompt[:200]}...'"
+                    f"Announcement prompt for agent {agent_id} (user, truncated): "
+                    f"'{user_prompt[:200]}...'"
                 )
 
                 callbacks = config.get("callbacks", []) if config else []
@@ -148,10 +148,11 @@ def make_announce_node(
                     "strategy": strategy,
                 }
                 response = llm.invoke_structured(
-                    prompt,
+                    user_prompt,
                     response_schema,
                     callbacks=callbacks,
                     metadata=call_metadata,
+                    system=system_prompt,
                 )
             else:
                 response = zi_decisions.decide_announce(
@@ -253,13 +254,40 @@ def make_announce_node(
     return announce
 
 
+def _render_template(template: str, template_vars: dict, persona_text: str) -> str:
+    """Render a prompt template with persona-sentinel handling.
+
+    Persona text may contain literal curly braces (e.g. ``"You think
+    in {key:value} pairs"``) which would break ``str.format()``. We
+    swap ``{persona}`` for a sentinel before formatting and restore
+    the persona text afterwards.
+    """
+    sentinel_template = template.replace("{persona}", "<<PERSONA>>")
+    result = sentinel_template.format(**template_vars)
+    return result.replace("<<PERSONA>>", persona_text)
+
+
 def _render_announcement_prompt(
     agent: dict,
     state: MarketState,
     prompts: PromptConfig,
     agent_prompts,
-) -> str:
-    """Render the announcement prompt for an agent."""
+) -> tuple[str | None, str]:
+    """Render the announcement prompt(s) for an agent.
+
+    Returns ``(system, user)``. The system prompt carries per-agent
+    constants (role, profit formula, market rules); the user prompt
+    carries the per-tick state (standing book, market history, own
+    history, action prompt). The two are sent to the LLM as a
+    SystemMessage + HumanMessage pair, which lets prompt caches
+    (Anthropic, Gemini) reuse the system prefix across ticks.
+
+    A config with an empty ``system_template`` still works — the
+    provider sees an empty system string, treats it as "no system
+    message", and sends only the HumanMessage. So tests and
+    minimal-config setups that only populate ``user_template`` are
+    fine.
+    """
     keywords = agent_prompts.main_keywords
 
     # Render the standing book as human-readable strings so prompt
@@ -293,16 +321,17 @@ def _render_announcement_prompt(
         "round": state["round"],
         "iteration": state["iteration"],
         "action_prompt": agent_prompts.announcement_prompt,
-        "persona": agent.get("persona", ""),
         "tools_preamble": prompts.tools_preamble,
         # Improvement-rule CDA: the standing book is authoritative
         # market state the agent needs to see.
         "standing_bid": standing_bid_str,
         "standing_ask": standing_ask_str,
     }
-
-    # Use sentinel replacement for persona to avoid str.format() issues with curly braces
-    persona_text = template_vars.pop("persona")
-    template = prompts.general.main_template.replace("{persona}", "<<PERSONA>>")
-    result = template.format(**template_vars)
-    return result.replace("<<PERSONA>>", persona_text)
+    persona_text = agent.get("persona", "")
+    system_str = _render_template(
+        prompts.general.system_template, template_vars, persona_text,
+    )
+    user_str = _render_template(
+        prompts.general.user_template, template_vars, persona_text,
+    )
+    return system_str, user_str

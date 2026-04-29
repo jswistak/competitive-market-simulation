@@ -73,7 +73,7 @@ MAIN_TEMPLATE = (
 def _make_prompt_config():
     return PromptConfig(
         general=PromptTemplates(
-            main_template=MAIN_TEMPLATE,
+            user_template=MAIN_TEMPLATE,
             announcement_history_template=(
                 "Round {round} iter {iteration}: {announcement_type} ${price:.2f} {outcome}.\n"
             ),
@@ -287,7 +287,7 @@ class TestPersonaPlusHistorySummary:
             market_history_text="Round 1: trade at $1.50",
         )
         prompts = _make_prompt_config()
-        result = _render_announcement_prompt(agents[0], state, prompts, prompts.buyer)
+        _, result = _render_announcement_prompt(agents[0], state, prompts, prompts.buyer)
         assert "aggressive" in result
         assert "Round 1: trade at $1.50" in result
 
@@ -310,7 +310,7 @@ class TestPersonaPlusHistorySummary:
             iteration_records=records,
         )
         prompts = _make_prompt_config()
-        result = _render_announcement_prompt(agents[0], state, prompts, prompts.buyer)
+        _, result = _render_announcement_prompt(agents[0], state, prompts, prompts.buyer)
         assert "aggressive" in result
         # Summary mode should include statistics, not raw text
         assert "Completed transactions: 1" in result

@@ -202,10 +202,16 @@ def run(
         cfg.personas.bidder_default or cfg.personas.bidders
     )
     if has_da_personas and not is_auction:
-        if "{persona}" not in cfg.prompts.general.main_template:
+        templates = (
+            cfg.prompts.general.system_template
+            + "\n"
+            + cfg.prompts.general.user_template
+        )
+        if "{persona}" not in templates:
             logger.warning(
-                "Personas configured but {persona} placeholder missing from main_template. "
-                "Persona text will not appear in prompts."
+                "Personas configured but {persona} placeholder missing from both "
+                "system_template and user_template. Persona text will not appear "
+                "in prompts."
             )
     if has_auction_personas and is_auction and cfg.prompts.auction:
         if "{persona}" not in cfg.prompts.auction.system_template:
