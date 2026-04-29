@@ -251,13 +251,12 @@ class PromptTemplates(_StrictModel):
       book, market history, own history, round counter, action
       prompt). It changes every tick.
 
-    ``main_template`` is the legacy single-string format. If
-    ``system_template`` is empty, the renderer falls back to
-    ``main_template`` and sends one ``HumanMessage`` (today's
-    behaviour). This will be removed once all configs migrate.
+    Either or both may be empty; an empty ``system_template`` simply
+    means no SystemMessage is sent (the LLM call uses only the user
+    HumanMessage). Tests and minimal configs typically only populate
+    ``user_template``.
     """
 
-    main_template: str = ""
     system_template: str = ""
     user_template: str = ""
 

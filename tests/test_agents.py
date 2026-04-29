@@ -174,12 +174,12 @@ class TestPersonaInRenderedPrompts:
         """Persona text assigned to an agent should appear in the rendered announcement prompt."""
         from market_simulation.graph.nodes.announce import _render_announcement_prompt
 
-        # Patch the main_template to include {persona} placeholder
-        persona_template = prompt_config.general.main_template.replace(
+        # Patch the user_template to include {persona} placeholder
+        persona_template = prompt_config.general.user_template.replace(
             "{action_prompt}",
             "{persona} {action_prompt}",
         )
-        prompt_config.general.main_template = persona_template
+        prompt_config.general.user_template = persona_template
 
         # Set a distinctive persona on the buyer agent
         persona_text = "You are an aggressive buyer who always pushes for the lowest price."
@@ -199,12 +199,12 @@ class TestPersonaInRenderedPrompts:
         """An agent with empty persona should not leave sentinel markers in the rendered prompt."""
         from market_simulation.graph.nodes.announce import _render_announcement_prompt
 
-        # Patch the main_template to include {persona} placeholder
-        persona_template = prompt_config.general.main_template.replace(
+        # Patch the user_template to include {persona} placeholder
+        persona_template = prompt_config.general.user_template.replace(
             "{action_prompt}",
             "{persona} {action_prompt}",
         )
-        prompt_config.general.main_template = persona_template
+        prompt_config.general.user_template = persona_template
 
         agent = base_market_state["agents"][0]
         agent["persona"] = ""
@@ -223,12 +223,12 @@ class TestPersonaInRenderedPrompts:
         """Persona text containing curly braces should survive rendering intact."""
         from market_simulation.graph.nodes.announce import _render_announcement_prompt
 
-        # Patch the main_template to include {persona} placeholder
-        persona_template = prompt_config.general.main_template.replace(
+        # Patch the user_template to include {persona} placeholder
+        persona_template = prompt_config.general.user_template.replace(
             "{action_prompt}",
             "{persona} {action_prompt}",
         )
-        prompt_config.general.main_template = persona_template
+        prompt_config.general.user_template = persona_template
 
         # Curly braces in persona text would break naive str.format()
         persona_text = "You must follow this rule: {always negotiate} and {never give up}."

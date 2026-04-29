@@ -73,7 +73,7 @@ MAIN_TEMPLATE = (
 def _make_prompt_config():
     return PromptConfig(
         general=PromptTemplates(
-            main_template=MAIN_TEMPLATE,
+            user_template=MAIN_TEMPLATE,
             announcement_history_template=(
                 "Round {round} iter {iteration}: {announcement_type} ${price:.2f} {outcome}.\n"
             ),

@@ -275,19 +275,18 @@ def _render_announcement_prompt(
 ) -> tuple[str | None, str]:
     """Render the announcement prompt(s) for an agent.
 
-    Returns ``(system, user)``:
+    Returns ``(system, user)``. The system prompt carries per-agent
+    constants (role, profit formula, market rules); the user prompt
+    carries the per-tick state (standing book, market history, own
+    history, action prompt). The two are sent to the LLM as a
+    SystemMessage + HumanMessage pair, which lets prompt caches
+    (Anthropic, Gemini) reuse the system prefix across ticks.
 
-    * If ``prompts.general.system_template`` is non-empty, both
-      templates are rendered separately. The system prompt carries
-      per-agent constants (role, profit formula, market rules,
-      reservation price, persona); the user prompt carries the
-      per-tick state (standing book, market history, own history,
-      action prompt). The two are sent to the LLM as a SystemMessage +
-      HumanMessage pair, which lets prompt caches (Anthropic, Gemini)
-      reuse the system prefix across ticks.
-    * Otherwise, the legacy ``main_template`` is rendered as a single
-      HumanMessage and ``system`` is ``None`` — preserves pre-split
-      behaviour for any config that hasn't migrated yet.
+    A config with an empty ``system_template`` still works — the
+    provider sees an empty system string, treats it as "no system
+    message", and sends only the HumanMessage. So tests and
+    minimal-config setups that only populate ``user_template`` are
+    fine.
     """
     keywords = agent_prompts.main_keywords
 
@@ -329,20 +328,10 @@ def _render_announcement_prompt(
         "standing_ask": standing_ask_str,
     }
     persona_text = agent.get("persona", "")
-
-    if prompts.general.system_template:
-        # New split path: two templates, two messages.
-        system_str = _render_template(
-            prompts.general.system_template, template_vars, persona_text,
-        )
-        user_str = _render_template(
-            prompts.general.user_template, template_vars, persona_text,
-        )
-        return system_str, user_str
-
-    # Legacy single-template path. Returned as (None, user) so callers
-    # can uniformly send a HumanMessage and skip the SystemMessage.
-    user_str = _render_template(
-        prompts.general.main_template, template_vars, persona_text,
+    system_str = _render_template(
+        prompts.general.system_template, template_vars, persona_text,
     )
-    return None, user_str
+    user_str = _render_template(
+        prompts.general.user_template, template_vars, persona_text,
+    )
+    return system_str, user_str

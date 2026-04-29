@@ -439,7 +439,7 @@ class TestUpdateHistoryNode:
         """
         prompts = PromptConfig(
             general=PromptTemplates(
-                main_template=(
+                user_template=(
                     "Reservation: {reservation_price}. "
                     "Rounds: {N_ROUNDS}. Iters: {N_ITER}. "
                     "Buyers: {N_BUYERS}. Sellers: {N_SELLERS}. "
