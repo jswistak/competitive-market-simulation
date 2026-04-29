@@ -10,7 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from langchain_core.callbacks import BaseCallbackHandler
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_core.outputs import LLMResult
 
 logger = logging.getLogger(__name__)
@@ -50,11 +50,32 @@ class LLMCallLogger(BaseCallbackHandler):
         metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
-        parts = []
+        # Walk the messages list and split System / Human content into
+        # separate buckets so the JSONL row can record them as distinct
+        # fields. This is how the system+user prompt split surfaces in
+        # offline analysis: ``system_prompt`` carries the per-agent
+        # constants, ``user_prompt`` carries the per-tick state, and
+        # ``prompt`` is kept as the concatenation for back-compat with
+        # any existing notebook that joined on the single field.
+        system_parts: list[str] = []
+        user_parts: list[str] = []
+        all_parts: list[str] = []
         for batch in messages:
             for msg in batch:
-                parts.append(msg.content if isinstance(msg.content, str) else str(msg.content))
-        prompt_text = "\n".join(parts)
+                content = msg.content if isinstance(msg.content, str) else str(msg.content)
+                all_parts.append(content)
+                if isinstance(msg, SystemMessage):
+                    system_parts.append(content)
+                elif isinstance(msg, HumanMessage):
+                    user_parts.append(content)
+                # ToolMessage / AIMessage from tool-calling loops fall
+                # through into ``prompt`` but not into either named
+                # bucket; the loop's internal back-and-forth is not
+                # part of the per-tick prompt design.
+
+        system_prompt = "\n".join(system_parts) if system_parts else ""
+        user_prompt = "\n".join(user_parts) if user_parts else ""
+        prompt_text = "\n".join(all_parts)
 
         model_class = serialized.get("id", ["unknown"])[-1] if serialized.get("id") else "unknown"
 
@@ -63,6 +84,8 @@ class LLMCallLogger(BaseCallbackHandler):
                 "start_ts": time.perf_counter(),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "prompt": prompt_text,
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
                 "model_class": model_class,
                 "parent_run_id": str(parent_run_id) if parent_run_id else None,
                 "metadata": dict(metadata) if metadata else {},
@@ -133,6 +156,8 @@ class LLMCallLogger(BaseCallbackHandler):
             "model_name": model_name,
             "model_class": pending["model_class"],
             "prompt": pending["prompt"],
+            "system_prompt": pending.get("system_prompt", ""),
+            "user_prompt": pending.get("user_prompt", ""),
             "response": response_text,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
@@ -169,6 +194,8 @@ class LLMCallLogger(BaseCallbackHandler):
             "model_name": None,
             "model_class": pending["model_class"],
             "prompt": pending["prompt"],
+            "system_prompt": pending.get("system_prompt", ""),
+            "user_prompt": pending.get("user_prompt", ""),
             "response": None,
             "input_tokens": None,
             "output_tokens": None,
