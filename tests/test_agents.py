@@ -186,7 +186,7 @@ class TestPersonaInRenderedPrompts:
         agent = base_market_state["agents"][0]  # buyer, id=0
         agent["persona"] = persona_text
 
-        rendered = _render_announcement_prompt(
+        _, rendered = _render_announcement_prompt(
             agent=agent,
             state=base_market_state,
             prompts=prompt_config,
@@ -209,7 +209,7 @@ class TestPersonaInRenderedPrompts:
         agent = base_market_state["agents"][0]
         agent["persona"] = ""
 
-        rendered = _render_announcement_prompt(
+        _, rendered = _render_announcement_prompt(
             agent=agent,
             state=base_market_state,
             prompts=prompt_config,
@@ -235,7 +235,7 @@ class TestPersonaInRenderedPrompts:
         agent = base_market_state["agents"][0]
         agent["persona"] = persona_text
 
-        rendered = _render_announcement_prompt(
+        _, rendered = _render_announcement_prompt(
             agent=agent,
             state=base_market_state,
             prompts=prompt_config,

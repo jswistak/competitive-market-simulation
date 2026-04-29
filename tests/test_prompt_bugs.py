@@ -155,7 +155,7 @@ class TestDynamicParticipantCount:
         )
 
         agent = base_market_state["agents"][0]  # buyer
-        prompt = _render_announcement_prompt(
+        _, prompt = _render_announcement_prompt(
             agent=agent,
             state=base_market_state,
             prompts=prompt_config_with_counts,
@@ -444,7 +444,7 @@ class TestToolsPreambleWiring:
         )
 
         agent = base_market_state["agents"][0]
-        prompt = _render_announcement_prompt(
+        _, prompt = _render_announcement_prompt(
             agent=agent,
             state=base_market_state,
             prompts=prompt_config_with_preamble,
@@ -477,7 +477,7 @@ class TestToolsPreambleWiring:
         )
 
         agent = base_market_state["agents"][0]
-        prompt = _render_announcement_prompt(
+        _, prompt = _render_announcement_prompt(
             agent=agent,
             state=base_market_state,
             prompts=prompt_config_no_preamble,

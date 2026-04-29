@@ -287,7 +287,7 @@ class TestPersonaPlusHistorySummary:
             market_history_text="Round 1: trade at $1.50",
         )
         prompts = _make_prompt_config()
-        result = _render_announcement_prompt(agents[0], state, prompts, prompts.buyer)
+        _, result = _render_announcement_prompt(agents[0], state, prompts, prompts.buyer)
         assert "aggressive" in result
         assert "Round 1: trade at $1.50" in result
 
@@ -310,7 +310,7 @@ class TestPersonaPlusHistorySummary:
             iteration_records=records,
         )
         prompts = _make_prompt_config()
-        result = _render_announcement_prompt(agents[0], state, prompts, prompts.buyer)
+        _, result = _render_announcement_prompt(agents[0], state, prompts, prompts.buyer)
         assert "aggressive" in result
         # Summary mode should include statistics, not raw text
         assert "Completed transactions: 1" in result
