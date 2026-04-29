@@ -5,7 +5,6 @@ from typing import Any
 from pydantic import BaseModel as PydanticBaseModel
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from .base import LLMProvider
@@ -38,6 +37,7 @@ class GeminiProvider(LLMProvider):
         schema: type[PydanticBaseModel],
         callbacks: list[Any] | None = None,
         metadata: dict[str, Any] | None = None,
+        system: str | None = None,
     ) -> PydanticBaseModel:
         """Invoke Gemini with structured output using native JSON schema.
 
@@ -50,7 +50,7 @@ class GeminiProvider(LLMProvider):
         """
         model = self.get_model()
         structured_model = model.with_structured_output(schema, method="json_schema")
-        message = HumanMessage(content=prompt)
+        messages = self._build_messages(prompt, system)
 
         config: dict[str, Any] = {}
         if callbacks:
@@ -58,4 +58,4 @@ class GeminiProvider(LLMProvider):
         if metadata:
             config["metadata"] = metadata
 
-        return structured_model.invoke([message], config=config)
+        return structured_model.invoke(messages, config=config)
