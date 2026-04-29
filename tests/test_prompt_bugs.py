@@ -369,6 +369,15 @@ class TestAllConfigsHaveHistoryTemplates:
             pytest.skip("Pure ZI configs don't render prompts")
 
         value = getattr(config.prompts.general, field)
+
+        # market_history_no_announcement_template is allowed to be empty
+        # by design: when an agent passes, the surrounding lines (which
+        # carry their own iteration numbers) let the LLM infer the gap,
+        # and the empty template materially reduces token cost on long
+        # rounds where many ticks are pass-throughs.
+        if field == "market_history_no_announcement_template":
+            return
+
         assert value and value.strip(), (
             f"{config_path.name}: {field} is empty — would silently drop history entries"
         )

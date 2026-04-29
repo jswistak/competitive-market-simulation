@@ -33,8 +33,6 @@ prompts:
       bid price? It must be strictly higher than the current standing bid (or be the
       first bid if none exists) and no higher than your reservation price.
 
-      If no price satisfies both constraints, you must decline to bid.
-
       '
     main_keywords:
       condition: above
@@ -121,10 +119,7 @@ prompts:
       an announcement to {announcement_type} for ${price:.2f} was accepted.
 
       '
-    market_history_no_announcement_template: 'In round {round} at iteration {iteration},
-      no announcement was made.
-
-      '
+    market_history_no_announcement_template: ''
     market_history_posted_template: 'In round {round} at iteration {iteration},
       an announcement to {announcement_type} for ${price:.2f} was posted as the new
       best {announcement_type} but no one crossed it yet.
@@ -134,8 +129,6 @@ prompts:
     announcement_prompt: 'Do you want to announce an offer to sell? If so, what is
       your asking price? It must be strictly lower than the current standing ask (or
       be the first ask if none exists) and no lower than your reservation price.
-
-      If no price satisfies both constraints, you must decline to offer.
 
       '
     main_keywords:
