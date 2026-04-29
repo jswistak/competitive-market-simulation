@@ -237,9 +237,29 @@ class TracingConfig(_StrictModel):
 
 
 class PromptTemplates(_StrictModel):
-    """Prompt templates for agent communication."""
+    """Prompt templates for agent communication.
+
+    The announcement prompt is split across two messages sent to the
+    LLM:
+
+    * ``system_template`` carries the per-agent constants (role, profit
+      formula, market rules, reservation price, persona, market size).
+      It is identical for the same agent across every tick of the
+      simulation, which makes it cacheable by Anthropic / Gemini
+      prompt caches.
+    * ``user_template`` carries the per-tick state (current standing
+      book, market history, own history, round counter, action
+      prompt). It changes every tick.
+
+    ``main_template`` is the legacy single-string format. If
+    ``system_template`` is empty, the renderer falls back to
+    ``main_template`` and sends one ``HumanMessage`` (today's
+    behaviour). This will be removed once all configs migrate.
+    """
 
     main_template: str = ""
+    system_template: str = ""
+    user_template: str = ""
 
     # Per-agent "own history" entries (injected via {own_history}).
     # The generic announcement_history_template is used for traded
