@@ -107,9 +107,11 @@ class TestDynamicParticipantCount:
     def test_main_template_uses_dynamic_participant_count(self, config_path):
         config = load_config(config_path)
 
-        # Auction configs use prompts.auction.system_template instead of main_template
+        # Auction configs use prompts.auction.system_template (a
+        # different field on AuctionPromptConfig) instead of the
+        # double-auction templates.
         if config.experiment.auction_type.value != "double_auction":
-            pytest.skip("Auction configs use system_template, not main_template")
+            pytest.skip("Auction configs use a different prompt pipeline")
 
         # Zero-intelligence configs don't render prompts at all.
         def _only_zi(strategies):
@@ -122,16 +124,29 @@ class TestDynamicParticipantCount:
         ):
             pytest.skip("Pure ZI configs don't render prompts")
 
-        template = config.prompts.general.main_template
+        # Either main_template (legacy single-string) OR
+        # system_template + user_template (new split) is in use. We
+        # accept whichever is non-empty and lint that participant count
+        # placeholders are used somewhere in the rendered prompt.
+        general = config.prompts.general
+        if general.main_template:
+            templates = {"main_template": general.main_template}
+        else:
+            templates = {
+                "system_template": general.system_template,
+                "user_template": general.user_template,
+            }
 
-        assert "{N_BUYERS}" in template, (
-            f"{config_path.name}: main_template has hardcoded buyer count "
-            f"instead of {{N_BUYERS}}"
-        )
-        assert "{N_SELLERS}" in template, (
-            f"{config_path.name}: main_template has hardcoded seller count "
-            f"instead of {{N_SELLERS}}"
-        )
+        # Concatenate all in-use templates — the placeholders only need
+        # to appear *once* across the rendered prompt, not in every
+        # template, since a system+user split keeps {N_BUYERS} in the
+        # system half and the user half doesn't need it again.
+        joined = "\n".join(templates.values())
+        for ph in ("{N_BUYERS}", "{N_SELLERS}"):
+            assert ph in joined, (
+                f"{config_path.name}: no template contains {ph}; "
+                f"rendered prompt would have hardcoded participant counts"
+            )
 
     def test_rendered_prompt_has_correct_participant_count(
         self, base_market_state, prompt_config
