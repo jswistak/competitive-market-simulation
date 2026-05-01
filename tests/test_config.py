@@ -53,7 +53,7 @@ class TestSchemaDefaults:
         """ToolConfig should be disabled by default."""
         cfg = ToolConfig()
         assert cfg.enabled is False
-        assert cfg.enable_simple_tools is True
+        assert cfg.enable_simple_tools is False
         assert cfg.enable_code_interpreter is False
 
     def test_tracing_config_defaults(self):
