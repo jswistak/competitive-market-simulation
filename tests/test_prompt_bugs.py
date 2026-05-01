@@ -48,6 +48,26 @@ def _make_state_for_history_test(
     """Create a MarketState dict for testing _update_agent_histories."""
     if potential_responder_ids is None:
         potential_responder_ids = [responding_id]
+    # When the test simulates a trade, mirror what apply_order would
+    # have appended: a transaction at the announced price (this helper
+    # has no separate notion of standing prices, so trade_price ==
+    # announced_price keeps fixtures simple while still hitting the
+    # production code path that reads transactions[-1]["price"]).
+    transactions = (
+        [{
+            "round": 1, "iteration": 5,
+            "price": announced_price,
+            "buyer_id": (
+                announcing_id if announcement_type == "buy" else responding_id
+            ),
+            "seller_id": (
+                responding_id if announcement_type == "buy" else announcing_id
+            ),
+            "announcement_type": announcement_type,
+        }]
+        if transaction_made
+        else []
+    )
     return {
         "round": 1,
         "iteration": 5,
@@ -64,7 +84,7 @@ def _make_state_for_history_test(
         "counterparty_agent_id": responding_id,
         "market_history_text": "",
         "iteration_records": [],
-        "transactions": [],
+        "transactions": transactions,
         "announcement_made": True,
         "transaction_made": transaction_made,
         "iteration_complete": False,
@@ -246,6 +266,10 @@ class TestHistoryTemplatesReachAgents:
             "counterparty_agent_id": 0,
             "current_responder_index": 1,
             "potential_responder_ids": [0],
+            "transactions": [
+                {"round": 1, "iteration": 1, "price": 2.25,
+                 "buyer_id": 0, "seller_id": 3, "announcement_type": "sell"},
+            ],
         }
         result = make_update_history_node(prompts)(state)
 
@@ -326,6 +350,11 @@ class TestHistoryTemplatesReachAgents:
             "counterparty_agent_id": 3,
             "current_responder_index": 1,
             "potential_responder_ids": [3],
+            "transactions": [
+                {"round": 1, "iteration": 1, "price": 1.50,
+                 "buyer_id": buyer["id"], "seller_id": 3,
+                 "announcement_type": "buy"},
+            ],
         }
         result = node(state)
 

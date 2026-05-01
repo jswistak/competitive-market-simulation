@@ -100,6 +100,10 @@ class TestStructuredOutputReasoning:
         state["current_responder_index"] = 1
         state["last_announcement_reasoning"] = "I bid low because market is quiet"
         state["last_counterparty_reasoning"] = "Price is above my reservation so I accept"
+        state["transactions"] = [
+            {"round": 1, "iteration": 1, "price": 1.75,
+             "buyer_id": 0, "seller_id": 3, "announcement_type": "buy"},
+        ]
 
         node = make_update_history_node()
         result = node(state)
