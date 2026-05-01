@@ -143,20 +143,25 @@ def _update_agent_histories(
 
     In the CDA path there is no explicit "responder" action — the
     counterparty on a cross just has their standing order executed, so
-    they don't make a new decision. We therefore only log the announcer's
-    action here; the counterparty's original posting was logged on an
-    earlier tick.
-
-    The announcer's history captures three distinct outcomes the agent
-    can experience for an emitted price (``state.last_order_outcome``):
+    they don't make a new decision. The *announcer* gets a row labelled
+    by ``state.last_order_outcome``:
       * ``traded``        → ``"accepted"`` (a cross executed)
       * ``posted``        → ``"posted"`` (improving order entered the book)
       * ``non_improving`` → ``"rejected"`` (mechanism dropped the order)
-    Previously a posted-but-not-yet-traded order was also labelled
-    ``"rejected"``, conflating it with non-improving drops. The richer
-    label lets an LLM tell the difference between "my order is on the
-    book waiting for a counterparty" and "my order was dropped, try
-    something different next time."
+
+    On top of that, the resting-order owner whose order was just
+    affected gets a back-annotation row:
+      * ``traded``  → counterparty (whose standing order was crossed)
+                      gains a ``"filled"`` entry.
+      * ``posted``  → the displaced prior owner (if a different agent's
+                      standing order was just replaced on the same side)
+                      gains an ``"outbid"`` entry. Without this, the
+                      agent permanently sees only their original
+                      "posted" line and cannot tell whether their
+                      earlier order traded or was outbid.
+    Round-end "expired" annotations are written by ``next_round`` —
+    they depend on the standing book at round close, not on a tick's
+    apply_order outcome.
     """
     if templates is None:
         templates = PromptTemplates()
@@ -180,6 +185,31 @@ def _update_agent_histories(
     if outcome not in _OUTCOME_LABELS:
         raise ValueError(f"unknown order_outcome {outcome!r}")
     label = _OUTCOME_LABELS[outcome]
+
+    # Resolve the back-annotation target (if any) up front so the
+    # per-agent loop stays a single pass.
+    backann_owner_id: int | None = None
+    backann_kind: str | None = None       # "filled" | "outbid"
+    backann_price: float | None = None
+    backann_side: str | None = None       # "buy" | "sell"
+
+    if outcome == "traded":
+        # The counterparty's resting order was just crossed. Trade
+        # executes at the standing (i.e. counterparty's) price; the
+        # side they were on is the opposite of the announcer's.
+        backann_owner_id = state.get("counterparty_agent_id")
+        if backann_owner_id is not None:
+            backann_kind = "filled"
+            backann_price = state["announced_price"]  # equals trade price
+            ann_type = state.get("announcement_type")
+            backann_side = "sell" if ann_type == "buy" else "buy"
+    elif outcome == "posted":
+        prior_owner = state.get("replaced_standing_owner_id")
+        if prior_owner is not None and prior_owner != announcer_id:
+            backann_owner_id = prior_owner
+            backann_kind = "outbid"
+            backann_price = state.get("replaced_standing_price")
+            backann_side = state.get("replaced_standing_side")
 
     updated = []
     for agent in agents:
@@ -215,6 +245,37 @@ def _update_agent_histories(
                     outcome=label,
                 )
             agent_copy["own_history_prompt"] = agent["own_history_prompt"] + entry
+
+        # Back-annotation: the resting-order owner whose order was just
+        # filled or replaced. Same agent can be the announcer (e.g. a
+        # buyer crossing) and the back-annotation target (e.g. an
+        # earlier seller posting), but only across distinct ticks —
+        # within one tick the two roles are always different agents,
+        # so this is an `elif` against the announcer branch.
+        if backann_owner_id is not None and agent["id"] == backann_owner_id:
+            backann_entry = {
+                "round": state["round"],
+                "iteration": state["iteration"],
+                "action": "order_update",
+                "price": backann_price,
+                "outcome": backann_kind,
+            }
+            agent_copy["own_history_data"] = (
+                agent_copy["own_history_data"] + [backann_entry]
+            )
+            if backann_kind == "filled":
+                tmpl = templates.announcement_history_filled_template
+            else:
+                tmpl = templates.announcement_history_outbid_template
+            entry = tmpl.format(
+                round=state["round"],
+                iteration=state["iteration"],
+                announcement_type=backann_side,
+                price=backann_price,
+            )
+            agent_copy["own_history_prompt"] = (
+                agent_copy["own_history_prompt"] + entry
+            )
 
         updated.append(agent_copy)
 
@@ -353,22 +414,90 @@ def make_next_iteration_node() -> Callable[[MarketState], dict]:
             "last_announcement_reasoning": "",
             "last_counterparty_reasoning": "",
             "last_order_outcome": None,
+            "replaced_standing_owner_id": None,
+            "replaced_standing_price": None,
+            "replaced_standing_side": None,
         }
 
     return next_iteration
 
 
-def make_next_round_node() -> Callable[[MarketState], dict]:
-    """Advance to the next round (or end the simulation)."""
+def make_next_round_node(
+    prompts: PromptConfig | None = None,
+) -> Callable[[MarketState], dict]:
+    """Advance to the next round (or end the simulation).
+
+    Before clearing the order book, any agent who still owns a standing
+    bid or ask gets a back-annotation row in their own_history saying
+    the order expired uncrossed at round close. Without this, an agent
+    sees only their original "posted" line and never learns whether the
+    order eventually traded.
+    """
+
+    templates = _get_templates(prompts)
+
+    def _annotate_expired(
+        agent: dict, side: str, price: float, round_num: int, iteration: int
+    ) -> dict:
+        entry = {
+            "round": round_num,
+            "iteration": iteration,
+            "action": "order_update",
+            "price": price,
+            "outcome": "expired",
+        }
+        prompt_line = templates.announcement_history_expired_template.format(
+            round=round_num,
+            announcement_type=side,
+            price=price,
+        )
+        return {
+            **agent,
+            "own_history_data": agent["own_history_data"] + [entry],
+            "own_history_prompt": agent["own_history_prompt"] + prompt_line,
+        }
 
     def next_round(state: MarketState) -> dict:
         new_round = state["round"] + 1
         max_rounds = state["max_rounds"]
 
+        # Standing-order expiry: surface to the resting owners before
+        # the book clears. Done for both branches (mid-simulation and
+        # final-round) so the last-round agent still learns the fate of
+        # their unfilled orders even though no new round will follow.
+        round_num = state["round"]
+        expired_owners: dict[int, list[tuple[str, float]]] = {}
+        sb_owner = state.get("standing_bid_agent_id")
+        if sb_owner is not None and state.get("standing_bid") is not None:
+            expired_owners.setdefault(sb_owner, []).append(
+                ("buy", state["standing_bid"])
+            )
+        sa_owner = state.get("standing_ask_agent_id")
+        if sa_owner is not None and state.get("standing_ask") is not None:
+            expired_owners.setdefault(sa_owner, []).append(
+                ("sell", state["standing_ask"])
+            )
+
+        last_iter = state["iteration"]
+        annotated_agents = []
+        for agent in state["agents"]:
+            if agent["id"] in expired_owners:
+                ann = agent
+                for side, price in expired_owners[agent["id"]]:
+                    ann = _annotate_expired(ann, side, price, round_num, last_iter)
+                annotated_agents.append(ann)
+            else:
+                annotated_agents.append(agent)
+
         if new_round > max_rounds:
             tx_count = len(state.get("transactions", []))
             logger.info(f"Simulation complete: all {max_rounds} rounds finished ({tx_count} total transactions)")
-            return {"simulation_complete": True}
+            result: dict = {"simulation_complete": True}
+            if expired_owners:
+                # Persist the round-end annotations into agent state
+                # before the simulation terminates.
+                result["agents"] = annotated_agents
+            return result
 
         tx_in_round = sum(
             1 for t in state.get("transactions", []) if t["round"] == state["round"]
@@ -380,7 +509,7 @@ def make_next_round_node() -> Callable[[MarketState], dict]:
 
         updated_agents = []
         all_agent_ids = []
-        for agent in state["agents"]:
+        for agent in annotated_agents:
             updated_agents.append({**agent, "active": True})
             all_agent_ids.append(agent["id"])
 

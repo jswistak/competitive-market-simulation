@@ -84,7 +84,7 @@ def build_market_graph(
     builder.add_node("update_history", make_update_history_node(prompts))
     builder.add_node("check_round", make_check_round_node())
     builder.add_node("next_iteration", make_next_iteration_node())
-    builder.add_node("next_round", make_next_round_node())
+    builder.add_node("next_round", make_next_round_node(prompts))
 
     builder.add_edge(START, "select_announcer")
     builder.add_edge("select_announcer", "announce")

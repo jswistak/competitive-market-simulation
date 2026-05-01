@@ -298,11 +298,23 @@ class TestHistoryTemplatesReachAgents:
         assert "In round" not in result["market_history_text"]
 
     def test_round_iteration_can_be_fully_stripped_via_config(self, base_market_state, sample_agents):
-        """End-to-end: with all five templates stripped of {round}/{iteration},
-        no agent-visible history string contains the words 'round' or 'iteration'."""
+        """End-to-end: with every agent-visible template stripped of
+        {round}/{iteration}, no agent-visible history string contains
+        the words 'round' or 'iteration'. The back-annotation templates
+        (filled/outbid/expired) are included because they fire on trade
+        ticks and round close."""
         round_free = PromptTemplates(
             announcement_history_template=(
                 "Your offer to {announcement_type} for ${price:.2f} was {outcome}.\n"
+            ),
+            announcement_history_filled_template=(
+                "Your earlier offer to {announcement_type} for ${price:.2f} was filled.\n"
+            ),
+            announcement_history_outbid_template=(
+                "Your earlier offer to {announcement_type} for ${price:.2f} was outbid.\n"
+            ),
+            announcement_history_expired_template=(
+                "Your offer to {announcement_type} for ${price:.2f} expired.\n"
             ),
             market_history_accepted_template=(
                 "Announcement to {announcement_type} for ${price:.2f} was accepted.\n"

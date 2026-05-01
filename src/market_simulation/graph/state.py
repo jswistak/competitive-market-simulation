@@ -100,6 +100,14 @@ class MarketState(TypedDict):
     # the book), "non_improving" (order discarded by mechanism),
     # "no_announcement" (agent chose not to act).
     last_order_outcome: str | None
+    # When a "posted" outcome displaces a different agent's standing
+    # order on the same side, apply_order surfaces the prior owner here
+    # so update_history can append an "outbid" follow-up to that
+    # agent's own_history. None on ticks where no displacement happened.
+    # Cleared by next_iteration alongside last_order_outcome.
+    replaced_standing_owner_id: NotRequired[int | None]
+    replaced_standing_price: NotRequired[float | None]
+    replaced_standing_side: NotRequired[str | None]  # "buy" or "sell"
 
     # History (using add reducer for appending)
     market_history_text: str  # Text history for prompts

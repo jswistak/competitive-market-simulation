@@ -735,3 +735,225 @@ class TestNextRoundNode:
 
         assert result["round"] == 2
         assert result.get("simulation_complete", False) is False
+
+
+# ===========================================================================
+# TestPostedOrderOutcomeBackAnnotation
+#
+# When an agent's order is "posted" to the book, three things can happen
+# next, and prior to this fix the agent's own_history was never updated to
+# reflect any of them — the agent permanently saw "posted" with no later
+# resolution. The tests below pin the back-annotation contract for all
+# three downstream outcomes:
+#
+#   (a) crossed: a counterparty's later announcement crosses the resting
+#       order — the resting-order owner must learn their order was filled.
+#   (b) outbid:  a third agent posts a strictly improving order on the
+#       same side — the prior owner must learn their order was replaced.
+#   (c) expired: the round ends with the standing book non-empty — the
+#       standing owners must learn their order died uncrossed.
+#
+# Pavo's note (2026-04-29) called out (a) as the most painful case: the
+# agent who posted a bid never finds out whether it eventually traded
+# or someone outbid them. (b) and (c) are the same root cause and are
+# fixed together.
+# ===========================================================================
+
+
+class TestPostedOrderOutcomeBackAnnotation:
+    """Resting-order owners must see follow-up entries in their own_history
+    when their posted order is filled, outbid, or expires uncrossed."""
+
+    def test_counterparty_history_appended_when_posted_order_is_crossed(
+        self, base_market_state
+    ):
+        """Buyer 0 posted a bid at $1.50 last tick (already in their
+        own_history). This tick, seller 3 crosses it. After update_history
+        runs, buyer 0's own_history must gain an entry indicating their
+        earlier bid was filled — not just sit on the stale 'posted' line."""
+        # Pre-existing 'posted' line for buyer 0 from the earlier tick.
+        agents = []
+        for a in base_market_state["agents"]:
+            if a["id"] == 0:
+                agents.append({
+                    **a,
+                    "own_history_prompt": (
+                        "In round 1 at iteration 1, your offer to buy "
+                        "for $1.50 was posted.\n"
+                    ),
+                    "own_history_data": [{
+                        "round": 1, "iteration": 1, "action": "announce",
+                        "price": 1.50, "outcome": "posted",
+                    }],
+                })
+            else:
+                agents.append(a)
+
+        state = {
+            **base_market_state,
+            "agents": agents,
+            "iteration": 2,
+            "announcement_made": True,
+            "transaction_made": True,
+            "announced_price": 1.50,
+            "announcement_type": "sell",
+            "announcing_agent_id": 3,          # seller crosses the bid
+            "counterparty_agent_id": 0,        # buyer 0 is the resting owner
+            "last_order_outcome": "traded",
+            # Standing book *before* apply_order cleared it on cross —
+            # the post-trade state delta has these set to None, but the
+            # update_history node still has counterparty_agent_id and the
+            # transaction price to work from.
+            "standing_bid": None,
+            "standing_bid_agent_id": None,
+        }
+
+        node = make_update_history_node()
+        result = node(state)
+
+        buyer_0 = next(a for a in result["agents"] if a["id"] == 0)
+        # The original 'posted' line must remain — history is append-only.
+        assert "was posted" in buyer_0["own_history_prompt"]
+        # AND a new entry must record the fill.
+        new_entries = [
+            e for e in buyer_0["own_history_data"]
+            if e.get("outcome") in ("filled", "accepted")
+            and e.get("iteration") == 2
+        ]
+        assert new_entries, (
+            "buyer 0's posted bid was crossed at iteration 2 but their "
+            "own_history_data has no follow-up entry"
+        )
+        # Rendered prompt must mention the fill so an LLM can see it.
+        prompt = buyer_0["own_history_prompt"]
+        assert "$1.50" in prompt
+        assert any(
+            kw in prompt.lower() for kw in ("filled", "was accepted", "was crossed")
+        ), (
+            "buyer 0's own_history_prompt must mention the fill for the "
+            f"earlier $1.50 bid; got: {prompt!r}"
+        )
+
+    def test_outbid_owner_history_appended_when_replaced_by_better_order(
+        self, base_market_state
+    ):
+        """Buyer 0 holds the standing bid at $1.50. Buyer 1 posts an
+        improving bid at $1.60. Buyer 0's own_history must gain an entry
+        indicating their bid was outbid — without this, the agent thinks
+        their bid is still on the book."""
+        agents = []
+        for a in base_market_state["agents"]:
+            if a["id"] == 0:
+                agents.append({
+                    **a,
+                    "own_history_prompt": (
+                        "In round 1 at iteration 1, your offer to buy "
+                        "for $1.50 was posted.\n"
+                    ),
+                    "own_history_data": [{
+                        "round": 1, "iteration": 1, "action": "announce",
+                        "price": 1.50, "outcome": "posted",
+                    }],
+                })
+            else:
+                agents.append(a)
+
+        state = {
+            **base_market_state,
+            "agents": agents,
+            "iteration": 2,
+            "announcement_made": True,
+            "transaction_made": False,
+            "announced_price": 1.60,
+            "announcement_type": "buy",
+            "announcing_agent_id": 1,
+            "last_order_outcome": "posted",
+            # apply_order has already replaced the book — these reflect
+            # the post-state. The update_history node needs the prior
+            # owner from somewhere; the fix wires apply_order to expose it.
+            "standing_bid": 1.60,
+            "standing_bid_agent_id": 1,
+            "replaced_standing_owner_id": 0,
+            "replaced_standing_price": 1.50,
+            "replaced_standing_side": "buy",
+        }
+
+        node = make_update_history_node()
+        result = node(state)
+
+        buyer_0 = next(a for a in result["agents"] if a["id"] == 0)
+        outbid_entries = [
+            e for e in buyer_0["own_history_data"]
+            if e.get("outcome") == "outbid"
+        ]
+        assert outbid_entries, (
+            "buyer 0's $1.50 bid was outbid at iteration 2 but their "
+            "own_history_data has no 'outbid' entry"
+        )
+        prompt = buyer_0["own_history_prompt"]
+        assert "outbid" in prompt.lower(), (
+            "buyer 0's own_history_prompt must say their order was "
+            f"outbid; got: {prompt!r}"
+        )
+        assert "$1.50" in prompt
+
+    def test_round_end_uncrossed_owner_history_appended_at_round_boundary(
+        self, base_market_state
+    ):
+        """Round ends with seller 3 still holding the standing ask at
+        $1.80 (uncrossed). Seller 3's own_history must gain an entry
+        indicating the order expired with the round."""
+        agents = []
+        for a in base_market_state["agents"]:
+            if a["id"] == 3:
+                agents.append({
+                    **a,
+                    "own_history_prompt": (
+                        "In round 1 at iteration 2, your offer to sell "
+                        "for $1.80 was posted.\n"
+                    ),
+                    "own_history_data": [{
+                        "round": 1, "iteration": 2, "action": "announce",
+                        "price": 1.80, "outcome": "posted",
+                    }],
+                })
+            else:
+                agents.append(a)
+
+        state = {
+            **base_market_state,
+            "agents": agents,
+            "round": 1,
+            "max_rounds": 3,
+            # Round ends with this ask still resting on the book.
+            "standing_bid": None,
+            "standing_bid_agent_id": None,
+            "standing_ask": 1.80,
+            "standing_ask_agent_id": 3,
+        }
+
+        node = make_next_round_node()
+        result = node(state)
+
+        seller_3 = next(a for a in result["agents"] if a["id"] == 3)
+        expired_entries = [
+            e for e in seller_3["own_history_data"]
+            if e.get("outcome") == "expired"
+        ]
+        assert expired_entries, (
+            "seller 3's $1.80 ask was uncrossed at round 1 close but "
+            "their own_history_data has no 'expired' entry"
+        )
+        prompt = seller_3["own_history_prompt"]
+        # Wording is template-defined ("remained on the book ... never
+        # filled"); the contract is that it is round-scoped and names
+        # the unfilled price, so the agent can tell their order died.
+        assert "$1.80" in prompt
+        assert "round 1" in prompt.lower()
+        assert (
+            "never filled" in prompt.lower()
+            or "remained on the book" in prompt.lower()
+        ), (
+            "seller 3's own_history_prompt must say their resting ask "
+            f"expired without trading; got: {prompt!r}"
+        )

@@ -72,12 +72,18 @@ def make_apply_order_node() -> Callable[[MarketState], dict]:
                     f"posted improving bid @ ${price:.2f} "
                     f"(prev standing_bid={standing_bid})"
                 )
-                return {
+                delta = {
                     "transaction_made": False,
                     "standing_bid": price,
                     "standing_bid_agent_id": announcer_id,
                     "last_order_outcome": "posted",
                 }
+                prior_owner = state.get("standing_bid_agent_id")
+                if prior_owner is not None and prior_owner != announcer_id:
+                    delta["replaced_standing_owner_id"] = prior_owner
+                    delta["replaced_standing_price"] = standing_bid
+                    delta["replaced_standing_side"] = "buy"
+                return delta
             # Non-improving — discard. Keep announcement_made=True so it
             # consistently means "agent emitted a price"; order_outcome
             # carries the disposition (the order was dropped from the
@@ -110,12 +116,18 @@ def make_apply_order_node() -> Callable[[MarketState], dict]:
                 f"posted improving ask @ ${price:.2f} "
                 f"(prev standing_ask={standing_ask})"
             )
-            return {
+            delta = {
                 "transaction_made": False,
                 "standing_ask": price,
                 "standing_ask_agent_id": announcer_id,
                 "last_order_outcome": "posted",
             }
+            prior_owner = state.get("standing_ask_agent_id")
+            if prior_owner is not None and prior_owner != announcer_id:
+                delta["replaced_standing_owner_id"] = prior_owner
+                delta["replaced_standing_price"] = standing_ask
+                delta["replaced_standing_side"] = "sell"
+            return delta
         logger.info(
             f"R{state['round']}/T{state['iteration']}: agent {announcer_id} "
             f"ask ${price:.2f} not improving (standing_ask=${standing_ask:.2f}); discarded"

@@ -277,6 +277,25 @@ class PromptTemplates(_StrictModel):
         "{announcement_type} for ${price:.2f} was rejected because it did "
         "not improve the standing book.\n"
     )
+    # Back-annotations for resting orders. The original "posted" line
+    # stays in own_history; these are appended later when the order's
+    # downstream fate is known. Without them an agent permanently sees
+    # only "posted" and cannot tell whether their earlier order traded,
+    # was outbid, or expired with the round.
+    announcement_history_filled_template: str = (
+        "In round {round} at iteration {iteration}, your earlier offer "
+        "to {announcement_type} for ${price:.2f} was filled (a "
+        "counterparty crossed it).\n"
+    )
+    announcement_history_outbid_template: str = (
+        "In round {round} at iteration {iteration}, your earlier offer "
+        "to {announcement_type} for ${price:.2f} was outbid by a better "
+        "{announcement_type} order and is no longer on the book.\n"
+    )
+    announcement_history_expired_template: str = (
+        "At the end of round {round}, your offer to {announcement_type} "
+        "for ${price:.2f} remained on the book and was never filled.\n"
+    )
     # Shared market-history entries (injected via {market_history}).
     # Used by the improvement-rule CDA path. Each renders one of the four
     # possible per-tick outcomes:
