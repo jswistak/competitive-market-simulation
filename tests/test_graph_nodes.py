@@ -14,7 +14,10 @@ from market_simulation.config.schema import (
     AgentPromptConfig,
     AgentKeywords,
 )
-from market_simulation.graph.history import build_market_history_for_prompt
+from market_simulation.graph.history import (
+    build_market_history_for_prompt,
+    build_own_history_for_prompt,
+)
 from market_simulation.graph.nodes.control import (
     make_update_history_node,
     make_check_iteration_node,
@@ -956,4 +959,250 @@ class TestPostedOrderOutcomeBackAnnotation:
         ), (
             "seller 3's own_history_prompt must say their resting ask "
             f"expired without trading; got: {prompt!r}"
+        )
+
+
+# ===========================================================================
+# TestPromptInformationGaps
+#
+# Audit-only failing tests for cases where information that exists in the
+# simulation does NOT reach the agent's prompt — or reaches it in a
+# distorted form. These tests are intentionally failing on the current
+# implementation; they document the gap. Each test names the specific
+# information channel and the expectation a downstream LLM should be
+# able to rely on.
+#
+# Gap A — TRADE-PRICE MISREPRESENTATION (pre-existing)
+#   On a cross, the trade executes at the matched standing price (NYSE /
+#   G&S convention; see apply_order.py). update_history renders the
+#   market_history line and the announcer's own_history line using
+#   state["announced_price"], which is the announcer's *emitted* price
+#   — not the trade price. Example: buyer announces $1.60 crossing a
+#   seller's $1.50 standing ask → trade at $1.50, but every prompt
+#   shows $1.60. Third-party agents misread market clearing levels;
+#   the announcer thinks they paid more than they did.
+#
+# Gap B — FILLED BACK-ANNOTATION USES THE WRONG PRICE
+#   Same root cause as Gap A, but in the back-annotation introduced by
+#   PR #24. The "filled" entry written to the resting-side counterparty
+#   uses state["announced_price"] instead of the trade price, so the
+#   counterparty sees a price that does not match what their original
+#   posted ask/bid actually transacted at.
+#
+# Gap C — SUMMARY MODE DROPS THE NEW BACK-ANNOTATIONS
+#   build_own_history_for_prompt(mode="summary") counts only
+#   outcome=="accepted" toward "Successful trades" and "Average trade
+#   price". The new outcomes from PR #24 — "filled" (counterparty's
+#   trade), "outbid", "expired" — are silently filtered out. An agent
+#   in summary mode sees zero successful trades even when their resting
+#   bids/asks were filled.
+# ===========================================================================
+
+
+class TestPromptInformationGaps:
+    """Failing tests pinning down information that the simulation knows
+    but does not surface to the LLM prompt correctly. No fixes here —
+    each test demonstrates a single, named gap."""
+
+    # -- Gap A -----------------------------------------------------------
+
+    def test_market_history_shows_trade_price_not_announced_price_on_cross(
+        self, base_market_state
+    ):
+        """Buyer 0 announces $1.60. Seller 3 had a standing ask at
+        $1.50, so the trade executes at $1.50 (the standing price).
+        market_history must broadcast the actual trade price, not the
+        buyer's announced ceiling — otherwise third-party agents
+        reading the market believe the market cleared at $1.60.
+        """
+        state = {
+            **base_market_state,
+            "announcement_made": True,
+            "transaction_made": True,
+            "announced_price": 1.60,
+            "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            "counterparty_agent_id": 3,
+            "last_order_outcome": "traded",
+            # Trade price recorded by apply_order (= standing_ask = $1.50).
+            "transactions": [
+                {"round": 1, "iteration": 1, "price": 1.50,
+                 "buyer_id": 0, "seller_id": 3, "announcement_type": "buy"},
+            ],
+        }
+        node = make_update_history_node()
+        result = node(state)
+
+        text = result["market_history_text"]
+        assert "$1.50" in text, (
+            "market_history must broadcast the actual trade price "
+            f"($1.50, the matched standing ask); got: {text!r}"
+        )
+        assert "$1.60" not in text, (
+            "market_history shows the buyer's announced $1.60 as if it "
+            "were the trade price — third-party agents reading this "
+            f"will misread the market clearing level; got: {text!r}"
+        )
+
+    def test_announcer_own_history_shows_trade_price_not_announced_price(
+        self, base_market_state
+    ):
+        """Same scenario as the market_history test, but from the
+        announcer's perspective. Buyer 0 announced $1.60 and crossed at
+        a $1.50 standing ask. Their own_history must say "$1.50 was
+        accepted" (what they actually paid), not "$1.60" (their max
+        willingness-to-pay). Profit reasoning depends on the trade
+        price; showing the announced price distorts the buyer's
+        perceived margin.
+        """
+        state = {
+            **base_market_state,
+            "announcement_made": True,
+            "transaction_made": True,
+            "announced_price": 1.60,
+            "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            "counterparty_agent_id": 3,
+            "last_order_outcome": "traded",
+            "transactions": [
+                {"round": 1, "iteration": 1, "price": 1.50,
+                 "buyer_id": 0, "seller_id": 3, "announcement_type": "buy"},
+            ],
+        }
+        node = make_update_history_node()
+        result = node(state)
+
+        announcer = next(a for a in result["agents"] if a["id"] == 0)
+        prompt = announcer["own_history_prompt"]
+        # Structured field: the price recorded for the agent's accepted
+        # action must be the trade price.
+        accepted_entries = [
+            e for e in announcer["own_history_data"]
+            if e.get("outcome") == "accepted"
+        ]
+        assert accepted_entries, "announcer should have an 'accepted' entry"
+        assert accepted_entries[-1]["price"] == 1.50, (
+            "announcer's accepted own_history_data entry stored "
+            f"${accepted_entries[-1]['price']:.2f} but the trade was at "
+            f"$1.50 (the standing ask)"
+        )
+        # Rendered prompt: must show the trade price.
+        assert "$1.50" in prompt, (
+            "announcer's own_history prompt must show the actual trade "
+            f"price ($1.50); got: {prompt!r}"
+        )
+        assert "$1.60" not in prompt, (
+            "announcer's own_history prompt shows their announced "
+            "$1.60 — but they actually traded at $1.50; their profit "
+            f"reasoning will be off; got: {prompt!r}"
+        )
+
+    # -- Gap B -----------------------------------------------------------
+
+    def test_filled_back_annotation_uses_trade_price_not_announced_price(
+        self, base_market_state
+    ):
+        """PR #24's back-annotation: when buyer 0 announces $1.60 and
+        crosses seller 3's $1.50 standing ask, seller 3 gets a 'filled'
+        entry. That entry must record the actual fill price ($1.50, the
+        seller's original ask) — not the buyer's announced $1.60.
+        Otherwise the seller sees a fill at $1.60, inconsistent with
+        their own earlier 'posted at $1.50' line in the same history.
+        """
+        agents = []
+        for a in base_market_state["agents"]:
+            if a["id"] == 3:
+                agents.append({
+                    **a,
+                    "own_history_prompt": (
+                        "In round 1 at iteration 1, your offer to sell "
+                        "for $1.50 was posted.\n"
+                    ),
+                    "own_history_data": [{
+                        "round": 1, "iteration": 1, "action": "announce",
+                        "price": 1.50, "outcome": "posted",
+                    }],
+                })
+            else:
+                agents.append(a)
+
+        state = {
+            **base_market_state,
+            "agents": agents,
+            "iteration": 2,
+            "announcement_made": True,
+            "transaction_made": True,
+            "announced_price": 1.60,
+            "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            "counterparty_agent_id": 3,
+            "last_order_outcome": "traded",
+            "transactions": [
+                {"round": 1, "iteration": 2, "price": 1.50,
+                 "buyer_id": 0, "seller_id": 3, "announcement_type": "buy"},
+            ],
+        }
+        node = make_update_history_node()
+        result = node(state)
+
+        seller_3 = next(a for a in result["agents"] if a["id"] == 3)
+        filled_entries = [
+            e for e in seller_3["own_history_data"]
+            if e.get("outcome") == "filled"
+        ]
+        assert filled_entries, "seller 3 should have a 'filled' entry"
+        assert filled_entries[-1]["price"] == 1.50, (
+            "seller 3's 'filled' entry stored "
+            f"${filled_entries[-1]['price']:.2f}, but their $1.50 ask "
+            "was filled at $1.50 (= the trade price)"
+        )
+        prompt = seller_3["own_history_prompt"]
+        assert "$1.50" in prompt and "filled" in prompt.lower()
+        # Must not show the buyer's $1.60 as the fill price.
+        # Slice out the 'filled' annotation (it follows the 'posted'
+        # line) so we don't accidentally match $1.50 in the original
+        # 'posted' entry.
+        filled_section = prompt.split("was posted.\n", 1)[1]
+        assert "$1.60" not in filled_section, (
+            "seller 3's 'filled' annotation shows the buyer's $1.60 "
+            "as the fill price — but the seller's $1.50 ask was filled "
+            f"at $1.50; got annotation section: {filled_section!r}"
+        )
+
+    # -- Gap C -----------------------------------------------------------
+
+    def test_summary_own_history_counts_filled_as_successful_trade(
+        self, base_market_state
+    ):
+        """Resting-side trades (counterparty 'filled') must count toward
+        'Successful trades' and 'Average trade price' in summary mode.
+        Currently summary mode filters on outcome=='accepted' only, so
+        a seller whose ask was filled by a buyer's cross sees 0
+        successful trades in summary even though they did trade.
+        """
+        agent = {
+            "id": 3,
+            "type": "seller",
+            "reservation_price": 1.0,
+            "active": False,
+            "persona": "",
+            "own_history_prompt": "",
+            "own_history_data": [
+                {"round": 1, "iteration": 1, "action": "announce",
+                 "price": 1.50, "outcome": "posted"},
+                # Back-annotation written by PR #24 when their ask was
+                # crossed. Trade price = $1.50.
+                {"round": 1, "iteration": 2, "action": "order_update",
+                 "price": 1.50, "outcome": "filled"},
+            ],
+        }
+        summary = build_own_history_for_prompt(agent, mode="summary")
+
+        assert "Successful trades: 1" in summary, (
+            "summary mode must count the resting-side 'filled' trade as "
+            f"a successful trade; got: {summary!r}"
+        )
+        assert "Average trade price: $1.50" in summary, (
+            "summary mode must include the filled trade's price in the "
+            f"average; got: {summary!r}"
         )
