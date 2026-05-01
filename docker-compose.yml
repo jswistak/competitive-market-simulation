@@ -4,6 +4,13 @@
 # Stop: docker compose down
 # Reset: docker compose down -v
 
+# Pin the Compose project name. Without this, Compose derives the project
+# name from the working directory, so running `docker compose up` from
+# `my_impl/`, the parent `master-wide/`, or any `my_impl-*/` worktree
+# spawns a separate project with its own empty volumes — silently forking
+# your Langfuse data.
+name: master-langfuse
+
 services:
   langfuse-worker:
     image: docker.io/langfuse/langfuse-worker:3
@@ -94,6 +101,14 @@ services:
       start_period: 1s
 
   minio:
+    # Holds raw S3 event uploads under langfuse/events/. The bucket has a
+    # 10-day expiration lifecycle rule applied at runtime (persisted in the
+    # volume's .minio.sys metadata, not in this file). To re-apply on a
+    # fresh volume:
+    #   docker run --rm --network master-langfuse_default --entrypoint sh \
+    #     minio/mc:latest -c \
+    #     'mc alias set local http://minio:9000 minio miniosecret && \
+    #      mc ilm rule add local/langfuse --prefix events/ --expire-days 10'
     image: cgr.dev/chainguard/minio
     restart: always
     entrypoint: sh
