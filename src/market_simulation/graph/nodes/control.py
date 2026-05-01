@@ -14,6 +14,32 @@ def _get_templates(prompts: PromptConfig | None) -> PromptTemplates:
     return prompts.general if prompts is not None else PromptTemplates()
 
 
+def _resolve_trade_price(state: MarketState, fallback: float | None) -> float | None:
+    """Return the executed trade price for the current tick.
+
+    On a cross, ``apply_order._record_trade`` appends a Transaction to
+    ``state["transactions"]`` with ``price`` set to the matched standing
+    price (= the actual fill price; NYSE / G&S convention). The
+    announcer's emitted price (``state["announced_price"]``) is the
+    ceiling/floor they were willing to accept, NOT the executed price,
+    so it must not be used for trade-related history strings.
+
+    Falls back to ``fallback`` and emits a warning when transactions is
+    empty on a "traded" tick — indicates a caller built state without
+    populating transactions (legacy / hand-built test states). Should
+    not happen in production: the apply_order delta always returns the
+    transaction together with the "traded" outcome.
+    """
+    tx = state.get("transactions")
+    if tx:
+        return tx[-1]["price"]
+    logger.warning(
+        "traded outcome without populated transactions; "
+        "falling back to announced_price"
+    )
+    return fallback
+
+
 def make_update_history_node(
     prompts: PromptConfig | None = None,
 ) -> Callable[[MarketState], dict]:
@@ -86,11 +112,14 @@ def make_update_history_node(
         # "agent tried and was dropped" in the LLM's view of the market.
         history_update = ""
         if outcome == "traded":
+            # Cross executes at the matched standing price, not at the
+            # announcer's emitted ceiling/floor.
+            trade_price = _resolve_trade_price(state, fallback=price)
             history_update = templates.market_history_accepted_template.format(
                 round=round_num,
                 iteration=tick,
                 announcement_type=announcement_type,
-                price=price,
+                price=trade_price,
             )
         elif outcome == "posted":
             history_update = templates.market_history_posted_template.format(
@@ -181,6 +210,16 @@ def _update_agent_histories(
         raise ValueError(f"unknown order_outcome {outcome!r}")
     label = _OUTCOME_LABELS[outcome]
 
+    # On a "traded" tick the executed price differs from the announcer's
+    # emitted ceiling/floor; everywhere else the announcer's emitted
+    # price is the canonical value to display.
+    if outcome == "traded":
+        announcer_price = _resolve_trade_price(
+            state, fallback=state["announced_price"]
+        )
+    else:
+        announcer_price = state["announced_price"]
+
     updated = []
     for agent in agents:
         agent_copy = {**agent}
@@ -190,7 +229,7 @@ def _update_agent_histories(
                 "round": state["round"],
                 "iteration": state["iteration"],
                 "action": "announce",
-                "price": state["announced_price"],
+                "price": announcer_price,
                 "outcome": label,
             }
             agent_copy["own_history_data"] = agent["own_history_data"] + [history_entry]
@@ -204,14 +243,14 @@ def _update_agent_histories(
                     round=state["round"],
                     iteration=state["iteration"],
                     announcement_type=ann_type,
-                    price=state["announced_price"],
+                    price=announcer_price,
                 )
             else:
                 entry = templates.announcement_history_template.format(
                     round=state["round"],
                     iteration=state["iteration"],
                     announcement_type=ann_type,
-                    price=state["announced_price"],
+                    price=announcer_price,
                     outcome=label,
                 )
             agent_copy["own_history_prompt"] = agent["own_history_prompt"] + entry
