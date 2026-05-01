@@ -1,9 +1,9 @@
 experiment:
   auction_type: double_auction
   buyers:
-    max: 3.25
-    min: 0.75
-    num: 11
+    max: 4.9
+    min: 2.5
+    num: 13
     strategies: llm
   history:
     mode: full
@@ -11,21 +11,21 @@ experiment:
     summary_last_n_events: 3
   include_reasoning: true
   max_ticks_per_round: 400
-  n_rounds: 5
+  n_rounds: 4
   n_simulations: 1
   random_seed: null
   recursion_limit: null
   sellers:
-    max: 3.25
-    min: 0.75
-    num: 11
+    max: 3.1
+    min: 3.1
+    num: 13
     strategies: llm
 llm:
   max_retries: 3
   max_tokens: 1024
   max_tokens_with_tools: 1024
-  model: gpt-5.4-mini-2026-03-17
-  provider: openai
+  model: claude-opus-4-7
+  provider: anthropic
   temperature: 1.0
 prompts:
   buyer:

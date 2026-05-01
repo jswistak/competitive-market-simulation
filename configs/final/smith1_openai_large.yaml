@@ -24,7 +24,7 @@ llm:
   max_retries: 3
   max_tokens: 1024
   max_tokens_with_tools: 1024
-  model: gpt-5.4-mini-2026-03-17
+  model: gpt-5.4-2026-03-05
   provider: openai
   temperature: 1.0
 prompts:
