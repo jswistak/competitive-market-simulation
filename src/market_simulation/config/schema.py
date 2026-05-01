@@ -3,7 +3,22 @@
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class _StrictModel(BaseModel):
+    """Base for every config model in this module.
+
+    ``extra='forbid'`` makes Pydantic refuse to load a YAML that
+    contains keys we haven't defined here. The point is to catch
+    typos and stale fields up front instead of having Pydantic
+    silently drop them — which, before this was tightened, allowed
+    YAMLs to "configure" things that the runtime never saw (the
+    classic example being PR #21's rename leaving the YAML's
+    ``market_history_rejected_template`` permanently invisible).
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
 
 Strategy = Literal["llm", "zi_c", "zi_u"]
@@ -26,7 +41,7 @@ class AuctionType(str, Enum):
 # --- LLM & tool configs ---
 
 
-class LLMConfig(BaseModel):
+class LLMConfig(_StrictModel):
     """LLM provider configuration."""
 
     provider: Literal["openai", "anthropic", "gemini", "deepseek"] = "openai"
@@ -35,11 +50,9 @@ class LLMConfig(BaseModel):
     max_tokens: int = 10
     max_tokens_with_tools: int = 1024
     max_retries: int = 5
-    retry_base_delay: float = 1.0
-    retry_backoff_factor: float = 2.0
 
 
-class ToolConfig(BaseModel):
+class ToolConfig(_StrictModel):
     """Tool availability configuration for agents."""
 
     enabled: bool = False
@@ -52,7 +65,7 @@ class ToolConfig(BaseModel):
 # --- Double auction configs (existing) ---
 
 
-class AgentPricesConfig(BaseModel):
+class AgentPricesConfig(_StrictModel):
     """Reservation price distribution for agents."""
 
     min: float = 0.8
@@ -69,7 +82,7 @@ class AgentPricesConfig(BaseModel):
         return self
 
 
-class HistoryConfig(BaseModel):
+class HistoryConfig(_StrictModel):
     """Configuration for how market history is presented in prompts."""
 
     mode: Literal["full", "summary"] = "full"
@@ -80,7 +93,7 @@ class HistoryConfig(BaseModel):
 # --- Auction-specific configs ---
 
 
-class BiddersConfig(BaseModel):
+class BiddersConfig(_StrictModel):
     """Bidder private-value distribution for auctions."""
 
     num: int = 5
@@ -98,7 +111,7 @@ class BiddersConfig(BaseModel):
         return self
 
 
-class AuctionConfig(BaseModel):
+class AuctionConfig(_StrictModel):
     """Mechanism parameters for auctions (non-double-auction)."""
 
     n_rounds: int = 10
@@ -121,7 +134,7 @@ class AuctionConfig(BaseModel):
     random_seed: int | None = None  # Seed for random operations (shuffling, sampling)
 
 
-class AuctionPromptConfig(BaseModel):
+class AuctionPromptConfig(_StrictModel):
     """Prompt templates specific to auction mechanisms."""
 
     system_template: str = ""
@@ -147,8 +160,7 @@ class AuctionPromptConfig(BaseModel):
         "Round {round}: You accepted at ${payment:.2f}.\n"
     )
     dutch_bidder_rejected_other_winner_template: str = (
-        "Round {round}: You did not accept. "
-        "Bidder {winner_id} won at ${payment:.2f}.\n"
+        "Round {round}: You did not accept. Bidder {winner_id} won at ${payment:.2f}.\n"
     )
     dutch_bidder_rejected_no_winner_template: str = (
         "Round {round}: You did not accept. No one accepted.\n"
@@ -168,8 +180,7 @@ class AuctionPromptConfig(BaseModel):
     # --- Sealed-bid per-bidder history ---
     # Format keys: round, my_bid, payment (when won).
     sealed_bidder_won_template: str = (
-        "Round {round}: You bid ${my_bid:.2f} and won. "
-        "Payment: ${payment:.2f}.\n"
+        "Round {round}: You bid ${my_bid:.2f} and won. Payment: ${payment:.2f}.\n"
     )
     sealed_bidder_lost_template: str = (
         "Round {round}: You bid ${my_bid:.2f} and lost.\n"
@@ -181,7 +192,7 @@ class AuctionPromptConfig(BaseModel):
     )
 
 
-class ExperimentConfig(BaseModel):
+class ExperimentConfig(_StrictModel):
     """Experiment parameters."""
 
     auction_type: AuctionType = AuctionType.DOUBLE_AUCTION
@@ -215,7 +226,7 @@ class ExperimentConfig(BaseModel):
     random_seed: int | None = None
 
 
-class TracingConfig(BaseModel):
+class TracingConfig(_StrictModel):
     """Langfuse tracing configuration."""
 
     enabled: bool = True
@@ -225,10 +236,29 @@ class TracingConfig(BaseModel):
     langfuse_host: str = "https://cloud.langfuse.com"
 
 
-class PromptTemplates(BaseModel):
-    """Prompt templates for agent communication."""
+class PromptTemplates(_StrictModel):
+    """Prompt templates for agent communication.
 
-    main_template: str = ""
+    The announcement prompt is split across two messages sent to the
+    LLM:
+
+    * ``system_template`` carries the per-agent constants (role, profit
+      formula, market rules, reservation price, persona, market size).
+      It is identical for the same agent across every tick of the
+      simulation, which makes it cacheable by Anthropic / Gemini
+      prompt caches.
+    * ``user_template`` carries the per-tick state (current standing
+      book, market history, own history, round counter, action
+      prompt). It changes every tick.
+
+    Either or both may be empty; an empty ``system_template`` simply
+    means no SystemMessage is sent (the LLM call uses only the user
+    HumanMessage). Tests and minimal configs typically only populate
+    ``user_template``.
+    """
+
+    system_template: str = ""
+    user_template: str = ""
 
     # Per-agent "own history" entries (injected via {own_history}).
     # The generic announcement_history_template is used for traded
@@ -247,11 +277,6 @@ class PromptTemplates(BaseModel):
         "{announcement_type} for ${price:.2f} was rejected because it did "
         "not improve the standing book.\n"
     )
-    response_history_template: str = (
-        "In round {round} at iteration {iteration}, you {outcome} a "
-        "{opposite_announcement_type} offer for ${price:.2f}.\n"
-    )
-
     # Shared market-history entries (injected via {market_history}).
     # Used by the improvement-rule CDA path. Each renders one of the four
     # possible per-tick outcomes:
@@ -278,24 +303,32 @@ class PromptTemplates(BaseModel):
     )
 
 
-class AgentKeywords(BaseModel):
-    """Keywords for prompt substitution."""
+class AgentKeywords(_StrictModel):
+    """Keywords for prompt substitution.
+
+    ``profit_formula`` is optional; templates reference it as
+    ``{profit_formula}`` to embed the side-specific definition of
+    profit (e.g. "transaction price and reservation price" for a
+    seller). Empty string is a safe default for templates that don't
+    need it.
+    """
 
     role: str
     verb: str
     preference: str
     condition: str
+    profit_formula: str = ""
+    order_outcomes: str = ""
 
 
-class AgentPromptConfig(BaseModel):
+class AgentPromptConfig(_StrictModel):
     """Agent-specific prompt configuration."""
 
     main_keywords: AgentKeywords
-    response_prompt: str
     announcement_prompt: str
 
 
-class PromptConfig(BaseModel):
+class PromptConfig(_StrictModel):
     """Complete prompt configuration."""
 
     general: PromptTemplates = Field(default_factory=PromptTemplates)
@@ -305,7 +338,7 @@ class PromptConfig(BaseModel):
     auction: AuctionPromptConfig | None = None
 
 
-class PersonaConfig(BaseModel):
+class PersonaConfig(_StrictModel):
     """Per-agent persona/prompt customization."""
 
     buyer_default: str = ""
@@ -317,7 +350,7 @@ class PersonaConfig(BaseModel):
     bidders: dict[int, str] = Field(default_factory=dict)
 
 
-class ZIConfig(BaseModel):
+class ZIConfig(_StrictModel):
     """Zero-intelligence trader sampling hyperparameters.
 
     ZI-C (constrained) always respects reservation price / private value and
@@ -330,11 +363,11 @@ class ZIConfig(BaseModel):
     u_high: float = 10.0
     # Probabilities used by ZI-U where a node can choose *not* to act at all.
     announce_prob: float = 0.5  # double-auction announce
-    accept_prob: float = 0.5  # double-auction respond, dutch acceptance
+    accept_prob: float = 0.5  # dutch acceptance (DA respond was removed in PR #18)
     bid_prob: float = 0.5  # english bid-or-pass
 
 
-class SimulationConfig(BaseModel):
+class SimulationConfig(_StrictModel):
     """Complete simulation configuration."""
 
     experiment: ExperimentConfig = Field(default_factory=ExperimentConfig)
@@ -359,6 +392,7 @@ class SimulationConfig(BaseModel):
         exact invariant ZI-C is supposed to preserve. Fail early at config
         load instead.
         """
+
         def _uses_zi_c(strategies) -> bool:
             if isinstance(strategies, list):
                 return "zi_c" in strategies

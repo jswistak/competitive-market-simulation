@@ -37,7 +37,9 @@ class TestToolAugmentedProviderNoTools:
         result = provider.invoke("test prompt")
 
         assert result == "1.50"
-        provider.base_provider.invoke.assert_called_once_with("test prompt", callbacks=None)
+        provider.base_provider.invoke.assert_called_once_with(
+            "test prompt", callbacks=None, metadata=None, system=None
+        )
 
     def test_no_tools_passes_callbacks(self):
         """When has_tools is False, callbacks should be forwarded to base_provider."""
@@ -49,7 +51,9 @@ class TestToolAugmentedProviderNoTools:
 
         provider.invoke("test", callbacks=callbacks)
 
-        provider.base_provider.invoke.assert_called_once_with("test", callbacks=callbacks)
+        provider.base_provider.invoke.assert_called_once_with(
+            "test", callbacks=callbacks, metadata=None, system=None
+        )
 
 
 class TestToolAugmentedProviderWithTools:
@@ -228,7 +232,11 @@ class TestToolAugmentedProviderStructuredNoTools:
 
         assert result is expected
         provider.base_provider.invoke_structured.assert_called_once_with(
-            "test", AnnouncementResponseWithReasoning, callbacks=None
+            "test",
+            AnnouncementResponseWithReasoning,
+            callbacks=None,
+            metadata=None,
+            system=None,
         )
 
     def test_no_tools_passes_callbacks(self):
@@ -245,7 +253,11 @@ class TestToolAugmentedProviderStructuredNoTools:
         provider.invoke_structured("test", BidResponseWithReasoning, callbacks=cbs)
 
         provider.base_provider.invoke_structured.assert_called_once_with(
-            "test", BidResponseWithReasoning, callbacks=cbs
+            "test",
+            BidResponseWithReasoning,
+            callbacks=cbs,
+            metadata=None,
+            system=None,
         )
 
 

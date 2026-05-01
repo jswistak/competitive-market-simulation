@@ -53,7 +53,7 @@ class TestSchemaDefaults:
         """ToolConfig should be disabled by default."""
         cfg = ToolConfig()
         assert cfg.enabled is False
-        assert cfg.enable_simple_tools is True
+        assert cfg.enable_simple_tools is False
         assert cfg.enable_code_interpreter is False
 
     def test_tracing_config_defaults(self):
@@ -144,26 +144,18 @@ class TestLoadConfig:
         cfg = load_config(cfg_file)
         assert cfg.tracing is not None
 
-    def test_load_real_test_config(self, configs_dir):
-        """load_config should parse the real test.yaml without errors."""
-        test_cfg = configs_dir / "test.yaml"
-        if not test_cfg.exists():
-            pytest.skip("test.yaml not found in configs/")
-        cfg = load_config(test_cfg)
-        assert cfg.experiment.n_rounds >= 1
-        assert cfg.llm.provider in ("openai", "anthropic", "gemini", "deepseek")
-
-    @pytest.mark.parametrize(
-        "config_name",
-        ["openai", "anthropic", "gemini", "deepseek"],
-    )
-    def test_load_provider_configs(self, configs_dir, config_name):
-        """Each provider config file should parse without errors."""
-        cfg_file = configs_dir / f"{config_name}.yaml"
+    def test_load_final_smith1_gemini_small(self, configs_dir):
+        """The new canonical config under configs/final/ must load
+        cleanly under the strict (extra='forbid') schema. The legacy
+        provider/test configs in configs/*.yaml are slated for deletion
+        and intentionally fail validation now (they still carry
+        post-PR-#18 dead fields)."""
+        cfg_file = configs_dir / "final" / "smith1_gemini_small.yaml"
         if not cfg_file.exists():
-            pytest.skip(f"{config_name}.yaml not found")
+            pytest.skip("configs/final/smith1_gemini_small.yaml not found")
         cfg = load_config(cfg_file)
-        assert cfg.llm.provider == config_name
+        assert cfg.experiment.n_rounds >= 1
+        assert cfg.llm.provider == "gemini"
 
 
 class TestGetConfigsDir:

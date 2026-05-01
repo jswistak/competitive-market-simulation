@@ -188,6 +188,10 @@ class TestUpdateHistoryNode:
             "counterparty_agent_id": 3,
             "current_responder_index": 1,
             "potential_responder_ids": [3],
+            "transactions": [
+                {"round": 1, "iteration": 1, "price": 1.50,
+                 "buyer_id": 0, "seller_id": 3, "announcement_type": "buy"},
+            ],
         }
         node = make_update_history_node()
         result = node(state)
@@ -245,6 +249,10 @@ class TestUpdateHistoryNode:
             "counterparty_agent_id": 3,
             "current_responder_index": 1,
             "potential_responder_ids": [3],
+            "transactions": [
+                {"round": 1, "iteration": 1, "price": 1.50,
+                 "buyer_id": 0, "seller_id": 3, "announcement_type": "buy"},
+            ],
         }
         node = make_update_history_node()
         result = node(state)
@@ -266,6 +274,10 @@ class TestUpdateHistoryNode:
             "counterparty_agent_id": 3,
             "current_responder_index": 1,
             "potential_responder_ids": [3],
+            "transactions": [
+                {"round": 1, "iteration": 1, "price": 1.50,
+                 "buyer_id": 0, "seller_id": 3, "announcement_type": "buy"},
+            ],
         }
         node = make_update_history_node()
         result = node(state)
@@ -439,7 +451,7 @@ class TestUpdateHistoryNode:
         """
         prompts = PromptConfig(
             general=PromptTemplates(
-                main_template=(
+                user_template=(
                     "Reservation: {reservation_price}. "
                     "Rounds: {N_ROUNDS}. Iters: {N_ITER}. "
                     "Buyers: {N_BUYERS}. Sellers: {N_SELLERS}. "
@@ -452,7 +464,6 @@ class TestUpdateHistoryNode:
                     role="buyer", verb="buy",
                     preference="lowest", condition="above",
                 ),
-                response_prompt="",
                 announcement_prompt="Announce.",
             ),
             seller=AgentPromptConfig(
@@ -460,7 +471,6 @@ class TestUpdateHistoryNode:
                     role="seller", verb="sell",
                     preference="highest", condition="below",
                 ),
-                response_prompt="",
                 announcement_prompt="Announce.",
             ),
         )
@@ -477,6 +487,10 @@ class TestUpdateHistoryNode:
             "announced_price": 2.00, "announcement_type": "buy",
             "announcing_agent_id": 0,
             "last_order_outcome": "traded",
+            "transactions": [
+                {"round": 1, "iteration": 1, "price": 2.00,
+                 "buyer_id": 0, "seller_id": 3, "announcement_type": "buy"},
+            ],
         }
         out = node(state)
         state = {**state, **out, "agents": out["agents"]}
@@ -515,7 +529,7 @@ class TestUpdateHistoryNode:
         state = {**state, **out, "agents": out["agents"]}
 
         # Render the prompt for an agent on the next tick.
-        rendered = _render_announcement_prompt(
+        _, rendered = _render_announcement_prompt(
             agent=state["agents"][0],
             state=state,
             prompts=prompts,
@@ -538,7 +552,7 @@ class TestUpdateHistoryNode:
         # *reason* in their own_history when their prompt is rendered —
         # the symmetric counterpart to the market_history broadcast.
         seller_3 = next(a for a in state["agents"] if a["id"] == 3)
-        rendered_seller = _render_announcement_prompt(
+        _, rendered_seller = _render_announcement_prompt(
             agent=seller_3,
             state=state,
             prompts=prompts,
@@ -590,6 +604,99 @@ class TestUpdateHistoryNode:
         # 1 traded out of 2 announcements = 50%.
         assert "50%" in summary or "(1/2)" in summary, (
             "non_improving must count toward acceptance-rate denominator"
+        )
+
+    # ----------------------------------------------------------------
+    # Trade-price rendering: on a cross, the trade executes at the
+    # matched standing price (NYSE / G&S convention; see apply_order
+    # ``_record_trade``). Both the market-history broadcast and the
+    # announcer's own-history line must show the executed trade price,
+    # not the announcer's emitted ceiling/floor (state["announced_price"]).
+    # ----------------------------------------------------------------
+
+    def test_market_history_shows_trade_price_not_announced_price_on_cross(
+        self, base_market_state
+    ):
+        """Buyer 0 announces $1.60. Seller 3 had a standing ask at
+        $1.50, so the trade executes at $1.50. market_history must
+        broadcast the actual trade price, not the buyer's announced
+        ceiling — otherwise third-party agents reading the market
+        believe it cleared at $1.60.
+        """
+        state = {
+            **base_market_state,
+            "announcement_made": True,
+            "transaction_made": True,
+            "announced_price": 1.60,
+            "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            "counterparty_agent_id": 3,
+            "last_order_outcome": "traded",
+            "transactions": [
+                {"round": 1, "iteration": 1, "price": 1.50,
+                 "buyer_id": 0, "seller_id": 3, "announcement_type": "buy"},
+            ],
+        }
+        node = make_update_history_node()
+        result = node(state)
+
+        text = result["market_history_text"]
+        assert "$1.50" in text, (
+            "market_history must broadcast the actual trade price "
+            f"($1.50, the matched standing ask); got: {text!r}"
+        )
+        assert "$1.60" not in text, (
+            "market_history shows the buyer's announced $1.60 as if it "
+            "were the trade price — third-party agents reading this "
+            f"will misread the market clearing level; got: {text!r}"
+        )
+
+    def test_announcer_own_history_shows_trade_price_not_announced_price(
+        self, base_market_state
+    ):
+        """Same scenario from the announcer's perspective. Buyer 0
+        announced $1.60 and crossed at a $1.50 standing ask. Their
+        own_history must say "$1.50 was accepted" (what they actually
+        paid), not "$1.60" (their max willingness-to-pay). Profit
+        reasoning depends on the trade price.
+        """
+        state = {
+            **base_market_state,
+            "announcement_made": True,
+            "transaction_made": True,
+            "announced_price": 1.60,
+            "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            "counterparty_agent_id": 3,
+            "last_order_outcome": "traded",
+            "transactions": [
+                {"round": 1, "iteration": 1, "price": 1.50,
+                 "buyer_id": 0, "seller_id": 3, "announcement_type": "buy"},
+            ],
+        }
+        node = make_update_history_node()
+        result = node(state)
+
+        announcer = next(a for a in result["agents"] if a["id"] == 0)
+        accepted_entries = [
+            e for e in announcer["own_history_data"]
+            if e.get("outcome") == "accepted"
+        ]
+        assert accepted_entries, "announcer should have an 'accepted' entry"
+        assert accepted_entries[-1]["price"] == 1.50, (
+            "announcer's accepted own_history_data entry stored "
+            f"${accepted_entries[-1]['price']:.2f} but the trade was at "
+            f"$1.50 (the standing ask)"
+        )
+        prompt = announcer["own_history_prompt"]
+        assert "$1.50" in prompt, (
+            "announcer's own_history prompt must show the actual trade "
+            f"price ($1.50); got: {prompt!r}"
+        )
+        assert "$1.60" not in prompt, (
+            "announcer's own_history prompt shows their announced "
+            "$1.60 — but they actually traded at $1.50; their profit "
+            f"reasoning will be off; got: {prompt!r}"
         )
 
 
