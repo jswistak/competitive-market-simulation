@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from pydantic import BaseModel as PydanticBaseModel
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 
 from .providers.base import _normalize_content
 from ..tools.registry import ToolRegistry
@@ -45,13 +45,17 @@ class ToolAugmentedProvider:
         prompt: str,
         callbacks: list[Any] | None = None,
         metadata: dict[str, Any] | None = None,
+        system: str | None = None,
     ) -> str:
         """Invoke the LLM with tool-calling loop.
 
         Args:
-            prompt: The prompt text.
+            prompt: The prompt text (user-facing message under the
+                system+user split).
             callbacks: Optional callbacks for tracing.
             metadata: Optional per-call metadata forwarded to LangChain callbacks.
+            system: Optional system-message content. When set, prepended
+                as a SystemMessage.
 
         Returns:
             Final text response from the LLM.
@@ -59,10 +63,15 @@ class ToolAugmentedProvider:
         self.last_tool_log = []
 
         if not self.tool_registry.has_tools:
-            return self.base_provider.invoke(prompt, callbacks=callbacks, metadata=metadata)
+            return self.base_provider.invoke(
+                prompt, callbacks=callbacks, metadata=metadata, system=system,
+            )
 
         model = self._get_model_with_tools()
-        messages: list[Any] = [HumanMessage(content=prompt)]
+        messages: list[Any] = []
+        if system:
+            messages.append(SystemMessage(content=system))
+        messages.append(HumanMessage(content=prompt))
 
         config: dict[str, Any] = {}
         if callbacks:
@@ -130,6 +139,7 @@ class ToolAugmentedProvider:
         schema: type[PydanticBaseModel],
         callbacks: list[Any] | None = None,
         metadata: dict[str, Any] | None = None,
+        system: str | None = None,
     ) -> PydanticBaseModel:
         """Invoke the LLM with tool-calling loop and return structured output.
 
@@ -138,10 +148,12 @@ class ToolAugmentedProvider:
         then uses structured output for the final extraction.
 
         Args:
-            prompt: The prompt text.
+            prompt: The prompt text (user-facing message under the
+                system+user split).
             schema: Pydantic model class to parse the response into.
             callbacks: Optional callbacks for tracing.
             metadata: Optional per-call metadata forwarded to LangChain callbacks.
+            system: Optional system-message content.
 
         Returns:
             An instance of the provided schema.
@@ -150,11 +162,14 @@ class ToolAugmentedProvider:
 
         if not self.tool_registry.has_tools:
             return self.base_provider.invoke_structured(
-                prompt, schema, callbacks=callbacks, metadata=metadata,
+                prompt, schema, callbacks=callbacks, metadata=metadata, system=system,
             )
 
         model = self._get_model_with_tools()
-        messages: list[Any] = [HumanMessage(content=prompt)]
+        messages: list[Any] = []
+        if system:
+            messages.append(SystemMessage(content=system))
+        messages.append(HumanMessage(content=prompt))
 
         config: dict[str, Any] = {}
         if callbacks:

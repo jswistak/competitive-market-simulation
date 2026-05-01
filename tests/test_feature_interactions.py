@@ -73,26 +73,21 @@ MAIN_TEMPLATE = (
 def _make_prompt_config():
     return PromptConfig(
         general=PromptTemplates(
-            main_template=MAIN_TEMPLATE,
+            user_template=MAIN_TEMPLATE,
             announcement_history_template=(
                 "Round {round} iter {iteration}: {announcement_type} ${price:.2f} {outcome}.\n"
-            ),
-            response_history_template=(
-                "Round {round} iter {iteration}: {outcome} {opposite_announcement_type} ${price:.2f}.\n"
             ),
         ),
         buyer=AgentPromptConfig(
             main_keywords=AgentKeywords(
                 role="buyer", verb="buy", preference="lowest", condition="above"
             ),
-            response_prompt="Sell at ${price:.2f}. Buy? yes/no.",
             announcement_prompt="Announce bid price as number.",
         ),
         seller=AgentPromptConfig(
             main_keywords=AgentKeywords(
                 role="seller", verb="sell", preference="highest", condition="below"
             ),
-            response_prompt="Buy at ${price:.2f}. Sell? yes/no.",
             announcement_prompt="Announce ask price as number.",
         ),
     )
@@ -292,7 +287,7 @@ class TestPersonaPlusHistorySummary:
             market_history_text="Round 1: trade at $1.50",
         )
         prompts = _make_prompt_config()
-        result = _render_announcement_prompt(agents[0], state, prompts, prompts.buyer)
+        _, result = _render_announcement_prompt(agents[0], state, prompts, prompts.buyer)
         assert "aggressive" in result
         assert "Round 1: trade at $1.50" in result
 
@@ -315,7 +310,7 @@ class TestPersonaPlusHistorySummary:
             iteration_records=records,
         )
         prompts = _make_prompt_config()
-        result = _render_announcement_prompt(agents[0], state, prompts, prompts.buyer)
+        _, result = _render_announcement_prompt(agents[0], state, prompts, prompts.buyer)
         assert "aggressive" in result
         # Summary mode should include statistics, not raw text
         assert "Completed transactions: 1" in result

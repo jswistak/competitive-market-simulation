@@ -25,9 +25,13 @@ from market_simulation.graph.state import AgentState
 
 CONFIGS_DIR = Path(__file__).parent.parent / "configs"
 
-# All yaml configs that ship with the project (excluding config_used.yaml which is generated)
+# Configs that ship under the strict (extra='forbid') schema. Scoped
+# to configs/final/ — the canonical home for new configs after the
+# user's planned cleanup of legacy YAMLs in configs/*.yaml. Add
+# subdirectories or specific files here as the cleanup progresses.
 SHIPPED_CONFIGS = sorted(
-    p for p in CONFIGS_DIR.glob("*.yaml") if p.name != "config_used.yaml"
+    p for p in (CONFIGS_DIR / "final").glob("*.yaml")
+    if p.name != "config_used.yaml"
 )
 
 
@@ -85,28 +89,10 @@ def _make_state_for_history_test(
 # Under the improvement-rule CDA, responders no longer log a new action
 # on a cross — the counterparty's standing order was logged when posted,
 # so there is no per-tick responder history to render. The
-# wording-of-the-config-template concern is still covered by
-# TestConfigResponseHistoryTemplate below (which lints YAMLs directly).
-
-
-# ===========================================================================
-# Bug 2 continued: Config response_history_template
-# ===========================================================================
-
-
-class TestConfigResponseHistoryTemplate:
-    """All config files should use unambiguous response history wording."""
-
-    @pytest.mark.parametrize("config_path", SHIPPED_CONFIGS, ids=lambda p: p.name)
-    def test_response_history_template_unambiguous(self, config_path):
-        config = load_config(config_path)
-        template = config.prompts.general.response_history_template
-
-        # Should NOT use "an offer to {type}" phrasing
-        assert "an offer to" not in template, (
-            f"{config_path.name}: response_history_template still uses "
-            f"ambiguous 'an offer to' phrasing"
-        )
+# wording-of-the-config-template concern was previously covered by
+# TestConfigResponseHistoryTemplate, deleted alongside the removal of
+# PromptTemplates.response_history_template (the field had no live
+# reader after PR #18 deleted the responder loop).
 
 
 # ===========================================================================
@@ -118,12 +104,14 @@ class TestDynamicParticipantCount:
     """Config templates should use {N_BUYERS}/{N_SELLERS} not hardcoded numbers."""
 
     @pytest.mark.parametrize("config_path", SHIPPED_CONFIGS, ids=lambda p: p.name)
-    def test_main_template_uses_dynamic_participant_count(self, config_path):
+    def test_templates_use_dynamic_participant_count(self, config_path):
         config = load_config(config_path)
 
-        # Auction configs use prompts.auction.system_template instead of main_template
+        # Auction configs use prompts.auction.system_template (a
+        # different field on AuctionPromptConfig) instead of the
+        # double-auction templates.
         if config.experiment.auction_type.value != "double_auction":
-            pytest.skip("Auction configs use system_template, not main_template")
+            pytest.skip("Auction configs use a different prompt pipeline")
 
         # Zero-intelligence configs don't render prompts at all.
         def _only_zi(strategies):
@@ -136,16 +124,17 @@ class TestDynamicParticipantCount:
         ):
             pytest.skip("Pure ZI configs don't render prompts")
 
-        template = config.prompts.general.main_template
-
-        assert "{N_BUYERS}" in template, (
-            f"{config_path.name}: main_template has hardcoded buyer count "
-            f"instead of {{N_BUYERS}}"
-        )
-        assert "{N_SELLERS}" in template, (
-            f"{config_path.name}: main_template has hardcoded seller count "
-            f"instead of {{N_SELLERS}}"
-        )
+        # Concatenate the system + user templates — the placeholder
+        # only needs to appear *once* across the rendered prompt, not
+        # in both halves, since the split keeps {N_BUYERS} in the
+        # system half and the user half doesn't need it again.
+        general = config.prompts.general
+        joined = general.system_template + "\n" + general.user_template
+        for ph in ("{N_BUYERS}", "{N_SELLERS}"):
+            assert ph in joined, (
+                f"{config_path.name}: neither system_template nor user_template "
+                f"contains {ph}; rendered prompt would have hardcoded participant counts"
+            )
 
     def test_rendered_prompt_has_correct_participant_count(
         self, base_market_state, prompt_config
@@ -154,7 +143,7 @@ class TestDynamicParticipantCount:
         # Use a template that includes {N_BUYERS} and {N_SELLERS}
         prompt_config_with_counts = PromptConfig(
             general=PromptTemplates(
-                main_template=(
+                user_template=(
                     "There are {N_BUYERS} buyers and {N_SELLERS} sellers. "
                     "You are a {role}. {verb} {preference} {condition}. "
                     "Reservation: {reservation_price}. "
@@ -169,7 +158,7 @@ class TestDynamicParticipantCount:
         )
 
         agent = base_market_state["agents"][0]  # buyer
-        prompt = _render_announcement_prompt(
+        _, prompt = _render_announcement_prompt(
             agent=agent,
             state=base_market_state,
             prompts=prompt_config_with_counts,
@@ -188,7 +177,6 @@ class TestDynamicParticipantCount:
 HISTORY_TEMPLATE_FIELDS = (
     "announcement_history_template",
     "announcement_history_non_improving_template",
-    "response_history_template",
     "market_history_accepted_template",
     "market_history_posted_template",
     "market_history_non_improving_template",
@@ -200,7 +188,7 @@ class TestHistoryTemplatesReachAgents:
     """Regression tests for the round/iteration leak.
 
     The bug was that control.py used hardcoded f-strings for both market-history
-    and own-history entries, so removing {round}/{iteration} from the main_template
+    and own-history entries, so removing {round}/{iteration} from the user_template
     in YAML did not actually hide the round/iteration from the agent — the history
     strings still leaked them. These tests lock in that every template field is
     honoured end-to-end.
@@ -238,10 +226,9 @@ class TestHistoryTemplatesReachAgents:
             "CUSTOM-ANNOUNCE-TEMPLATE buy 1.73 accepted" in node_buyer["own_history_prompt"]
         )
 
-    # The response_history_template is unused on the CDA path after the
-    # improvement-rule migration — responders on a cross don't log a
-    # separate action. The template field is still validated by
-    # TestConfigResponseHistoryTemplate at the YAML level.
+    # response_history_template was removed from PromptTemplates after
+    # PR #18 deleted the responder loop. No CDA path reads it, so the
+    # corresponding test was deleted alongside the field.
 
     def test_market_history_accepted_template_from_config_is_used(self, base_market_state):
         sentinel = "MKT-ACCEPTED {announcement_type} {price:.2f}\n"
@@ -317,9 +304,6 @@ class TestHistoryTemplatesReachAgents:
             announcement_history_template=(
                 "Your offer to {announcement_type} for ${price:.2f} was {outcome}.\n"
             ),
-            response_history_template=(
-                "You {outcome} a {opposite_announcement_type} offer for ${price:.2f}.\n"
-            ),
             market_history_accepted_template=(
                 "Announcement to {announcement_type} for ${price:.2f} was accepted.\n"
             ),
@@ -388,6 +372,15 @@ class TestAllConfigsHaveHistoryTemplates:
             pytest.skip("Pure ZI configs don't render prompts")
 
         value = getattr(config.prompts.general, field)
+
+        # market_history_no_announcement_template is allowed to be empty
+        # by design: when an agent passes, the surrounding lines (which
+        # carry their own iteration numbers) let the LLM infer the gap,
+        # and the empty template materially reduces token cost on long
+        # rounds where many ticks are pass-throughs.
+        if field == "market_history_no_announcement_template":
+            return
+
         assert value and value.strip(), (
             f"{config_path.name}: {field} is empty — would silently drop history entries"
         )
@@ -425,19 +418,19 @@ class TestAllConfigsHaveHistoryTemplates:
 # The YAML field `prompts.tools_preamble` existed in the schema and was set
 # in every tool-augmented config, but nothing on the production path read
 # it — researchers worked around the gap by duplicating the same text inside
-# main_template. These tests lock in that `{tools_preamble}` is now a real
-# placeholder available to main_template.
+# user_template. These tests lock in that `{tools_preamble}` is now a real
+# placeholder available to user_template.
 
 
 class TestToolsPreambleWiring:
     def test_tools_preamble_available_in_announcement_prompt(
         self, base_market_state, prompt_config
     ):
-        """A {tools_preamble} placeholder in main_template must be filled
+        """A {tools_preamble} placeholder in user_template must be filled
         from prompts.tools_preamble."""
         prompt_config_with_preamble = PromptConfig(
             general=PromptTemplates(
-                main_template=(
+                user_template=(
                     "PREAMBLE={tools_preamble} "
                     "You are a {role}. {verb} {preference} {condition}. "
                     "Reservation: {reservation_price}. "
@@ -454,7 +447,7 @@ class TestToolsPreambleWiring:
         )
 
         agent = base_market_state["agents"][0]
-        prompt = _render_announcement_prompt(
+        _, prompt = _render_announcement_prompt(
             agent=agent,
             state=base_market_state,
             prompts=prompt_config_with_preamble,
@@ -467,10 +460,10 @@ class TestToolsPreambleWiring:
         self, base_market_state, prompt_config
     ):
         """Configs that don't set tools_preamble (schema default "") must
-        still render main_templates containing {tools_preamble} without error."""
+        still render user_templates containing {tools_preamble} without error."""
         prompt_config_no_preamble = PromptConfig(
             general=PromptTemplates(
-                main_template=(
+                user_template=(
                     "[{tools_preamble}] "
                     "You are a {role}. {verb} {preference} {condition}. "
                     "Reservation: {reservation_price}. "
@@ -487,7 +480,7 @@ class TestToolsPreambleWiring:
         )
 
         agent = base_market_state["agents"][0]
-        prompt = _render_announcement_prompt(
+        _, prompt = _render_announcement_prompt(
             agent=agent,
             state=base_market_state,
             prompts=prompt_config_no_preamble,
