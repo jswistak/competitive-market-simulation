@@ -263,6 +263,90 @@ class TestUpdateHistoryNode:
         assert announcing_agent["own_history_data"][0]["outcome"] == "accepted"
         assert "accepted" in announcing_agent["own_history_prompt"]
 
+    def test_counterparty_history_back_annotated_on_cross(self, base_market_state):
+        """When buyer 0 crosses seller 3's standing ask, seller 3 (the
+        resting-order owner) gets an 'accepted' entry at the trade tick
+        — same wording as the announcer side. Without this, the
+        seller's history shows only their original 'posted' line and
+        they never learn the order traded.
+
+        Buyer announces $1.60 (their ceiling); standing ask was $1.50;
+        trade executes at $1.50. The seller's accepted entry must
+        record $1.50 (the trade price), not $1.60.
+        """
+        # Seller 3 has a prior 'posted at $1.50' entry from when they
+        # placed the standing ask on an earlier tick.
+        agents = []
+        for a in base_market_state["agents"]:
+            if a["id"] == 3:
+                agents.append({
+                    **a,
+                    "own_history_prompt": (
+                        "In round 1 at iteration 1, your offer to sell "
+                        "for $1.50 was posted.\n"
+                    ),
+                    "own_history_data": [{
+                        "round": 1, "iteration": 1, "action": "announce",
+                        "price": 1.50, "outcome": "posted",
+                    }],
+                })
+            else:
+                agents.append(a)
+
+        state = {
+            **base_market_state,
+            "agents": agents,
+            "iteration": 5,
+            "announcement_made": True,
+            "transaction_made": True,
+            "announced_price": 1.60,
+            "announcement_type": "buy",
+            "announcing_agent_id": 0,
+            "counterparty_agent_id": 3,
+            "last_order_outcome": "traded",
+            "transactions": [
+                {"round": 1, "iteration": 5, "price": 1.50,
+                 "buyer_id": 0, "seller_id": 3, "announcement_type": "buy"},
+            ],
+        }
+        node = make_update_history_node()
+        result = node(state)
+
+        seller_3 = next(a for a in result["agents"] if a["id"] == 3)
+        # Original 'posted' line must remain — history is append-only.
+        assert any(
+            e.get("outcome") == "posted" and e.get("iteration") == 1
+            for e in seller_3["own_history_data"]
+        )
+        # New 'accepted' entry at the trade tick.
+        accepted_entries = [
+            e for e in seller_3["own_history_data"]
+            if e.get("outcome") == "accepted" and e.get("iteration") == 5
+        ]
+        assert accepted_entries, (
+            "seller 3's resting ask was crossed at iteration 5 but their "
+            "own_history_data has no 'accepted' entry"
+        )
+        # Trade price ($1.50), not the buyer's announced ceiling ($1.60).
+        assert accepted_entries[-1]["price"] == 1.50, (
+            "back-annotated 'accepted' entry must record the trade price "
+            f"($1.50, the matched standing ask); got "
+            f"${accepted_entries[-1]['price']:.2f}"
+        )
+        # Rendered prompt: original 'posted' line plus the new
+        # 'accepted' line, both for the seller's own offer.
+        prompt = seller_3["own_history_prompt"]
+        assert "for $1.50 was posted" in prompt
+        # The 'accepted' line is the seller's perspective on their
+        # original sell offer being filled, so announcement_type=sell.
+        assert "your offer to sell for $1.50 was accepted" in prompt, (
+            f"counterparty's accepted line missing or wrong; got: {prompt!r}"
+        )
+        # Must not show the buyer's announced ceiling as a fill price.
+        assert "$1.60" not in prompt, (
+            f"buyer's announced $1.60 leaked into seller's history: {prompt!r}"
+        )
+
     def test_iteration_record_fields(self, base_market_state):
         state = {
             **base_market_state,

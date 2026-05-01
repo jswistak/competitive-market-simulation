@@ -168,24 +168,23 @@ def _update_agent_histories(
     templates: PromptTemplates | None = None,
     outcome: str | None = None,
 ) -> list[dict]:
-    """Append per-agent history rows for the announcer on this tick.
+    """Append per-agent history rows on this tick.
 
-    In the CDA path there is no explicit "responder" action — the
-    counterparty on a cross just has their standing order executed, so
-    they don't make a new decision. We therefore only log the announcer's
-    action here; the counterparty's original posting was logged on an
-    earlier tick.
-
-    The announcer's history captures three distinct outcomes the agent
-    can experience for an emitted price (``state.last_order_outcome``):
+    The *announcer* always gets a row, labelled by
+    ``state.last_order_outcome``:
       * ``traded``        → ``"accepted"`` (a cross executed)
       * ``posted``        → ``"posted"`` (improving order entered the book)
       * ``non_improving`` → ``"rejected"`` (mechanism dropped the order)
-    Previously a posted-but-not-yet-traded order was also labelled
-    ``"rejected"``, conflating it with non-improving drops. The richer
-    label lets an LLM tell the difference between "my order is on the
-    book waiting for a counterparty" and "my order was dropped, try
-    something different next time."
+
+    On a ``traded`` tick the *counterparty* (whose resting order was
+    crossed) also gets an ``"accepted"`` row at the trade price — the
+    same wording the announcer would see, since both sides of the
+    cross are economically symmetric. Without this back-annotation the
+    counterparty's history shows only their original ``"posted"`` line
+    and they never learn the order traded; with a separate label the
+    prompt would carry redundant per-tick "outbid" / "expired"
+    bookkeeping that bloats the prompt without adding signal beyond
+    what the live standing book already shows.
     """
     if templates is None:
         templates = PromptTemplates()
@@ -214,11 +213,21 @@ def _update_agent_histories(
     # emitted ceiling/floor; everywhere else the announcer's emitted
     # price is the canonical value to display.
     if outcome == "traded":
-        announcer_price = _resolve_trade_price(
+        trade_price = _resolve_trade_price(
             state, fallback=state["announced_price"]
         )
     else:
-        announcer_price = state["announced_price"]
+        trade_price = state["announced_price"]
+
+    # Counterparty back-annotation: when a cross executes, the resting
+    # order owner's history would otherwise show only the original
+    # "posted" line with no later resolution. Append an "accepted" row
+    # at the trade tick so that side learns the order traded — using
+    # the same wording the announcer side gets, since both ends of the
+    # cross are economically equivalent.
+    counterparty_id = (
+        state.get("counterparty_agent_id") if outcome == "traded" else None
+    )
 
     updated = []
     for agent in agents:
@@ -229,7 +238,7 @@ def _update_agent_histories(
                 "round": state["round"],
                 "iteration": state["iteration"],
                 "action": "announce",
-                "price": announcer_price,
+                "price": trade_price,
                 "outcome": label,
             }
             agent_copy["own_history_data"] = agent["own_history_data"] + [history_entry]
@@ -243,17 +252,43 @@ def _update_agent_histories(
                     round=state["round"],
                     iteration=state["iteration"],
                     announcement_type=ann_type,
-                    price=announcer_price,
+                    price=trade_price,
                 )
             else:
                 entry = templates.announcement_history_template.format(
                     round=state["round"],
                     iteration=state["iteration"],
                     announcement_type=ann_type,
-                    price=announcer_price,
+                    price=trade_price,
                     outcome=label,
                 )
             agent_copy["own_history_prompt"] = agent["own_history_prompt"] + entry
+
+        elif counterparty_id is not None and agent["id"] == counterparty_id:
+            # The counterparty's resting order was on the opposite side
+            # of the announcer's emission, so flip ann_type relative to
+            # the agent's role.
+            counterparty_ann_type = "buy" if agent["type"] == "buyer" else "sell"
+            history_entry = {
+                "round": state["round"],
+                "iteration": state["iteration"],
+                "action": "announce",
+                "price": trade_price,
+                "outcome": "accepted",
+            }
+            agent_copy["own_history_data"] = (
+                agent["own_history_data"] + [history_entry]
+            )
+            entry = templates.announcement_history_template.format(
+                round=state["round"],
+                iteration=state["iteration"],
+                announcement_type=counterparty_ann_type,
+                price=trade_price,
+                outcome="accepted",
+            )
+            agent_copy["own_history_prompt"] = (
+                agent["own_history_prompt"] + entry
+            )
 
         updated.append(agent_copy)
 
