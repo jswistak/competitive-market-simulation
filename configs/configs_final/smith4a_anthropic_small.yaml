@@ -1,0 +1,162 @@
+experiment:
+  auction_type: double_auction
+  buyers:
+    max: 4.9
+    min: 2.5
+    num: 13
+    strategies: llm
+  history:
+    mode: full
+    own_history_mode: full
+    summary_last_n_events: 3
+  include_reasoning: true
+  max_ticks_per_round: 300
+  n_rounds: 4
+  n_simulations: 1
+  random_seed: null
+  recursion_limit: null
+  sellers:
+    max: 3.1
+    min: 3.1
+    num: 13
+    strategies: llm
+llm:
+  max_retries: 3
+  max_tokens: 1024
+  max_tokens_with_tools: 1024
+  model: claude-haiku-4-5-20251001
+  provider: anthropic
+  temperature: 1.0
+prompts:
+  buyer:
+    announcement_prompt: 'Do you want to announce a bid to buy? If so, what is your
+      bid price? It must be strictly higher than the current standing bid (or be the
+      first bid if none exists) and no higher than your reservation price.
+
+      '
+    main_keywords:
+      condition: above
+      order_outcomes: 'If your bid is greater than or equal to the standing ask, a
+        trade executes immediately at the standing ask price. Both parties exit the
+        round.
+
+        Otherwise, if your bid is strictly greater than the standing bid, your bid
+        becomes the new standing bid and you may transact at your bid price if a seller
+        later posts an ask at or below it.
+
+        Otherwise, your bid has no effect.
+
+        '
+      preference: lowest
+      profit_formula: your reservation price and your transaction price
+      role: buyer
+      verb: buy
+  general:
+    announcement_history_template: 'In round {round}, your offer to {announcement_type}
+      for ${price:.2f} was {outcome}.
+
+      '
+    announcement_history_non_improving_template: 'In round {round}, your offer to
+      {announcement_type} for ${price:.2f} was rejected because it did not improve
+      the standing book.
+
+      '
+    system_template: 'You are a {role} participating in a market for a good you need
+      to {verb}. Your task is to {verb} a unit of the good at the {preference} possible
+      price but not {condition} your reservation price.
+
+      Your profit from a transaction equals the difference between {profit_formula}.
+
+      Your goal is to maximize your profit.
+
+      Your reservation price is known to you and only you.
+
+
+      There are {N_BUYERS} buyers and {N_SELLERS} sellers in this market (including
+      you).
+
+
+      Market rules:
+
+      - The market maintains a standing best bid (the highest outstanding buy offer)
+      and a standing best ask (the lowest outstanding sell offer). Either may be absent
+      if no one has posted on that side yet.
+
+      - {order_outcomes}
+
+      - A round ends once no one can post an improving order, or once a cap on orders
+      is reached.
+
+
+      There will be {N_ROUNDS} rounds. Each round, you want to {verb} an additional
+      unit of the good and are able to transact irrespective of whether you transacted
+      in the previous round. You can only make one transaction per round.
+
+      '
+    user_template: 'Market history:
+
+      {market_history}
+
+
+      History of your actions:
+
+      {own_history}
+
+
+      This is round {round}/{N_ROUNDS}.
+
+      Current standing bid: {standing_bid}
+
+      Current standing ask: {standing_ask}
+
+
+      Your reservation price is ${reservation_price:.2f}.
+      Under no condition can you {verb} {condition} your reservation price.
+
+      {action_prompt}
+
+      '
+    market_history_accepted_template: 'In round {round} at iteration {iteration},
+      an announcement to {announcement_type} for ${price:.2f} was accepted.
+
+      '
+    market_history_no_announcement_template: ''
+    market_history_posted_template: 'In round {round} at iteration {iteration},
+      an announcement to {announcement_type} for ${price:.2f} was posted as the new
+      best {announcement_type} but no one crossed it yet.
+
+      '
+  seller:
+    announcement_prompt: 'Do you want to announce an offer to sell? If so, what is
+      your asking price? It must be strictly lower than the current standing ask (or
+      be the first ask if none exists) and no lower than your reservation price.
+
+      '
+    main_keywords:
+      condition: below
+      order_outcomes: 'If your ask is less than or equal to the standing bid, a trade
+        executes immediately at the standing bid price. Both parties exit the round.
+
+        Otherwise, if your ask is strictly less than the standing ask, your ask becomes
+        the new standing ask and you may transact at your ask price if a buyer later
+        posts a bid at or above it.
+
+        Otherwise, your ask has no effect.
+
+        '
+      preference: highest
+      profit_formula: your transaction price and your reservation price
+      role: seller
+      verb: sell
+  tools_preamble: ''
+tools:
+  enabled: false
+tracing:
+  enabled: true
+  llm_call_logging: true
+zi:
+  accept_prob: 0.5
+  announce_prob: 0.5
+  bid_prob: 0.5
+  u_high: 10.0
+  u_low: 0.0
