@@ -1,31 +1,31 @@
 experiment:
   auction_type: double_auction
   buyers:
-    max: 3.25
-    min: 0.75
-    num: 11
+    max: 4.4
+    min: 3.2
+    num: 19
     strategies: llm
   history:
     mode: full
     own_history_mode: full
     summary_last_n_events: 3
-  include_reasoning: false
-  max_ticks_per_round: 200
-  n_rounds: 5
+  include_reasoning: true
+  max_ticks_per_round: 300
+  n_rounds: 3
   n_simulations: 1
   random_seed: null
   recursion_limit: null
   sellers:
-    max: 3.25
-    min: 0.75
-    num: 11
+    max: 3.8
+    min: 2.0
+    num: 18
     strategies: llm
 llm:
   max_retries: 3
   max_tokens: 1024
   max_tokens_with_tools: 1024
-  model: gemini-3-flash-preview
-  provider: gemini
+  model: gpt-5.4-mini-2026-03-17
+  provider: openai
   temperature: 1.0
 prompts:
   buyer:
@@ -152,7 +152,7 @@ prompts:
 tools:
   enabled: false
 tracing:
-  enabled: false
+  enabled: true
   llm_call_logging: true
 zi:
   accept_prob: 0.5
