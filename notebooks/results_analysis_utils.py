@@ -635,6 +635,19 @@ def _plot_trajectory_panel(ax, df_metrics, col, color, ylabel,
         if hline_label: ax.legend(fontsize=9)
 
 
+def _safe_hist(ax, data, target_bins=30, **kwargs):
+    """Histogram that handles constant or near-constant data."""
+    vals = data.dropna()
+    if len(vals) == 0:
+        return
+    vmin, vmax = vals.min(), vals.max()
+    if vmax - vmin < 1e-10:
+        margin = max(abs(vmin) * 0.1, 0.5)
+        ax.hist(vals, bins=1, range=(vmin - margin, vmin + margin), **kwargs)
+    else:
+        n_bins = min(target_bins, max(1, len(vals) // 2))
+        ax.hist(vals, bins=n_bins, **kwargs)
+
 def plot_validation(df_metrics, df_marsh, eq, title="Market Experiment",
                     independent_rounds=False):
     """Generate 2x3 validation plots."""
@@ -644,7 +657,7 @@ def plot_validation(df_metrics, df_marsh, eq, title="Market Experiment",
     fig.suptitle(title, fontsize=14, fontweight='bold', y=1.02)
     # Row 0
     ax = axes[0, 0]
-    ax.hist(df_metrics['efficiency'], bins=30, color='#16a34a', alpha=0.7, edgecolor='white')
+    _safe_hist(ax, df_metrics['efficiency'], color='#16a34a', alpha=0.7, edgecolor='white')
     ax.axvline(df_metrics['efficiency'].mean(), color='black', ls='--', lw=1.5,
                label=f"mean = {df_metrics['efficiency'].mean():.3f}")
     ax.axvline(1.0, color='#e74c3c', ls='-', lw=1, label='CE (100%)')
@@ -652,7 +665,7 @@ def plot_validation(df_metrics, df_marsh, eq, title="Market Experiment",
     ax.set_title('Efficiency distribution'); ax.legend(fontsize=9)
 
     ax = axes[0, 1]
-    ax.hist(df_metrics['alpha'], bins=30, color='#2563eb', alpha=0.7, edgecolor='white')
+    _safe_hist(ax, df_metrics['alpha'], color='#2563eb', alpha=0.7, edgecolor='white')
     ax.axvline(df_metrics['alpha'].mean(), color='black', ls='--', lw=1.5,
                label=f"mean = {df_metrics['alpha'].mean():.1f}%")
     ax.set_xlabel("Smith's \u03b1 (%)"); ax.set_ylabel('Count')
@@ -1234,6 +1247,175 @@ def plot_agent_rent_trajectories(rent, eq):
     return fig
 
 
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+def compute_spread_series(df_iter: pd.DataFrame) -> pd.DataFrame:
+    cols = ['sim', 'round', 'iteration', 'standing_bid', 'standing_ask']
+    df = df_iter[cols].copy()
+
+    df['standing_bid'] = pd.to_numeric(df['standing_bid'], errors='coerce')
+    df['standing_ask'] = pd.to_numeric(df['standing_ask'], errors='coerce')
+
+    df['spread'] = df['standing_ask'] - df['standing_bid']
+
+    return df
+
+
+def spread_by_round(spread_series: pd.DataFrame) -> pd.DataFrame:
+    g = spread_series.groupby(['sim', 'round'])
+
+    mean_s = g['spread'].mean().rename('mean_spread')
+    min_s  = g['spread'].min().rename('min_spread')
+
+    final_s = (
+        spread_series.sort_values('iteration')
+        .groupby(['sim', 'round'])
+        .last()[['spread']]
+        .rename(columns={'spread': 'final_spread'})
+    )
+
+    both_sides = (
+        spread_series
+        .assign(both=lambda d: d['standing_bid'].notna() & d['standing_ask'].notna())
+        .groupby(['sim', 'round'])['both']
+        .mean()
+        .rename('pct_both_sides')
+    )
+
+    return pd.concat([mean_s, min_s, final_s, both_sides], axis=1).reset_index()
+
+
+# ── plotting ──────────────────────────────────────────────────────────────────
+
+def plot_spread_evolution(
+    spread_series: pd.DataFrame,
+    df_tx: pd.DataFrame,
+    figsize: tuple = (7, 4),
+) -> plt.Figure:
+    by_round = spread_by_round(spread_series)
+
+    tx_per_round = (
+        df_tx.groupby(['sim', 'round']).size()
+        .groupby('round').mean()
+        .rename('avg_tx')
+    )
+
+    rounds   = sorted(by_round['round'].unique())
+    n_rounds = len(rounds)
+    palette  = plt.cm.tab10(np.linspace(0, 0.9, n_rounds))
+
+    fig, axes = plt.subplots(1, 1, figsize=figsize)
+
+    # ── Panel 1: round-level summary ─────────────────────────────────────────
+    ax1 = axes
+
+    round_means = by_round.groupby('round')['mean_spread'].mean()
+    round_se    = by_round.groupby('round')['mean_spread'].sem().fillna(0)
+
+    ax1.bar(rounds, round_means.loc[rounds], color=palette, alpha=0.75,
+            edgecolor='white', linewidth=0.8, zorder=3)
+    ax1.errorbar(rounds, round_means.loc[rounds],
+                 yerr=round_se.loc[rounds],
+                 fmt='none', color='black', capsize=4, linewidth=1.2, zorder=4)
+
+    y_max = (round_means + round_se).max()
+    for r in rounds:
+        n_tx = tx_per_round.get(r, 0)
+        ax1.text(r, round_means[r] + round_se.get(r, 0) + y_max * 0.03,
+                 f'{n_tx:.0f} tx', ha='center', va='bottom', fontsize=8,
+                 color='#333333')
+
+    ax1.set_xlabel('Round', fontsize=11)
+    ax1.set_ylabel('Mean bid-ask spread ($)', fontsize=11)
+    ax1.set_title('Bid-Ask Spread by Round', fontsize=13, fontweight='bold')
+    ax1.set_xticks(rounds)
+    ax1.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
+    ax1.grid(axis='y', linestyle=':', alpha=0.5)
+    ax1.set_axisbelow(True)
+
+    fig.tight_layout(h_pad=3)
+    return fig
+
+
+def plot_spread_global(
+    spread_series: pd.DataFrame,
+    df_tx: pd.DataFrame,
+    figsize: tuple = (14, 5),
+) -> plt.Figure:
+    df = spread_series.copy()
+
+    round_lengths = (
+        df.groupby(['sim', 'round'])['iteration'].count()
+        .groupby(level='round').max()
+        .cumsum().shift(1, fill_value=0)
+        .rename('offset')
+    )
+    df = df.join(round_lengths, on='round')
+
+    df['local_rank'] = (
+        df.sort_values('iteration')
+        .groupby(['sim', 'round'])
+        .cumcount()
+    )
+    df['global_tick'] = df['offset'] + df['local_rank']
+
+    agg = (
+        df.groupby('global_tick')['spread']
+        .agg(mean_spread='mean', se_spread='sem')
+        .reset_index()
+    )
+
+    boundaries = round_lengths[round_lengths > 0].to_dict()
+
+    tx_marks = (
+        df_tx[['sim', 'round', 'iteration']]
+        .merge(df[['sim', 'round', 'iteration', 'global_tick']],
+               on=['sim', 'round', 'iteration'], how='left')
+        .dropna(subset=['global_tick'])
+        .groupby('global_tick')['sim'].count()
+        .reset_index()
+        .rename(columns={'sim': 'n_tx'})
+    )
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    ax.plot(agg['global_tick'], agg['mean_spread'],
+            color='steelblue', linewidth=1.4, zorder=3)
+    ax.fill_between(
+        agg['global_tick'],
+        agg['mean_spread'] - agg['se_spread'].fillna(0),
+        agg['mean_spread'] + agg['se_spread'].fillna(0),
+        color='steelblue', alpha=0.2, zorder=2,
+    )
+
+    for r, offset in boundaries.items():
+        ax.axvline(offset, color='gray', linestyle='--',
+                   linewidth=0.9, alpha=0.7, zorder=1)
+        ax.text(offset + agg['global_tick'].max() * 0.005, 1,
+                f'R{r}', fontsize=8, color='gray', va='top',
+                transform=ax.get_xaxis_transform())
+
+    if not tx_marks.empty:
+        ax.vlines(tx_marks['global_tick'], 0, -0.02,
+                  color='crimson', linewidth=1.0,
+                  transform=ax.get_xaxis_transform(),
+                  label='Transaction', clip_on=False)
+
+    ax.set_xlabel('Global iteration (continuous across rounds)', fontsize=11)
+    ax.set_ylabel('Bid-ask spread ($)', fontsize=11)
+    ax.set_title('Bid-Ask Spread: Full Experiment Timeline', fontsize=13,
+                 fontweight='bold')
+    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
+    ax.legend(fontsize=9)
+    ax.grid(linestyle=':', alpha=0.5)
+    ax.set_axisbelow(True)
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0)
+
+    fig.tight_layout()
+    return fig
+
+
 # ============================================================
 # 10. MAIN RUNNERS
 # ============================================================
@@ -1305,6 +1487,92 @@ def run_rent_analysis(df_tx: pd.DataFrame, df_ann: pd.DataFrame,
     return {'rent': rent, **figs}
 
 
+def analyse_trade_initiation(
+    df_tx: pd.DataFrame,
+) -> tuple[pd.DataFrame, plt.Figure]:
+    """
+    Analyses whether trades were initiated by a buyer crossing a standing ask
+    ('buy') or a seller crossing a standing bid ('sell').
+
+    Returns:
+        summary : fraction of buyer- vs seller-initiated trades per round
+        fig     : bar chart of initiation fractions by round
+    """
+    # ── summary table ─────────────────────────────────────────────────────────
+    counts = (
+        df_tx.groupby(['sim', 'round', 'announcement_type'])
+        .size()
+        .rename('n')
+        .reset_index()
+    )
+
+    total = counts.groupby(['sim', 'round'])['n'].sum().rename('total')
+    counts = counts.join(total, on=['sim', 'round'])
+    counts['fraction'] = counts['n'] / counts['total']
+
+    # Average across sims
+    summary = (
+        counts.groupby(['round', 'announcement_type'])
+        .agg(
+            mean_fraction=('fraction', 'mean'),
+            se_fraction=('fraction', 'sem'),
+            mean_n=('n', 'mean'),
+        )
+        .reset_index()
+    )
+
+    print("Trade initiation by round:")
+    print(summary.to_string(index=False, float_format='%.3f'))
+
+    # ── plot ──────────────────────────────────────────────────────────────────
+    rounds      = sorted(summary['round'].unique())
+    types       = ['buy', 'sell']
+    labels      = {'buy': 'Buyer-initiated (crosses ask)',
+                   'sell': 'Seller-initiated (crosses bid)'}
+    colors      = {'buy': 'steelblue', 'sell': 'tomato'}
+    bar_width   = 0.35
+    x           = np.arange(len(rounds))
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+
+    for i, t in enumerate(types):
+        sub = summary[summary['announcement_type'] == t].set_index('round')
+        means = [sub.loc[r, 'mean_fraction'] if r in sub.index else 0 for r in rounds]
+        ses   = [sub.loc[r, 'se_fraction']   if r in sub.index else 0 for r in rounds]
+        ses   = [s if not np.isnan(s) else 0 for s in ses]
+
+        offset = (i - 0.5) * bar_width
+        bars = ax.bar(x + offset, means, bar_width,
+                      label=labels[t], color=colors[t],
+                      alpha=0.75, edgecolor='white', linewidth=0.8, zorder=3)
+        ax.errorbar(x + offset, means, yerr=ses,
+                    fmt='none', color='black', capsize=3,
+                    linewidth=1.0, zorder=4)
+
+        # Annotate with mean count
+        for xi, (m, n) in enumerate(zip(means, [
+            sub.loc[r, 'mean_n'] if r in sub.index else 0 for r in rounds
+        ])):
+            ax.text(xi + offset, m + max(ses) + 0.02,
+                    f'{n:.0f}', ha='center', va='bottom',
+                    fontsize=8, color='#333333')
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([f'Round {r}' for r in rounds])
+    ax.set_ylabel('Fraction of trades', fontsize=11)
+    ax.set_title('Trade Initiation: Buyer vs Seller', fontsize=13, fontweight='bold')
+    ax.set_ylim(0, 1)
+    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.0f%%'))
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda y, _: f'{y:.0%}'))
+    ax.legend(fontsize=9)
+    ax.grid(axis='y', linestyle=':', alpha=0.5)
+    ax.set_axisbelow(True)
+
+    plt.show()
+    return summary, fig
+
+
+
 def run_full_analysis(results_path: Path, n_sims: int, title: str = None,
                       config: dict = None, experiment_id: str = None,
                       independent_rounds: bool = False) -> dict:
@@ -1315,9 +1583,12 @@ def run_full_analysis(results_path: Path, n_sims: int, title: str = None,
         from results_analysis import run_full_analysis
         results = run_full_analysis(Path('results/my_experiment'), n_sims=10)
     """
-    val = run_validation(results_path, n_sims, title=title, config=config, 
+    val = run_validation(results_path, n_sims, title=title, config=config,
                          independent_rounds=independent_rounds)
     df_ann = extract_announcements(val['iter'])
+
+    summary_table = print_market_summary_table(
+        val['metrics'], val['eq'], experiment_id=experiment_id)
 
     rent_results = run_rent_analysis(
         val['tx'], df_ann, val['agents'], val['eq'],
@@ -1325,6 +1596,7 @@ def run_full_analysis(results_path: Path, n_sims: int, title: str = None,
     )
 
     extra_figs = {}
+
     if val['metrics']['round'].nunique() > 1:
         extra_figs['fig_smith'] = plot_smith_comparison(
             val['metrics'], val['eq'], experiment_id=experiment_id, title=title)
@@ -1335,12 +1607,21 @@ def run_full_analysis(results_path: Path, n_sims: int, title: str = None,
     extra_figs['fig_dispersion'] = plot_bid_ask_dispersion(df_ann, val['eq'])
     extra_figs['fig_price_vs_res'] = plot_order_price_vs_reservation(df_ann, val['eq'])
 
-    summary_table = print_market_summary_table(
-        val['metrics'], val['eq'], experiment_id=experiment_id)
+    # ── spread analysis ───────────────────────────────────────────────────────
+    spread_series                     = compute_spread_series(val['iter'])
+    spread_by_rnd                     = spread_by_round(spread_series)
+    extra_figs['fig_spread_by_round'] = plot_spread_evolution(spread_series, val['tx'])
+    extra_figs['fig_spread_global']   = plot_spread_global(spread_series, val['tx'])
+
+    # ── trade initiation ──────────────────────────────────────────────────────
+    initiation_summary, extra_figs['fig_trade_initiation'] = analyse_trade_initiation(val['tx'])
 
     return {
         **val, **rent_results, **extra_figs,
         'ann': df_ann, 'summary_table': summary_table,
+        'spread_series': spread_series,
+        'spread_by_round': spread_by_rnd,
+        'initiation_summary': initiation_summary,
     }
 
 
