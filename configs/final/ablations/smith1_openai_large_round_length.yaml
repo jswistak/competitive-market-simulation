@@ -12,7 +12,7 @@ experiment:
   include_reasoning: false
   max_ticks_per_round: 300
   n_rounds: 5
-  n_simulations: 5
+  n_simulations: 1
   random_seed: null
   recursion_limit: null
   sellers:
