@@ -12,7 +12,7 @@ experiment:
   include_reasoning: false
   max_ticks_per_round: 300
   n_rounds: 5
-  n_simulations: 5
+  n_simulations: 1
   random_seed: null
   recursion_limit: null
   sellers:
@@ -68,6 +68,8 @@ prompts:
       Your profit from a transaction equals the difference between {profit_formula}.
 
       Your goal is to maximize your profit.
+      
+      However, {verb}ing at a price equal to your reservation price is acceptable and preferred over not {verb}ing at all.
 
       Your reservation price is known to you and only you.
 
@@ -90,12 +92,7 @@ prompts:
 
       There will be {N_ROUNDS} rounds. Each round, you want to {verb} an additional
       unit of the good and are able to transact irrespective of whether you transacted
-      in the previous round. You can only make one transaction per round. Each round
-      lasts at most 300 iterations, where each iteration is one opportunity for some
-      agent in the market (not necessarily you) to post a bid or an ask. The round
-      ends when this cap is reached or when no improving order can be posted, whichever
-      comes first. If you do not transact within the round, you earn zero profit for
-      that round.
+      in the previous round. You can only make one transaction per round.
 
       '
     user_template: 'Market history:
@@ -108,7 +105,7 @@ prompts:
       {own_history}
 
 
-      This is round {round}/{N_ROUNDS}, iteration {iteration}/300.
+      This is round {round}/{N_ROUNDS}.
 
       Current standing bid: {standing_bid}
 
