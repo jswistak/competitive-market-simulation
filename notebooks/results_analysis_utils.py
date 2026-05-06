@@ -1891,10 +1891,11 @@ def plot_quote_improvements(metrics: ExperimentMetrics,
     fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
 
     ax = axes[0]
-    upper = imp['improvement'].quantile(0.99)
-    # Widen if the 99th is at a single quantum and there's a longer tail
-    if upper <= bin_width and imp['improvement'].max() > upper:
-        upper = imp['improvement'].max()
+    upper = float(imp['improvement'].max())
+    # upper = imp['improvement'].quantile(0.99)
+    # # Widen if the 99th is at a single quantum and there's a longer tail
+    # if upper <= bin_width and imp['improvement'].max() > upper:
+    #     upper = imp['improvement'].max()
 
     if bin_width is None:
         target = upper / 25
