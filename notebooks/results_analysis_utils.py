@@ -102,6 +102,7 @@ class ExperimentData:
     ann: pd.DataFrame       # extracted, deduplicated announcements
     config: dict
     independent_rounds: bool = False  # True for ZI baselines (1 round/sim)
+    has_transactions: bool = True     # False if all sims missing transactions_*.csv
 
 
 @dataclass
@@ -122,40 +123,84 @@ class ExperimentMetrics:
 # §3. LOADING & ENRICHMENT
 # ============================================================
 
+# Canonical schema for an empty transactions DataFrame. Mirrors what
+# _enrich_transactions expects to find before it adds derived columns.
+_EMPTY_TX_COLUMNS = [
+    'sim', 'round', 'iteration', 'price',
+    'buyer_id', 'seller_id', 'announcement_type',
+]
+
+
 def _load_csvs(results_path: Path, n_sims: int
-               ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Load and concat the three CSV families across all available sims."""
+               ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, bool]:
+    """Load and concat the three CSV families across all available sims.
+
+    Transactions are optional: a sim is included if iteration_history and
+    agent_histories exist. If transactions_{sim}.csv is missing, that sim
+    contributes no transaction rows. Returns (df_iter, df_tx, df_agents,
+    has_transactions) where has_transactions is False iff no sim has any
+    transaction file.
+    """
+    data_dir = results_path / 'data'
     available = [
         s for s in range(1, n_sims + 1)
-        if (results_path / 'data' / f'iteration_history_{s}.csv').exists()
-        and (results_path / 'data' / f'transactions_{s}.csv').exists()
-        and (results_path / 'data' / f'agent_histories_{s}.csv').exists()
+        if (data_dir / f'iteration_history_{s}.csv').exists()
+        and (data_dir / f'agent_histories_{s}.csv').exists()
     ]
     if not available:
-        raise FileNotFoundError(f"No matching files found in {results_path / 'data'}")
+        raise FileNotFoundError(f"No matching files found in {data_dir}")
 
-    def _concat(prefix):
-        return pd.concat([
-            pd.read_csv(results_path / 'data' / f'{prefix}_{s}.csv').assign(sim=s)
-            for s in available
+    sims_with_tx = [
+        s for s in available
+        if (data_dir / f'transactions_{s}.csv').exists()
+    ]
+
+    df_iter = pd.concat([
+        pd.read_csv(data_dir / f'iteration_history_{s}.csv').assign(sim=s)
+        for s in available
+    ], ignore_index=True)
+    df_agents = pd.concat([
+        pd.read_csv(data_dir / f'agent_histories_{s}.csv').assign(sim=s)
+        for s in available
+    ], ignore_index=True)
+
+    if sims_with_tx:
+        df_tx = pd.concat([
+            pd.read_csv(data_dir / f'transactions_{s}.csv').assign(sim=s)
+            for s in sims_with_tx
         ], ignore_index=True)
+        has_transactions = True
+    else:
+        df_tx = pd.DataFrame(columns=_EMPTY_TX_COLUMNS)
+        has_transactions = False
 
-    df_iter = _concat('iteration_history')
-    df_tx = _concat('transactions')
-    df_agents = _concat('agent_histories')
-
-    n_rounds = df_tx.groupby('sim')['round'].nunique().iloc[0]
+    n_rounds_iter = df_iter.groupby('sim')['round'].nunique().iloc[0]
     print(f"Loaded {len(available)} simulations from {results_path.name}")
     print(f"  Iteration history rows: {len(df_iter)}")
-    print(f"  Transaction rows:       {len(df_tx)}")
-    print(f"  Rounds per sim:         {n_rounds}")
-    print(f"  Total round-obs:        {df_tx.groupby(['sim', 'round']).ngroups}")
-    return df_iter, df_tx, df_agents
+    if has_transactions:
+        print(f"  Transaction rows:       {len(df_tx)} "
+              f"(from {len(sims_with_tx)}/{len(available)} sims)")
+    else:
+        print(f"  Transaction rows:       0 (no transactions_*.csv found)")
+    print(f"  Rounds per sim:         {n_rounds_iter}")
+    return df_iter, df_tx, df_agents, has_transactions
 
 
 def _enrich_transactions(df_tx: pd.DataFrame, eq: Equilibrium) -> pd.DataFrame:
     """Add reservation prices, surplus, share, role flags. Idempotent-safe but
-    only ever called once per dataset (at load time)."""
+    only ever called once per dataset (at load time). Empty input returns an
+    empty DataFrame with all expected columns."""
+    if len(df_tx) == 0:
+        # Build an empty frame with every column downstream code may touch,
+        # so groupby/agg don't blow up on KeyError.
+        cols = list(df_tx.columns) + [
+            'buyer_val', 'seller_cost', 'buyer_rent', 'seller_rent',
+            'total_surplus', 'buyer_share', 'seller_share',
+            'buyer_inframarginal', 'seller_inframarginal', 'both_inframarginal',
+            'buyer_violation', 'seller_violation',
+        ]
+        return pd.DataFrame(columns=list(dict.fromkeys(cols)))
+
     tx = df_tx.copy()
     tx['buyer_val'] = tx['buyer_id'].map(eq.buyer_map)
     tx['seller_cost'] = tx['seller_id'].map(eq.seller_map)
@@ -312,7 +357,7 @@ def load_experiment_data(results_path: Path, n_sims: int,
         with open(cfg_path) as f:
             config = yaml.safe_load(f)
 
-    df_iter, df_tx, df_agents = _load_csvs(results_path, n_sims)
+    df_iter, df_tx, df_agents, has_transactions = _load_csvs(results_path, n_sims)
     eq = _compute_equilibrium(config, df_agents, show_plot=show_eq_plot)
     tx = _enrich_transactions(df_tx, eq)
     ann = _extract_announcements(df_iter)
@@ -321,8 +366,8 @@ def load_experiment_data(results_path: Path, n_sims: int,
         experiment_id=experiment_id or results_path.name,
         eq=eq, iter=df_iter, tx=tx, agents=df_agents, ann=ann,
         config=config, independent_rounds=independent_rounds,
+        has_transactions=has_transactions,
     )
-
 
 # ============================================================
 # §4. METRICS (pure functions returning DataFrames)
@@ -405,6 +450,12 @@ def _compute_extraction_efficiency(ann: pd.DataFrame, tx: pd.DataFrame
                  .rename(columns={'attempted_rent': 'first_attempted_rent',
                                   'price': 'first_price'}))
 
+    if len(tx) == 0:
+        eff_cols = list(ann_first.columns) + [
+            'agent_id', 'realized_rent', 'side', 'efficiency',
+        ]
+        return ann_first, pd.DataFrame(columns=list(dict.fromkeys(eff_cols)))
+
     realised_rows = []
     for _, r in tx.iterrows():
         realised_rows.append({'sim': r['sim'], 'agent_id': r['buyer_id'],
@@ -472,18 +523,40 @@ def compute_initiation(tx: pd.DataFrame) -> pd.DataFrame:
 
 
 def compute_all_metrics(data: ExperimentData) -> ExperimentMetrics:
-    """Compute every metric DataFrame. Order does not matter."""
+    """Compute every metric DataFrame. Order-flow metrics (announcements,
+    spread, quote improvements) are always computed. Transaction-dependent
+    metrics (round_metrics, marshallian, initiation, realised-rent half of
+    `rent`) are skipped — replaced with empty DataFrames — when there are no
+    transactions."""
     spread = compute_spread_series(data.iter)
+    quote_imp = compute_quote_improvements(data.iter)
+    rent = compute_rent_metrics(data)  # tolerates empty tx (see below)
+
+    if data.has_transactions:
+        round_metrics = compute_round_metrics(data.tx, data.eq)
+        marshallian = compute_marshallian_path(data.tx, data.eq)
+        initiation = compute_initiation(data.tx)
+    else:
+        round_metrics = pd.DataFrame(columns=[
+            'sim', 'round', 'efficiency', 'alpha', 'n_trades',
+            'mean_price', 'actual_surplus', 'n_extramarginal',
+            'n_negative_surplus',
+        ])
+        marshallian = pd.DataFrame()
+        initiation = pd.DataFrame(columns=[
+            'round', 'announcement_type', 'mean_fraction',
+            'se_fraction', 'mean_n',
+        ])
+
     return ExperimentMetrics(
-        round_metrics=compute_round_metrics(data.tx, data.eq),
-        marshallian=compute_marshallian_path(data.tx, data.eq),
-        rent=compute_rent_metrics(data),
+        round_metrics=round_metrics,
+        marshallian=marshallian,
+        rent=rent,
         spread_series=spread,
         spread_by_round=spread_by_round(spread),
-        initiation=compute_initiation(data.tx),
-        quote_improvements=compute_quote_improvements(data.iter),
+        initiation=initiation,
+        quote_improvements=quote_imp,
     )
-
 
 def compute_quote_improvements(df_iter: pd.DataFrame) -> pd.DataFrame:
     """Per-event improvements in standing bid/ask.
@@ -696,35 +769,48 @@ def report_marshallian(s: dict) -> None:
 
 def summarize_rent(rent: dict) -> dict:
     ann, tx, conc, eff = rent['ann'], rent['tx'], rent['concessions'], rent['extraction_eff']
+    has_tx = len(tx) > 0
+
     out = {
+        'has_tx': has_tx,
         'attempted_by_side': {side: {
             'mean': ann[ann['side'] == side]['attempted_rent'].mean(),
             'median': ann[ann['side'] == side]['attempted_rent'].median(),
             'std': ann[ann['side'] == side]['attempted_rent'].std(),
         } for side in ['buyer', 'seller']},
-        'realized': {
-            'buyer_mean': tx['buyer_rent'].mean(),
-            'seller_mean': tx['seller_rent'].mean(),
-        },
         'shares': {},
         'concessions_by_side': {},
         'extraction_eff_by_side': {},
         'violations': {
             'ann_total': len(ann), 'ann_violations': int(ann['violation'].sum()),
+        },
+    }
+    if has_tx:
+        out['realized'] = {
+            'buyer_mean': tx['buyer_rent'].mean(),
+            'seller_mean': tx['seller_rent'].mean(),
+        }
+        out['violations'].update({
             'tx_total': len(tx),
             'tx_buyer_violations': int(tx['buyer_violation'].sum()),
             'tx_seller_violations': int(tx['seller_violation'].sum()),
-        },
-        'who_trades': {
+        })
+        out['who_trades'] = {
             'buyer_inframarginal': tx['buyer_inframarginal'].mean(),
             'seller_inframarginal': tx['seller_inframarginal'].mean(),
             'both_inframarginal': tx['both_inframarginal'].mean(),
-        },
-    }
-    valid = tx[tx['buyer_share'].notna()]
-    if len(valid) > 0:
-        out['shares'] = {'buyer': valid['buyer_share'].mean(),
-                         'seller': valid['seller_share'].mean()}
+        }
+        valid = tx[tx['buyer_share'].notna()]
+        if len(valid) > 0:
+            out['shares'] = {'buyer': valid['buyer_share'].mean(),
+                             'seller': valid['seller_share'].mean()}
+        for side in ['buyer', 'seller']:
+            sub = eff[eff['side'] == side]['efficiency']
+            if len(sub) > 0:
+                out['extraction_eff_by_side'][side] = {
+                    'mean': sub.mean(), 'median': sub.median(),
+                }
+
     if len(conc) > 0:
         for side in ['buyer', 'seller']:
             sub = conc[conc['side'] == side]
@@ -733,12 +819,6 @@ def summarize_rent(rent: dict) -> dict:
                     'mean_concession': sub['concession'].mean(),
                     'mean_frac': sub['frac_concession'].mean(),
                 }
-    for side in ['buyer', 'seller']:
-        sub = eff[eff['side'] == side]['efficiency']
-        if len(sub) > 0:
-            out['extraction_eff_by_side'][side] = {
-                'mean': sub.mean(), 'median': sub.median(),
-            }
     if 'filled' in ann.columns:
         out['fill_rate_by_side'] = {
             side: ann[ann['side'] == side]['filled'].mean()
@@ -755,32 +835,40 @@ def report_rent(s: dict) -> None:
     for side, v in s['attempted_by_side'].items():
         print(f"  {side.title():>6}: mean={v['mean']:.3f}, "
               f"median={v['median']:.3f}, std={v['std']:.3f}")
-    r = s['realized']
-    print(f"\nRealized Rent (execution prices):")
-    print(f"  Buyer rent:  mean={r['buyer_mean']:.3f}")
-    print(f"  Seller rent: mean={r['seller_mean']:.3f}")
-    if s['shares']:
-        print(f"  Buyer share:  {s['shares']['buyer']:.1%}")
-        print(f"  Seller share: {s['shares']['seller']:.1%}")
+
+    if s.get('has_tx', True):
+        r = s['realized']
+        print(f"\nRealized Rent (execution prices):")
+        print(f"  Buyer rent:  mean={r['buyer_mean']:.3f}")
+        print(f"  Seller rent: mean={r['seller_mean']:.3f}")
+        if s['shares']:
+            print(f"  Buyer share:  {s['shares']['buyer']:.1%}")
+            print(f"  Seller share: {s['shares']['seller']:.1%}")
+
     if s['concessions_by_side']:
         print(f"\nConcessions (submitted order prices):")
         for side, v in s['concessions_by_side'].items():
             print(f"  {side.title():>6}: mean concession={v['mean_concession']:.3f}, "
                   f"frac={v['mean_frac']:.1%}")
-    print(f"\nExtraction Efficiency:")
-    for side, v in s['extraction_eff_by_side'].items():
-        print(f"  {side.title():>6}: mean={v['mean']:.3f}, median={v['median']:.3f}")
+
+    if s.get('has_tx', True) and s['extraction_eff_by_side']:
+        print(f"\nExtraction Efficiency:")
+        for side, v in s['extraction_eff_by_side'].items():
+            print(f"  {side.title():>6}: mean={v['mean']:.3f}, median={v['median']:.3f}")
+
     v = s['violations']
     print(f"\nConstraint Violations:")
     print(f"  Announcements: {v['ann_violations']}/{v['ann_total']} "
           f"({v['ann_violations'] / v['ann_total']:.1%})")
-    print(f"  Buyer tx violations:  {v['tx_buyer_violations']}/{v['tx_total']}")
-    print(f"  Seller tx violations: {v['tx_seller_violations']}/{v['tx_total']}")
-    w = s['who_trades']
-    print(f"\nWho Trades:")
-    print(f"  Buyer inframarginal:  {w['buyer_inframarginal']:.1%}")
-    print(f"  Seller inframarginal: {w['seller_inframarginal']:.1%}")
-    print(f"  Both inframarginal:   {w['both_inframarginal']:.1%}")
+    if s.get('has_tx', True):
+        print(f"  Buyer tx violations:  {v['tx_buyer_violations']}/{v['tx_total']}")
+        print(f"  Seller tx violations: {v['tx_seller_violations']}/{v['tx_total']}")
+        w = s['who_trades']
+        print(f"\nWho Trades:")
+        print(f"  Buyer inframarginal:  {w['buyer_inframarginal']:.1%}")
+        print(f"  Seller inframarginal: {w['seller_inframarginal']:.1%}")
+        print(f"  Both inframarginal:   {w['both_inframarginal']:.1%}")
+
     if 'fill_rate_by_side' in s:
         print(f"\nFill Rate (fraction of submitted orders that executed immediately):")
         for side, rate in s['fill_rate_by_side'].items():
@@ -934,6 +1022,21 @@ def _price_y_bounds(eq: Equilibrium) -> tuple[float, float]:
 # ============================================================
 # §7. PLOTS — VALIDATION
 # ============================================================
+
+def _placeholder_fig(message: str, figsize: tuple = (8, 4)) -> plt.Figure:
+    """Render a blank figure with a centred message. Used when a tx-dependent
+    plot has no data to show."""
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.text(0.5, 0.5, message, ha='center', va='center',
+            fontsize=12, family='serif', color='#555555',
+            transform=ax.transAxes)
+    ax.set_xticks([]); ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    plt.tight_layout()
+    plt.show()
+    return fig
+
 
 def _plot_trajectory_panel(ax, df_metrics, col, color, ylabel,
                             independent_rounds, n_sims,
@@ -1789,6 +1892,9 @@ def plot_quote_improvements(metrics: ExperimentMetrics,
 
     ax = axes[0]
     upper = imp['improvement'].quantile(0.99)
+    # Widen if the 99th is at a single quantum and there's a longer tail
+    if upper <= bin_width and imp['improvement'].max() > upper:
+        upper = imp['improvement'].max()
 
     if bin_width is None:
         target = upper / 25
@@ -1836,6 +1942,8 @@ def plot_quote_improvements(metrics: ExperimentMetrics,
         ax.step(sub, y, where='post', color=st['color'], lw=1.8,
                 label=st['label'])
     for ref in [0.01, 0.05, 0.10, 0.25]:
+        if ref > upper:
+            continue
         ax.axvline(ref, color='grey', ls=':', lw=0.7, alpha=0.5)
         ax.text(ref, 1.01, f'${ref:g}', ha='center', fontsize=8,
                 color='grey', transform=ax.get_xaxis_transform())
@@ -1872,34 +1980,56 @@ def render_all_plots(data: ExperimentData, metrics: ExperimentMetrics,
     """Render every plot. Returns dict of name → Figure."""
     figs = {}
     eid = experiment_id or data.experiment_id
+    has_tx = data.has_transactions
+    msg = "No transactions in this experiment"
 
-    figs['validation'] = plot_validation(data, metrics, title=title)
-    figs['price_convergence'] = plot_price_convergence(data, metrics, title=title)
-    if metrics.round_metrics['round'].nunique() > 1:
-        figs['smith_comparison'] = plot_smith_comparison(
-            data, metrics, experiment_id=eid, title=title)
-    figs['single_sim_prices'] = plot_single_sim_prices(data, metrics, sim=1)
+    # --- transaction-dependent ---
+    if has_tx:
+        figs['validation'] = plot_validation(data, metrics, title=title)
+        figs['price_convergence'] = plot_price_convergence(data, metrics, title=title)
+        if metrics.round_metrics['round'].nunique() > 1:
+            figs['smith_comparison'] = plot_smith_comparison(
+                data, metrics, experiment_id=eid, title=title)
+        figs['single_sim_prices'] = plot_single_sim_prices(data, metrics, sim=1)
+    else:
+        for name in ['validation', 'price_convergence',
+                     'smith_comparison', 'single_sim_prices']:
+            figs[name] = _placeholder_fig(msg)
 
-    figs['order_flow'] = plot_order_flow(data)
+    # --- order flow (tx-independent except for plot_order_flow's trade overlay) ---
+    figs['order_flow'] = plot_order_flow(data)  # uses iter only; trade overlay gracefully empty
     figs['bid_ask_dispersion'] = plot_bid_ask_dispersion(data)
     figs['order_price_vs_reservation'] = plot_order_price_vs_reservation(data)
     figs['fill_rate'] = plot_fill_rate(data)
 
+    # --- rent (mixed) ---
     rent, eq = metrics.rent, data.eq
     figs['attempted_rent'] = plot_attempted_rent(rent, eq)
     figs['rent_ratio'] = plot_rent_ratio(rent, eq)
-    figs['realized_rent'] = plot_realized_rent(rent, eq)
-    figs['extraction_efficiency'] = plot_extraction_efficiency(rent, eq)
+    if has_tx:
+        figs['realized_rent'] = plot_realized_rent(rent, eq)
+        figs['extraction_efficiency'] = plot_extraction_efficiency(rent, eq)
+    else:
+        figs['realized_rent'] = _placeholder_fig(msg)
+        figs['extraction_efficiency'] = _placeholder_fig(msg)
     figs['concession_rate'] = plot_concession_rate(rent, eq)
     figs['zero_profit_orders'] = plot_zero_profit_orders(rent, eq)
-    figs['constraint_violations'] = plot_constraint_violations(rent, eq)
+    if has_tx:
+        figs['constraint_violations'] = plot_constraint_violations(rent, eq)
+        figs['who_trades'] = plot_who_trades(rent, eq)
+    else:
+        figs['constraint_violations'] = _placeholder_fig(msg)
+        figs['who_trades'] = _placeholder_fig(msg)
     figs['order_frequency'] = plot_order_frequency(rent, eq)
-    figs['who_trades'] = plot_who_trades(rent, eq)
     figs['agent_trajectories'] = plot_agent_rent_trajectories(rent, eq)
 
-    figs['spread_by_round'] = plot_spread_evolution(metrics, data)
-    figs['spread_global'] = plot_spread_global(metrics, data)
-    figs['trade_initiation'] = plot_trade_initiation(metrics)
+    # --- spread / initiation ---
+    figs['spread_by_round'] = plot_spread_evolution(metrics, data) if has_tx \
+        else _placeholder_fig(msg)
+    figs['spread_global'] = plot_spread_global(metrics, data) if has_tx \
+        else _placeholder_fig(msg)
+    figs['trade_initiation'] = plot_trade_initiation(metrics) if has_tx \
+        else _placeholder_fig(msg)
     figs['quote_improvements'] = plot_quote_improvements(metrics)
 
     return figs
@@ -1907,10 +2037,16 @@ def render_all_plots(data: ExperimentData, metrics: ExperimentMetrics,
 
 def report_all(data: ExperimentData, metrics: ExperimentMetrics) -> None:
     """Print every text summary."""
-    report_round_metrics(summarize_round_metrics(
-        metrics.round_metrics, data.eq, data.independent_rounds))
-    report_marshallian(summarize_marshallian(metrics.marshallian, data.eq))
-    report_market_summary_table(metrics.summary_table)
+    if data.has_transactions:
+        report_round_metrics(summarize_round_metrics(
+            metrics.round_metrics, data.eq, data.independent_rounds))
+        report_marshallian(summarize_marshallian(metrics.marshallian, data.eq))
+        report_market_summary_table(metrics.summary_table)
+    else:
+        print("\n" + "=" * 60)
+        print("NO TRANSACTIONS — skipping efficiency, alpha, Marshallian, "
+              "and summary table")
+        print("=" * 60)
     report_rent(summarize_rent(metrics.rent))
 
 
@@ -1925,8 +2061,9 @@ def run_full_analysis(results_path: Path, n_sims: int,
         results_path, n_sims, config=config,
         experiment_id=experiment_id, independent_rounds=independent_rounds)
     metrics = compute_all_metrics(data)
-    metrics.summary_table = build_market_summary_table(
-        metrics.round_metrics, data.eq, experiment_id=experiment_id)
+    if data.has_transactions:
+        metrics.summary_table = build_market_summary_table(
+            metrics.round_metrics, data.eq, experiment_id=experiment_id)
     report_all(data, metrics)
     figs = render_all_plots(data, metrics, title=title,
                             experiment_id=experiment_id)
