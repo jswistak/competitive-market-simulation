@@ -114,6 +114,7 @@ class ExperimentMetrics:
     spread_series: pd.DataFrame
     spread_by_round: pd.DataFrame
     initiation: pd.DataFrame
+    quote_improvements: pd.DataFrame
     summary_table: pd.DataFrame = field(default_factory=pd.DataFrame)
 
 
@@ -480,7 +481,59 @@ def compute_all_metrics(data: ExperimentData) -> ExperimentMetrics:
         spread_series=spread,
         spread_by_round=spread_by_round(spread),
         initiation=compute_initiation(data.tx),
+        quote_improvements=compute_quote_improvements(data.iter),
     )
+
+
+def compute_quote_improvements(df_iter: pd.DataFrame) -> pd.DataFrame:
+    """Per-event improvements in standing bid/ask.
+
+    An "improvement" is when a new order tightens the existing standing quote
+    on its side: bid goes up, ask goes down. Returns one row per improvement
+    event with the size of the improvement.
+
+    Excludes:
+    - Fresh posts where the side was previously empty (no prior quote)
+    - Trade events (order_outcome == 'traded'): these clear the book rather
+      than improve a resting quote
+    - No-announcement ticks
+    """
+    df = df_iter.copy()
+    df['standing_bid'] = pd.to_numeric(df['standing_bid'], errors='coerce')
+    df['standing_ask'] = pd.to_numeric(df['standing_ask'], errors='coerce')
+
+    rows = []
+    for (sim, rnd), g in df.groupby(['sim', 'round']):
+        g = g.sort_values('iteration').reset_index(drop=True)
+        prev_bid = np.nan
+        prev_ask = np.nan
+        for _, r in g.iterrows():
+            cur_bid, cur_ask = r['standing_bid'], r['standing_ask']
+
+            if r['announcement_made'] and r['order_outcome'] == 'posted':
+                if r['announcement_type'] == 'buy' and pd.notna(prev_bid) \
+                        and pd.notna(cur_bid) and cur_bid > prev_bid:
+                    rows.append({
+                        'sim': sim, 'round': rnd, 'iteration': r['iteration'],
+                        'side': 'buyer', 'agent_id': r['announcing_agent_id'],
+                        'prev_quote': prev_bid, 'new_quote': cur_bid,
+                        'improvement': cur_bid - prev_bid,
+                    })
+                elif r['announcement_type'] == 'sell' and pd.notna(prev_ask) \
+                        and pd.notna(cur_ask) and cur_ask < prev_ask:
+                    rows.append({
+                        'sim': sim, 'round': rnd, 'iteration': r['iteration'],
+                        'side': 'seller', 'agent_id': r['announcing_agent_id'],
+                        'prev_quote': prev_ask, 'new_quote': cur_ask,
+                        'improvement': prev_ask - cur_ask,
+                    })
+
+            prev_bid, prev_ask = cur_bid, cur_ask
+
+    out = pd.DataFrame(rows)
+    if len(out) > 0:
+        out['improvement'] = out['improvement'].round(4)
+    return out
 
 
 # ============================================================
@@ -1712,6 +1765,103 @@ def plot_trade_initiation(metrics: ExperimentMetrics) -> plt.Figure:
     return fig
 
 
+def plot_quote_improvements(metrics: ExperimentMetrics,
+                             bin_width: float = 0.01,
+                             max_improvement: float | None = None,
+                             log_y: bool = False) -> plt.Figure | None:
+    """Distribution of per-tick improvements to the standing bid/ask.
+
+    Shows whether agents make fine-grained (e.g. $0.01) vs coarse (e.g. $0.10)
+    price improvements. Three panels:
+      a) Histogram of improvement sizes by side
+      b) ECDF by side — clearest view of where the mass sits
+      c) Improvement size by round (mean ± SEM)
+    """
+    imp = metrics.quote_improvements
+    if len(imp) == 0:
+        print("No improvement events found.")
+        return None
+
+    if max_improvement is not None:
+        imp = imp[imp['improvement'] <= max_improvement]
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
+
+    ax = axes[0]
+    upper = imp['improvement'].quantile(0.99)
+
+    if bin_width is None:
+        target = upper / 25
+        nice = np.array([0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5])
+        bin_width = float(nice[np.argmin(np.abs(nice - target))])
+
+    bin_edges = np.arange(0, upper + bin_width, bin_width)
+    bc = (bin_edges[:-1] + bin_edges[1:]) / 2
+    width = bin_width
+    half = width / 2
+    sims = sorted(imp['sim'].unique())
+
+    for side, st, offset in [
+        ('buyer',  SIDE_STYLES['buyer'],  -half / 2),
+        ('seller', SIDE_STYLES['seller'],  half / 2),
+    ]:
+        counts = np.zeros((len(sims), len(bc)))
+        for i, s in enumerate(sims):
+            v = imp[(imp['side'] == side) & (imp['sim'] == s)]['improvement']
+            counts[i], _ = np.histogram(v, bins=bin_edges)
+        m = counts.mean(0)
+        sem = counts.std(0, ddof=1) / np.sqrt(len(sims)) if len(sims) > 1 else np.zeros_like(m)
+        n_total = int(counts.sum())
+        ax.bar(bc + offset, m, width=half, color=st['color'],
+               edgecolor='white', linewidth=0.4,
+               label=f"{st['label']} (n={n_total})")
+        ax.errorbar(bc + offset, m, yerr=sem, fmt='none',
+                    ecolor='black', capsize=1.5, lw=0.8)
+
+    ax.set_xlim(0, upper)
+    ax.set_xlabel(f'Improvement size ($, bin width={bin_width:g})')
+    ax.set_ylabel('Mean count per simulation')
+    ax.set_title('a) Distribution of improvement sizes')
+    if log_y:
+        ax.set_yscale('log')
+    ax.legend()
+    ax.grid(axis='y', linestyle=':', alpha=0.4)
+
+    ax = axes[1]
+    for side, st in SIDE_STYLES.items():
+        sub = np.sort(imp[imp['side'] == side]['improvement'].values)
+        if len(sub) == 0:
+            continue
+        y = np.arange(1, len(sub) + 1) / len(sub)
+        ax.step(sub, y, where='post', color=st['color'], lw=1.8,
+                label=st['label'])
+    for ref in [0.01, 0.05, 0.10, 0.25]:
+        ax.axvline(ref, color='grey', ls=':', lw=0.7, alpha=0.5)
+        ax.text(ref, 1.01, f'${ref:g}', ha='center', fontsize=8,
+                color='grey', transform=ax.get_xaxis_transform())
+    ax.set_xlabel('Improvement size ($)')
+    ax.set_ylabel('Cumulative fraction')
+    ax.set_title('b) ECDF of improvement sizes')
+    ax.set_xlim(0, upper)
+    ax.set_ylim(0, 1.05)
+    ax.legend(loc='lower right')
+    ax.grid(linestyle=':', alpha=0.4)
+
+    ax = axes[2]
+    _errorbar_by_round_by_side(ax, imp, 'improvement')
+    ax.set_xlabel('Round')
+    ax.set_ylabel('Mean improvement ($)')
+    ax.set_title('c) Mean improvement by round')
+    ax.set_xticks(sorted(imp['round'].unique()))
+    ax.legend()
+    ax.grid(linestyle=':', alpha=0.4)
+
+    fig.suptitle('Per-Tick Improvements to Standing Bid / Ask',
+                 fontsize=13, fontweight='bold', y=1.02)
+    plt.show()
+    return fig
+
+
 # ============================================================
 # §11. PIPELINES
 # ============================================================
@@ -1750,6 +1900,7 @@ def render_all_plots(data: ExperimentData, metrics: ExperimentMetrics,
     figs['spread_by_round'] = plot_spread_evolution(metrics, data)
     figs['spread_global'] = plot_spread_global(metrics, data)
     figs['trade_initiation'] = plot_trade_initiation(metrics)
+    figs['quote_improvements'] = plot_quote_improvements(metrics)
 
     return figs
 
