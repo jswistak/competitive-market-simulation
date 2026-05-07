@@ -1251,8 +1251,7 @@ def plot_single_sim_prices(data: ExperimentData, metrics: ExperimentMetrics,
 def plot_order_flow(data: ExperimentData) -> plt.Figure:
     """Per-sim submitted bid/ask prices with trades highlighted."""
     df_iter, eq = data.iter, data.eq
-    ann_rows = df_iter[df_iter['announcement_made'] == True].copy()
-    sims = sorted(ann_rows['sim'].unique())
+    sims = sorted(df_iter['sim'].unique())
     n_sims = len(sims)
     n_cols = min(2, n_sims); n_rows = (n_sims + n_cols - 1) // n_cols
     fig, axes = plt.subplots(n_rows, n_cols,
@@ -1264,22 +1263,41 @@ def plot_order_flow(data: ExperimentData) -> plt.Figure:
     for i, sim in enumerate(sims):
         last_i = i
         ax = flat[i]
-        df_plot = ann_rows[ann_rows['sim'] == sim]
+        df_sim = df_iter[df_iter['sim'] == sim].copy()
+
+        # Build continuous x-axis: cumulative offset per round + iteration within round.
+        round_lengths = df_sim.groupby('round')['iteration'].max()
+        rounds_sorted = sorted(round_lengths.index)
+        offsets = {}
+        cum = 0
+        for r in rounds_sorted:
+            offsets[r] = cum
+            cum += round_lengths[r]
+        df_sim['x'] = df_sim.apply(
+            lambda row: offsets[row['round']] + row['iteration'], axis=1
+        )
+
+        ann_rows = df_sim[df_sim['announcement_made'] == True]
+
         for at, st in [('buy', SIDE_STYLES_ALT['buyer']),
-                        ('sell', SIDE_STYLES_ALT['seller'])]:
-            sub = df_plot[df_plot['announcement_type'] == at]
-            ax.plot(sub.index, sub['price'], marker=st['marker'], markersize=8,
+                       ('sell', SIDE_STYLES_ALT['seller'])]:
+            sub = ann_rows[ann_rows['announcement_type'] == at]
+            ax.plot(sub['x'], sub['price'], marker=st['marker'], markersize=8,
                     linestyle='-', label=st['label'], color=st['color'])
-        traded = df_plot[df_plot['transaction_made'] == True]
+        traded = ann_rows[ann_rows['transaction_made'] == True]
         for at, st in [('buy', SIDE_STYLES_ALT['buyer']),
-                        ('sell', SIDE_STYLES_ALT['seller'])]:
+                       ('sell', SIDE_STYLES_ALT['seller'])]:
             sub = traded[traded['announcement_type'] == at]
-            ax.plot(sub.index, sub['price'], marker=st['marker'], markersize=10,
+            ax.plot(sub['x'], sub['price'], marker=st['marker'], markersize=10,
                     linestyle='', markeredgecolor='black', markeredgewidth=1.5,
                     color=st['color'], label=f"{at.title()} → Trade")
-        last_idx = (df_plot.reset_index().groupby('round')['index'].max())
-        for x in last_idx.values[:-1]:
-            ax.axvline(x=x + 0.5, color='grey', linestyle='--', linewidth=1.5)
+
+        # Round separators at cumulative round boundaries.
+        cum = 0
+        for r in rounds_sorted[:-1]:
+            cum += round_lengths[r]
+            ax.axvline(x=cum + 0.5, color='grey', linestyle='--', linewidth=1.5)
+
         ax.axhline(eq.price, color='red', linestyle='--')
         ax.set_xticks([])
         ax.set_title(f'Order Flow, simulation {sim}')
