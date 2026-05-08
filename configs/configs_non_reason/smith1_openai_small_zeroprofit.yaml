@@ -9,7 +9,7 @@ experiment:
     mode: full
     own_history_mode: full
     summary_last_n_events: 3
-  include_reasoning: true
+  include_reasoning: false
   max_ticks_per_round: 300
   n_rounds: 5
   n_simulations: 1
@@ -24,8 +24,8 @@ llm:
   max_retries: 3
   max_tokens: 1024
   max_tokens_with_tools: 1024
-  model: claude-sonnet-4-6
-  provider: anthropic
+  model: gpt-5.4-mini-2026-03-17
+  provider: openai
   temperature: 1.0
 prompts:
   buyer:
@@ -64,10 +64,12 @@ prompts:
     system_template: 'You are a {role} participating in a market for a good you need
       to {verb}. Your task is to {verb} a unit of the good at the {preference} possible
       price but not {condition} your reservation price.
-
+      
       Your profit from a transaction equals the difference between {profit_formula}.
 
       Your goal is to maximize your profit.
+
+      However, {verb}ing at a price equal to your reservation price is acceptable and preferred over not {verb}ing at all.
 
       Your reservation price is known to you and only you.
 
