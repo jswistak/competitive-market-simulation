@@ -9,7 +9,7 @@ experiment:
     mode: full
     own_history_mode: full
     summary_last_n_events: 3
-  include_reasoning: true
+  include_reasoning: false
   max_ticks_per_round: 300
   n_rounds: 5
   n_simulations: 1
@@ -68,6 +68,8 @@ prompts:
       Your profit from a transaction equals the difference between {profit_formula}.
 
       Your goal is to maximize your profit.
+      
+      However, {verb}ing at a price equal to your reservation price is acceptable and preferred over not {verb}ing at all.
 
       Your reservation price is known to you and only you.
 
