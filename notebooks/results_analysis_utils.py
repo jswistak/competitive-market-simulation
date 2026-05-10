@@ -1995,7 +1995,8 @@ def plot_quote_improvements(metrics: ExperimentMetrics,
 
 def render_all_plots(data: ExperimentData, metrics: ExperimentMetrics,
                      title: str | None = None,
-                     experiment_id: str | None = None) -> dict:
+                     experiment_id: str | None = None,
+                     n_sims: int = 1) -> dict:
     """Render every plot. Returns dict of name → Figure."""
     figs = {}
     eid = experiment_id or data.experiment_id
@@ -2009,7 +2010,8 @@ def render_all_plots(data: ExperimentData, metrics: ExperimentMetrics,
         if metrics.round_metrics['round'].nunique() > 1:
             figs['smith_comparison'] = plot_smith_comparison(
                 data, metrics, experiment_id=eid, title=title)
-        figs['single_sim_prices'] = plot_single_sim_prices(data, metrics, sim=1)
+        for sim in range(1, n_sims + 1):
+                figs[f'single_sim_prices_sim{sim}'] = plot_single_sim_prices(data, metrics, sim=sim)
     else:
         for name in ['validation', 'price_convergence',
                      'smith_comparison', 'single_sim_prices']:
@@ -2085,7 +2087,7 @@ def run_full_analysis(results_path: Path, n_sims: int,
             metrics.round_metrics, data.eq, experiment_id=experiment_id)
     report_all(data, metrics)
     figs = render_all_plots(data, metrics, title=title,
-                            experiment_id=experiment_id)
+                            experiment_id=experiment_id, n_sims=n_sims)
     return data, metrics, figs
 
 
