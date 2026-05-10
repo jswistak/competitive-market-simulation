@@ -1792,6 +1792,156 @@ def plot_agent_rent_trajectories(rent: dict, eq: Equilibrium) -> plt.Figure:
     return fig
 
 
+def plot_first_attempted_rent(data: ExperimentData,
+                              figsize: tuple = (11, 4.5)) -> plt.Figure:
+    """First attempted rent in round 1, by role and mover order.
+
+    For each simulation, identifies the first buy and first sell announcement
+    in round 1 and computes attempted rent against the announcer's own
+    reservation price (buyer: value - price; seller: price - cost). The
+    earlier iteration is tagged 'first mover', the later 'second mover'.
+
+    Panel (a): strip + mean±SEM across the four (role × order) cells.
+    Panel (b): paired within-sim view. Two dots per sim (first vs second
+    mover attempted rent) connected by a line coloured by which role
+    moved first.
+    """
+    df = data.iter
+    r1 = df[(df['round'] == 1) & (df['announcement_made'] == True)].copy()
+
+    # First buy and first sell per sim in round 1.
+    first_by_side = (r1.sort_values(['sim', 'iteration'])
+                       .groupby(['sim', 'announcement_type'], as_index=False)
+                       .first())
+
+    # Attempted rent vs own reservation.
+    def _rent(row):
+        res = row['announcing_agent_reservation_price']
+        p = row['price']
+        return res - p if row['announcement_type'] == 'buy' else p - res
+
+    first_by_side['attempted_rent'] = first_by_side.apply(_rent, axis=1)
+    first_by_side['role'] = first_by_side['announcement_type'].map(
+        {'buy': 'buyer', 'sell': 'seller'})
+
+    # Tag first vs second mover within each sim.
+    first_by_side['mover_rank'] = (first_by_side
+                                   .groupby('sim')['iteration']
+                                   .rank(method='first').astype(int))
+    first_by_side['mover'] = first_by_side['mover_rank'].map(
+        {1: 'first', 2: 'second'})
+
+    # Drop sims missing one side (no quote from buyer or seller in round 1).
+    complete = (first_by_side.groupby('sim')['mover_rank']
+                              .max() == 2)
+    keep_sims = complete[complete].index
+    first_by_side = first_by_side[first_by_side['sim'].isin(keep_sims)]
+
+    if len(first_by_side) == 0:
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.text(0.5, 0.5, "No qualifying round-1 announcements",
+                ha='center', va='center', transform=ax.transAxes,
+                fontsize=11, color='#666')
+        ax.set_axis_off()
+        plt.show()
+        return fig
+
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+    # ---- Panel (a): strip + mean±SEM by (role, mover) ----
+    ax = axes[0]
+    cells = [('buyer', 'first'), ('buyer', 'second'),
+             ('seller', 'first'), ('seller', 'second')]
+    rng = np.random.default_rng(0)
+
+    for pos, (role, mover) in enumerate(cells, start=1):
+        sub = first_by_side[(first_by_side['role'] == role) &
+                            (first_by_side['mover'] == mover)]
+        vals = sub['attempted_rent'].to_numpy()
+        col = SIDE_STYLES[role]['color']
+        face = col if mover == 'first' else 'white'
+        edge = col
+
+        # Jittered points (one per sim).
+        if len(vals):
+            jitter = rng.uniform(-0.12, 0.12, len(vals))
+            ax.scatter(np.full(len(vals), pos) + jitter, vals,
+                       s=36, facecolor=face, edgecolor=edge,
+                       linewidth=1.2, alpha=0.8, zorder=3)
+
+        # n label below the axis.
+        ax.text(pos, -0.06, f'n={len(vals)}', ha='center', va='top',
+                fontsize=8, color='#666',
+                transform=ax.get_xaxis_transform())
+
+    ax.axhline(0, color='gray', linewidth=0.8, linestyle='--', alpha=0.6)
+    ax.set_xticks(range(1, 5))
+    ax.set_xticklabels(['Buyer\n(first)', 'Buyer\n(second)',
+                        'Seller\n(first)', 'Seller\n(second)'])
+    ax.set_xlim(0.5, 4.5)
+    ax.set_ylabel('First attempted rent ($)', fontsize=11)
+    ax.set_title('a) By role and mover order',
+                 fontsize=12, fontweight='bold')
+    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
+    ax.grid(axis='y', linestyle=':', alpha=0.5)
+    ax.set_axisbelow(True)
+
+    # Legend showing the fill convention.
+    from matplotlib.lines import Line2D
+    legend_handles = [
+        Line2D([0], [0], marker='o', color='w', label='First mover',
+               markerfacecolor='#666', markeredgecolor='#666', markersize=8),
+        Line2D([0], [0], marker='o', color='w', label='Second mover',
+               markerfacecolor='white', markeredgecolor='#666',
+               markeredgewidth=1.2, markersize=8),
+    ]
+    ax.legend(handles=legend_handles, fontsize=9, loc='best')
+
+    # ---- Panel (b): paired within-sim ----
+    ax = axes[1]
+    pivot = (first_by_side.pivot_table(index='sim', columns='mover',
+                                        values='attempted_rent')
+                          .dropna(subset=['first', 'second']))
+    # Which role moved first in each sim (for line colour).
+    first_role = (first_by_side[first_by_side['mover'] == 'first']
+                  .set_index('sim')['role'])
+
+    for sim_id, row in pivot.iterrows():
+        col = SIDE_STYLES[first_role.loc[sim_id]]['color']
+        ax.plot([1, 2], [row['first'], row['second']],
+                color=col, alpha=0.45, linewidth=1.0, zorder=2)
+        ax.scatter([1], [row['first']], s=30, color=col,
+                   alpha=0.85, zorder=3)
+        ax.scatter([2], [row['second']], s=30, facecolor='white',
+                   edgecolor=col, linewidth=1.2, alpha=0.85, zorder=3)
+
+    ax.axhline(0, color='gray', linewidth=0.8, linestyle='--', alpha=0.6)
+    ax.set_xticks([1, 2])
+    ax.set_xticklabels(['First mover', 'Second mover'])
+    ax.set_xlim(0.7, 2.3)
+    ax.set_ylabel('First attempted rent ($)', fontsize=11)
+    ax.set_title('b) Within-simulation: first vs second mover',
+                 fontsize=12, fontweight='bold')
+    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
+    ax.grid(axis='y', linestyle=':', alpha=0.5)
+    ax.set_axisbelow(True)
+
+    # Legend: line colour = role of first mover.
+    role_handles = [
+        Line2D([0], [0], color=SIDE_STYLES['buyer']['color'],
+               linewidth=2, label='Buyer moved first'),
+        Line2D([0], [0], color=SIDE_STYLES['seller']['color'],
+               linewidth=2, label='Seller moved first'),
+    ]
+    ax.legend(handles=role_handles, fontsize=9, loc='best')
+
+    fig.suptitle('First Attempted Rent in Round 1',
+                 fontsize=13, fontweight='bold', y=1.02)
+    fig.tight_layout()
+    plt.show()
+    return fig
+
+
 # ============================================================
 # §10. PLOTS — SPREAD & INITIATION
 # ============================================================
@@ -2230,6 +2380,7 @@ def render_all_plots(data: ExperimentData, metrics: ExperimentMetrics,
     figs['quote_improvements'] = plot_quote_improvements(metrics)
     figs['pre_crossing_spread'] = plot_pre_crossing_spread(metrics) if has_tx \
         else _placeholder_fig(msg)
+    figs['first_attempted_rent'] = plot_first_attempted_rent(data)
 
     return figs
 
