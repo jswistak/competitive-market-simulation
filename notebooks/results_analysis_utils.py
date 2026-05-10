@@ -116,6 +116,7 @@ class ExperimentMetrics:
     spread_by_round: pd.DataFrame
     initiation: pd.DataFrame
     quote_improvements: pd.DataFrame
+    pre_crossing_spread: pd.DataFrame = field(default_factory=pd.DataFrame)
     summary_table: pd.DataFrame = field(default_factory=pd.DataFrame)
 
 
@@ -522,6 +523,32 @@ def compute_initiation(tx: pd.DataFrame) -> pd.DataFrame:
             .reset_index())
 
 
+def compute_pre_crossing_spread(data) -> pd.DataFrame:
+    """For each transaction, attach the standing (bid, ask) from the previous
+    iteration in the same (sim, round) and the resulting pre-crossing spread.
+ 
+    Trusts the simulator's `standing_bid` / `standing_ask` columns directly;
+    `shift(1)` within (sim, round) gives the book state seen by the crossing
+    iteration. Trades where either side is NaN at shift(-1) are dropped — this
+    excludes back-to-back trades (where the prior row was itself a trade and
+    one side was just lifted) and any genuinely one-sided book.
+ 
+    Returns columns:
+      sim, round, iteration, announcement_type, price,
+      pre_bid, pre_ask, pre_spread
+    """
+    df = data.iter.sort_values(['sim', 'round', 'iteration']).reset_index(drop=True)
+    grp = [df['sim'], df['round']]
+    df['pre_bid'] = df.groupby(grp)['standing_bid'].shift(1)
+    df['pre_ask'] = df.groupby(grp)['standing_ask'].shift(1)
+ 
+    is_trade = df['transaction_made'].fillna(False).astype(bool)
+    tx = df.loc[is_trade, ['sim', 'round', 'iteration', 'announcement_type',
+                           'price', 'pre_bid', 'pre_ask']].copy()
+    tx['pre_spread'] = tx['pre_ask'] - tx['pre_bid']
+    return tx.dropna(subset=['pre_spread']).reset_index(drop=True)
+
+
 def compute_all_metrics(data: ExperimentData) -> ExperimentMetrics:
     """Compute every metric DataFrame. Order-flow metrics (announcements,
     spread, quote improvements) are always computed. Transaction-dependent
@@ -531,6 +558,8 @@ def compute_all_metrics(data: ExperimentData) -> ExperimentMetrics:
     spread = compute_spread_series(data.iter)
     quote_imp = compute_quote_improvements(data.iter)
     rent = compute_rent_metrics(data)  # tolerates empty tx (see below)
+    pre_crossing_spread = compute_pre_crossing_spread(data)
+
 
     if data.has_transactions:
         round_metrics = compute_round_metrics(data.tx, data.eq)
@@ -556,6 +585,7 @@ def compute_all_metrics(data: ExperimentData) -> ExperimentMetrics:
         spread_by_round=spread_by_round(spread),
         initiation=initiation,
         quote_improvements=quote_imp,
+        pre_crossing_spread=pre_crossing_spread,
     )
 
 def compute_quote_improvements(df_iter: pd.DataFrame) -> pd.DataFrame:
@@ -1989,6 +2019,152 @@ def plot_quote_improvements(metrics: ExperimentMetrics,
     return fig
 
 
+def plot_pre_crossing_spread_by_round(metrics, figsize: tuple = (7, 4)) -> plt.Figure:
+    """Mean pre-crossing spread by round, split by initiator role.
+ 
+    Bars show mean ± SEM of the spread at the iteration immediately before
+    each crossing trade. Counts above bars are the number of trades.
+    """
+    pcs = metrics.pre_crossing_spread
+    if len(pcs) == 0:
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.text(0.5, 0.5, "No qualifying crossings", ha='center', va='center',
+                transform=ax.transAxes, fontsize=11, color='#666')
+        ax.set_axis_off()
+        plt.show()
+        return fig
+ 
+    rounds = sorted(pcs['round'].unique())
+    types = ['buy', 'sell']
+    side_map = {'buy': 'buyer', 'sell': 'seller'}
+    bar_w = 0.35
+    x = np.arange(len(rounds))
+ 
+    fig, ax = plt.subplots(figsize=figsize)
+    text_offsets = []  # to place count labels above the highest of (bar+SEM)
+ 
+    for i, t in enumerate(types):
+        sub = pcs[pcs['announcement_type'] == t]
+        # mean over (sim, round) first to keep multi-sim semantics, then SEM
+        # across sims; falls back gracefully when n_sims = 1.
+        per_sim_round = (sub.groupby(['sim', 'round'])['pre_spread']
+                            .mean().rename('m').reset_index())
+        agg = (per_sim_round.groupby('round')['m']
+                            .agg(['mean', 'sem']).reindex(rounds))
+        means = agg['mean'].fillna(0).to_numpy()
+        ses = agg['sem'].fillna(0).to_numpy()
+        ns = (sub.groupby('round').size().reindex(rounds, fill_value=0)
+                 .to_numpy())
+ 
+        offset = (i - 0.5) * bar_w
+        ax.bar(x + offset, means, bar_w,
+               label=SIDE_STYLES[side_map[t]]['label'],
+               color=SIDE_STYLES[side_map[t]]['color'],
+               alpha=0.75, edgecolor='white', linewidth=0.8, zorder=3)
+        ax.errorbar(x + offset, means, yerr=ses, fmt='none', color='black',
+                    capsize=3, linewidth=1.0, zorder=4)
+        text_offsets.append((x + offset, means + ses, ns))
+ 
+    y_max = max((tops.max() for _, tops, _ in text_offsets), default=0)
+    pad = y_max * 0.04 if y_max > 0 else 0.01
+    for xs, tops, ns in text_offsets:
+        for xi, top, n in zip(xs, tops, ns):
+            if n > 0:
+                ax.text(xi, top + pad, f'n={int(n)}',
+                        ha='center', va='bottom',
+                        fontsize=8, color='#333')
+ 
+    ax.set_xticks(x)
+    ax.set_xticklabels([f'Round {r}' for r in rounds])
+    ax.set_ylabel('Mean pre-crossing spread ($)', fontsize=11)
+    ax.set_title('Bid-Ask Spread Faced by Crossing Initiator',
+                 fontsize=13, fontweight='bold')
+    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
+    ax.legend(fontsize=9)
+    ax.grid(axis='y', linestyle=':', alpha=0.5)
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    plt.show()
+    return fig
+
+
+def plot_pre_crossing_spread(metrics, figsize: tuple = (7, 4),
+                             show_points: bool = True,
+                             log_y: bool = False) -> plt.Figure:
+    """Pre-crossing bid-ask spread by initiator role, pooled across rounds.
+ 
+    One box per role. Each observation is one trade; the value is the
+    bid-ask spread at the iteration immediately before the crossing.
+    """
+    pcs = metrics.pre_crossing_spread
+    if len(pcs) == 0:
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.text(0.5, 0.5, "No qualifying crossings", ha='center', va='center',
+                transform=ax.transAxes, fontsize=11, color='#666')
+        ax.set_axis_off()
+        plt.show()
+        return fig
+ 
+    roles = [('buy', 'buyer'), ('sell', 'seller')]
+    cell_values = [pcs.loc[pcs['announcement_type'] == role_raw,
+                           'pre_spread'].to_numpy()
+                   for role_raw, _ in roles]
+ 
+    fig, ax = plt.subplots(figsize=figsize)
+    rng = np.random.default_rng(0)  # deterministic jitter
+    positions = np.arange(1, len(roles) + 1)
+ 
+    # Boxplot only on cells with ≥2 points; degenerate cells get just a dot.
+    boxable = [v for v in cell_values if len(v) >= 2]
+    boxable_pos = [p for p, v in zip(positions, cell_values) if len(v) >= 2]
+    if boxable:
+        # Hide default fliers when scattering points anyway, to avoid double-drawing.
+        flier = ({'marker': '', 'markersize': 0} if show_points else
+                 {'marker': 'o', 'markersize': 3, 'markerfacecolor': '#666',
+                  'markeredgecolor': 'none', 'alpha': 0.6})
+        bp = ax.boxplot(boxable, positions=boxable_pos, widths=0.5,
+                        patch_artist=True,
+                        medianprops={'color': 'black', 'linewidth': 1.5},
+                        flierprops=flier)
+        # Color each box by its role.
+        boxable_roles = [side for (_, side), v in zip(roles, cell_values)
+                         if len(v) >= 2]
+        for patch, side in zip(bp['boxes'], boxable_roles):
+            patch.set_facecolor(SIDE_STYLES[side]['color'])
+            patch.set_alpha(0.55)
+            patch.set_edgecolor('black')
+ 
+    if show_points:
+        for pos, vals in zip(positions, cell_values):
+            if len(vals) == 0:
+                continue
+            jitter = rng.uniform(-0.08, 0.08, len(vals))
+            ax.scatter(pos + jitter, vals, s=16, color='black',
+                       alpha=0.45, zorder=3, edgecolor='none')
+ 
+    # n labels above the plotting area.
+    for pos, (role_raw, _) in zip(positions, roles):
+        n = int((pcs['announcement_type'] == role_raw).sum())
+        ax.text(pos, 1.015, f'n={n}', ha='center', va='bottom',
+                fontsize=8, color='#666',
+                transform=ax.get_xaxis_transform())
+ 
+    ax.set_xticks(positions)
+    ax.set_xticklabels([SIDE_STYLES[side]['label'] for _, side in roles])
+    ax.set_xlim(0.5, len(roles) + 0.5)
+    ax.set_ylabel('Pre-crossing spread ($)', fontsize=11)
+    ax.set_title('Bid-Ask Spread Faced by Crossing Initiator',
+                 fontsize=13, fontweight='bold', pad=18)
+    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
+    if log_y:
+        ax.set_yscale('log')
+    ax.grid(axis='y', linestyle=':', alpha=0.5)
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    plt.show()
+    return fig
+
+
 # ============================================================
 # §11. PIPELINES
 # ============================================================
@@ -2052,6 +2228,8 @@ def render_all_plots(data: ExperimentData, metrics: ExperimentMetrics,
     figs['trade_initiation'] = plot_trade_initiation(metrics) if has_tx \
         else _placeholder_fig(msg)
     figs['quote_improvements'] = plot_quote_improvements(metrics)
+    figs['pre_crossing_spread'] = plot_pre_crossing_spread(metrics) if has_tx \
+        else _placeholder_fig(msg)
 
     return figs
 
