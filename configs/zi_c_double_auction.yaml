@@ -22,13 +22,13 @@ experiment:
   n_simulations: 50
   random_seed: 42
   buyers:
-    min: 0.8
-    max: 3.2
+    min: 0.75
+    max: 3.25
     num: 11
     strategies: zi_c
   sellers:
-    min: 0.8
-    max: 3.2
+    min: 0.75
+    max: 3.25
     num: 11
     strategies: zi_c
 
