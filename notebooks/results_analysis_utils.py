@@ -918,6 +918,16 @@ def build_market_summary_table(round_metrics: pd.DataFrame, eq: Equilibrium,
     smith_key = experiment_id.split('_')[0] if experiment_id else None
     if smith_key and smith_key in SMITH_ALPHA:
         summary['smith_alpha'] = summary.index.map(SMITH_ALPHA[smith_key])
+
+    # format
+    summary['n_trades'] = summary['n_trades'].round(0).astype(int)
+    summary['eq_price'] = summary['eq_price'].round(2)
+    summary['mean_price'] = summary['mean_price'].round(2)  
+    summary['alpha'] = summary['alpha'].round(1)
+    summary['efficiency'] = summary['efficiency'].round(2)
+    summary['n_extramarginal'] = summary['n_extramarginal'].round(0).astype(int)
+  
+    
     return summary
 
 
