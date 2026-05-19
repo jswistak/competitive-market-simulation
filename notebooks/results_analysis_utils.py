@@ -920,12 +920,12 @@ def build_market_summary_table(round_metrics: pd.DataFrame, eq: Equilibrium,
         summary['smith_alpha'] = summary.index.map(SMITH_ALPHA[smith_key])
 
     # format
-    summary['n_trades'] = summary['n_trades'].round(0).astype(int)
+    summary['n_trades'] = summary['n_trades'].round(1)
     summary['eq_price'] = summary['eq_price'].round(2)
     summary['mean_price'] = summary['mean_price'].round(2)  
     summary['alpha'] = summary['alpha'].round(1)
     summary['efficiency'] = summary['efficiency'].round(2)
-    summary['n_extramarginal'] = summary['n_extramarginal'].round(0).astype(int)
+    summary['n_extramarginal'] = summary['n_extramarginal'].round(1)
   
     
     return summary
