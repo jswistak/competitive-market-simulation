@@ -1793,7 +1793,7 @@ def plot_agent_rent_trajectories(rent: dict, eq: Equilibrium) -> plt.Figure:
 
 
 def plot_first_attempted_rent(data: ExperimentData,
-                              figsize: tuple = (11, 4.5)) -> plt.Figure:
+                              figsize: tuple = (16, 4.5)) -> plt.Figure:
     """First attempted rent in round 1, by role and mover order.
 
     For each simulation, identifies the first buy and first sell announcement
@@ -1805,6 +1805,9 @@ def plot_first_attempted_rent(data: ExperimentData,
     Panel (b): paired within-sim view. Two dots per sim (first vs second
     mover attempted rent) connected by a line coloured by which role
     moved first.
+    Panel (c): same as panel (b) but with y-axis restricted to [0, 10]
+    to better visualise the bulk of the distribution when outliers
+    dominate the unrestricted view.
     """
     df = data.iter
     r1 = df[(df['round'] == 1) & (df['announcement_made'] == True)].copy()
@@ -1846,7 +1849,7 @@ def plot_first_attempted_rent(data: ExperimentData,
         plt.show()
         return fig
 
-    fig, axes = plt.subplots(1, 2, figsize=figsize)
+    fig, axes = plt.subplots(1, 3, figsize=figsize)
 
     # ---- Panel (a): strip + mean±SEM by (role, mover) ----
     ax = axes[0]
@@ -1897,50 +1900,72 @@ def plot_first_attempted_rent(data: ExperimentData,
     ]
     ax.legend(handles=legend_handles, fontsize=9, loc='best')
 
-    # ---- Panel (b): paired within-sim ----
-    ax = axes[1]
+    # ---- Shared paired data for panels (b) and (c) ----
     pivot = (first_by_side.pivot_table(index='sim', columns='mover',
                                         values='attempted_rent')
                           .dropna(subset=['first', 'second']))
-    # Which role moved first in each sim (for line colour).
     first_role = (first_by_side[first_by_side['mover'] == 'first']
                   .set_index('sim')['role'])
 
-    for sim_id, row in pivot.iterrows():
-        col = SIDE_STYLES[first_role.loc[sim_id]]['color']
-        ax.plot([1, 2], [row['first'], row['second']],
-                color=col, alpha=0.45, linewidth=1.0, zorder=2)
-        ax.scatter([1], [row['first']], s=30, color=col,
-                   alpha=0.85, zorder=3)
-        ax.scatter([2], [row['second']], s=30, facecolor='white',
-                   edgecolor=col, linewidth=1.2, alpha=0.85, zorder=3)
+    def _draw_paired(ax, ylim=None):
+        for sim_id, row in pivot.iterrows():
+            col = SIDE_STYLES[first_role.loc[sim_id]]['color']
+            f_val, s_val = row['first'], row['second']
 
-    ax.axhline(0, color='gray', linewidth=0.8, linestyle='--', alpha=0.6)
-    ax.set_xticks([1, 2])
-    ax.set_xticklabels(['First mover', 'Second mover'])
-    ax.set_xlim(0.7, 2.3)
-    ax.set_ylabel('First attempted rent ($)', fontsize=11)
-    ax.set_title('b) Within-simulation: first vs second mover',
-                 fontsize=12, fontweight='bold')
-    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
-    ax.grid(axis='y', linestyle=':', alpha=0.5)
-    ax.set_axisbelow(True)
+            # When clipping, only draw the connector if both endpoints are
+            # in range — otherwise we'd get misleading line stubs running
+            # off-axis.
+            if ylim is None or (ylim[0] <= f_val <= ylim[1]
+                                and ylim[0] <= s_val <= ylim[1]):
+                ax.plot([1, 2], [f_val, s_val],
+                        color=col, alpha=0.45, linewidth=1.0, zorder=2)
+            if ylim is None or ylim[0] <= f_val <= ylim[1]:
+                ax.scatter([1], [f_val], s=30, color=col,
+                           alpha=0.85, zorder=3)
+            if ylim is None or ylim[0] <= s_val <= ylim[1]:
+                ax.scatter([2], [s_val], s=30, facecolor='white',
+                           edgecolor=col, linewidth=1.2,
+                           alpha=0.85, zorder=3)
 
-    # Legend: line colour = role of first mover.
-    role_handles = [
-        Line2D([0], [0], color=SIDE_STYLES['buyer']['color'],
-               linewidth=2, label='Buyer moved first'),
-        Line2D([0], [0], color=SIDE_STYLES['seller']['color'],
-               linewidth=2, label='Seller moved first'),
-    ]
-    ax.legend(handles=role_handles, fontsize=9, loc='best')
+        ax.axhline(0, color='gray', linewidth=0.8, linestyle='--', alpha=0.6)
+        ax.set_xticks([1, 2])
+        ax.set_xticklabels(['First mover', 'Second mover'])
+        ax.set_xlim(0.7, 2.3)
+        ax.set_ylabel('First attempted rent ($)', fontsize=11)
+        ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
+        ax.grid(axis='y', linestyle=':', alpha=0.5)
+        ax.set_axisbelow(True)
+
+        role_handles = [
+            Line2D([0], [0], color=SIDE_STYLES['buyer']['color'],
+                   linewidth=2, label='Buyer moved first'),
+            Line2D([0], [0], color=SIDE_STYLES['seller']['color'],
+                   linewidth=2, label='Seller moved first'),
+        ]
+        ax.legend(handles=role_handles, fontsize=9, loc='best')
+
+    # ---- Panel (b): paired within-sim, full range ----
+    _draw_paired(axes[1])
+    axes[1].set_title('b) Within-simulation: first vs second mover',
+                      fontsize=12, fontweight='bold')
+
+    # ---- Panel (c): same as (b) but clipped to [0, 10] ----
+    _draw_paired(axes[2], ylim=(0, 10))
+    axes[2].set_ylim(0, 10)
+
+    # Count how many sims have at least one endpoint outside the window.
+    n_clipped = ((pivot['first'] < 0) | (pivot['first'] > 10) |
+                 (pivot['second'] < 0) | (pivot['second'] > 10)).sum()
+    clip_note = (f' (excludes {n_clipped} sim{"s" if n_clipped != 1 else ""}'
+                 f' with outlier values)' if n_clipped else '')
+    axes[2].set_title(f'c) Zoomed: $0–$10{clip_note}',
+                      fontsize=12, fontweight='bold')
 
     fig.suptitle('First Attempted Rent in Round 1',
                  fontsize=13, fontweight='bold', y=1.02)
     fig.tight_layout()
     plt.show()
     return fig
-
 
 # ============================================================
 # §10. PLOTS — SPREAD & INITIATION
