@@ -1289,20 +1289,14 @@ def plot_single_sim_prices(data: ExperimentData, metrics: ExperimentMetrics,
 # ============================================================
 
 def plot_order_flow(data: ExperimentData) -> plt.Figure:
-    """Per-sim submitted bid/ask prices with trades highlighted."""
+    """Per-sim submitted bid/ask prices with trades highlighted (one figure per sim)."""
     df_iter, eq = data.iter, data.eq
     sims = sorted(df_iter['sim'].unique())
-    n_sims = len(sims)
-    n_cols = min(2, n_sims); n_rows = (n_sims + n_cols - 1) // n_cols
-    fig, axes = plt.subplots(n_rows, n_cols,
-                             figsize=(12 * n_cols, 5 * n_rows), squeeze=False)
-    flat = axes.flatten()
     y_min, y_max = _price_y_bounds(eq)
 
-    last_i = -1
-    for i, sim in enumerate(sims):
-        last_i = i
-        ax = flat[i]
+    fig = None
+    for sim in sims:
+        fig, ax = plt.subplots(figsize=(12, 5))
         df_sim = df_iter[df_iter['sim'] == sim].copy()
 
         # Build continuous x-axis: cumulative offset per round + iteration within round.
@@ -1330,7 +1324,7 @@ def plot_order_flow(data: ExperimentData) -> plt.Figure:
             sub = traded[traded['announcement_type'] == at]
             ax.plot(sub['x'], sub['price'], marker=st['marker'], markersize=10,
                     linestyle='', markeredgecolor='black', markeredgewidth=1.5,
-                    color=st['color'], label=f"{at.title()} → Trade")
+                    color=st['color'], label=f"{at.title()} Trade")
 
         # Round separators at cumulative round boundaries.
         cum = 0
@@ -1340,12 +1334,11 @@ def plot_order_flow(data: ExperimentData) -> plt.Figure:
 
         ax.axhline(eq.price, color='red', linestyle='--')
         ax.set_xticks([])
-        ax.set_title(f'Order Flow, simulation {sim}')
+        # ax.set_title(f'Order Flow, simulation {sim}')
         ax.set_ylabel('Submitted Price'); ax.set_ylim(y_min, y_max)
         ax.legend(fontsize=8)
-    for j in range(last_i + 1, len(flat)):
-        flat[j].set_visible(False)
-    plt.tight_layout(); plt.show()
+        plt.tight_layout(); plt.show()
+
     return fig
 
 
@@ -1398,7 +1391,7 @@ def plot_order_price_vs_reservation(data: ExperimentData) -> plt.Figure:
 
 
 def plot_fill_rate(data: ExperimentData) -> plt.Figure | None:
-    """Fill rate vs reservation price + by round."""
+    """Fill rate vs reservation price."""
     df_ann, eq = data.ann, data.eq
     if 'filled' not in df_ann.columns:
         print("No fill rate data available.")
@@ -1413,8 +1406,7 @@ def plot_fill_rate(data: ExperimentData) -> plt.Figure | None:
     ).reset_index()
     agg['ci95'] = 1.96 * agg['se']
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
-    ax = axes[0]
+    fig, ax = plt.subplots(figsize=(6.5, 5))
     for side in ['buyer', 'seller']:
         st = SIDE_STYLES[side]
         df_t = agg[agg['side'] == side].sort_values('announcing_agent_reservation_price')
@@ -1427,16 +1419,8 @@ def plot_fill_rate(data: ExperimentData) -> plt.Figure | None:
     ax.axvline(eq.price, color='grey', ls='--', lw=0.8, label='CE price')
     ax.set_xlabel('Reservation Price', fontsize=12, family='serif')
     ax.set_ylabel('Fill Rate', fontsize=12, family='serif')
-    ax.set_title('Fill Rate vs Reservation Price', fontsize=14, family='serif', pad=10)
+    # ax.set_title('Fill Rate vs Reservation Price', fontsize=14, family='serif', pad=10)
     ax.legend(frameon=False, prop={'family': 'serif', 'size': 10})
-    _apply_paper_style(ax)
-
-    ax = axes[1]
-    _errorbar_by_round_by_side(ax, df_ann, 'filled')
-    ax.set_xlabel('Round'); ax.set_ylabel('Fill Rate')
-    ax.set_title('Fill Rate by Round\n(mean ± SEM across sims)')
-    ax.set_xticks(sorted(df_ann['round'].unique()))
-    _yax_pct(ax); ax.legend()
     _apply_paper_style(ax)
     plt.tight_layout(); plt.show()
     return fig
@@ -1803,21 +1787,14 @@ def plot_agent_rent_trajectories(rent: dict, eq: Equilibrium) -> plt.Figure:
 
 
 def plot_first_attempted_rent(data: ExperimentData,
-                              figsize: tuple = (16, 4.5)) -> plt.Figure:
-    """First attempted rent in round 1, by role and mover order.
+                              figsize: tuple = (6, 4.5)) -> plt.Figure:
+    """First attempted rent in round 1: paired within-sim, first vs second mover.
 
     For each simulation, identifies the first buy and first sell announcement
     in round 1 and computes attempted rent against the announcer's own
     reservation price (buyer: value - price; seller: price - cost). The
     earlier iteration is tagged 'first mover', the later 'second mover'.
-
-    Panel (a): strip + mean±SEM across the four (role × order) cells.
-    Panel (b): paired within-sim view. Two dots per sim (first vs second
-    mover attempted rent) connected by a line coloured by which role
-    moved first.
-    Panel (c): same as panel (b) but with y-axis restricted to [0, 10]
-    to better visualise the bulk of the distribution when outliers
-    dominate the unrestricted view.
+    Two dots per sim connected by a line coloured by which role moved first.
     """
     df = data.iter
     r1 = df[(df['round'] == 1) & (df['announcement_made'] == True)].copy()
@@ -1859,120 +1836,41 @@ def plot_first_attempted_rent(data: ExperimentData,
         plt.show()
         return fig
 
-    fig, axes = plt.subplots(1, 3, figsize=figsize)
-
-    # ---- Panel (a): strip + mean±SEM by (role, mover) ----
-    ax = axes[0]
-    cells = [('buyer', 'first'), ('buyer', 'second'),
-             ('seller', 'first'), ('seller', 'second')]
-    rng = np.random.default_rng(0)
-
-    for pos, (role, mover) in enumerate(cells, start=1):
-        sub = first_by_side[(first_by_side['role'] == role) &
-                            (first_by_side['mover'] == mover)]
-        vals = sub['attempted_rent'].to_numpy()
-        col = SIDE_STYLES[role]['color']
-        face = col if mover == 'first' else 'white'
-        edge = col
-
-        # Jittered points (one per sim).
-        if len(vals):
-            jitter = rng.uniform(-0.12, 0.12, len(vals))
-            ax.scatter(np.full(len(vals), pos) + jitter, vals,
-                       s=36, facecolor=face, edgecolor=edge,
-                       linewidth=1.2, alpha=0.8, zorder=3)
-
-        # n label below the axis.
-        ax.text(pos, -0.06, f'n={len(vals)}', ha='center', va='top',
-                fontsize=8, color='#666',
-                transform=ax.get_xaxis_transform())
-
-    ax.axhline(0, color='gray', linewidth=0.8, linestyle='--', alpha=0.6)
-    ax.set_xticks(range(1, 5))
-    ax.set_xticklabels(['Buyer\n(first)', 'Buyer\n(second)',
-                        'Seller\n(first)', 'Seller\n(second)'])
-    ax.set_xlim(0.5, 4.5)
-    ax.set_ylabel('First attempted rent ($)', fontsize=11)
-    ax.set_title('a) By role and mover order',
-                 fontsize=12, fontweight='bold')
-    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
-    ax.grid(axis='y', linestyle=':', alpha=0.5)
-    ax.set_axisbelow(True)
-
-    # Legend showing the fill convention.
     from matplotlib.lines import Line2D
-    legend_handles = [
-        Line2D([0], [0], marker='o', color='w', label='First mover',
-               markerfacecolor='#666', markeredgecolor='#666', markersize=8),
-        Line2D([0], [0], marker='o', color='w', label='Second mover',
-               markerfacecolor='white', markeredgecolor='#666',
-               markeredgewidth=1.2, markersize=8),
-    ]
-    ax.legend(handles=legend_handles, fontsize=9, loc='best')
 
-    # ---- Shared paired data for panels (b) and (c) ----
     pivot = (first_by_side.pivot_table(index='sim', columns='mover',
                                         values='attempted_rent')
                           .dropna(subset=['first', 'second']))
     first_role = (first_by_side[first_by_side['mover'] == 'first']
                   .set_index('sim')['role'])
 
-    def _draw_paired(ax, ylim=None):
-        for sim_id, row in pivot.iterrows():
-            col = SIDE_STYLES[first_role.loc[sim_id]]['color']
-            f_val, s_val = row['first'], row['second']
+    fig, ax = plt.subplots(figsize=figsize)
+    for sim_id, row in pivot.iterrows():
+        col = SIDE_STYLES[first_role.loc[sim_id]]['color']
+        f_val, s_val = row['first'], row['second']
+        ax.plot([1, 2], [f_val, s_val],
+                color=col, alpha=0.45, linewidth=1.0, zorder=2)
+        ax.scatter([1], [f_val], s=30, color=col, alpha=0.85, zorder=3)
+        ax.scatter([2], [s_val], s=30, facecolor='white',
+                   edgecolor=col, linewidth=1.2, alpha=0.85, zorder=3)
 
-            # When clipping, only draw the connector if both endpoints are
-            # in range — otherwise we'd get misleading line stubs running
-            # off-axis.
-            if ylim is None or (ylim[0] <= f_val <= ylim[1]
-                                and ylim[0] <= s_val <= ylim[1]):
-                ax.plot([1, 2], [f_val, s_val],
-                        color=col, alpha=0.45, linewidth=1.0, zorder=2)
-            if ylim is None or ylim[0] <= f_val <= ylim[1]:
-                ax.scatter([1], [f_val], s=30, color=col,
-                           alpha=0.85, zorder=3)
-            if ylim is None or ylim[0] <= s_val <= ylim[1]:
-                ax.scatter([2], [s_val], s=30, facecolor='white',
-                           edgecolor=col, linewidth=1.2,
-                           alpha=0.85, zorder=3)
+    ax.axhline(0, color='gray', linewidth=0.8, linestyle='--', alpha=0.6)
+    ax.set_xticks([1, 2])
+    ax.set_xticklabels(['First mover', 'Second mover'])
+    ax.set_xlim(0.7, 2.3)
+    ax.set_ylabel('First attempted rent ($)', fontsize=11)
+    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
+    ax.grid(axis='y', linestyle=':', alpha=0.5)
+    ax.set_axisbelow(True)
 
-        ax.axhline(0, color='gray', linewidth=0.8, linestyle='--', alpha=0.6)
-        ax.set_xticks([1, 2])
-        ax.set_xticklabels(['First mover', 'Second mover'])
-        ax.set_xlim(0.7, 2.3)
-        ax.set_ylabel('First attempted rent ($)', fontsize=11)
-        ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
-        ax.grid(axis='y', linestyle=':', alpha=0.5)
-        ax.set_axisbelow(True)
+    role_handles = [
+        Line2D([0], [0], color=SIDE_STYLES['buyer']['color'],
+               linewidth=2, label='Buyer moved first'),
+        Line2D([0], [0], color=SIDE_STYLES['seller']['color'],
+               linewidth=2, label='Seller moved first'),
+    ]
+    ax.legend(handles=role_handles, fontsize=9, loc='best')
 
-        role_handles = [
-            Line2D([0], [0], color=SIDE_STYLES['buyer']['color'],
-                   linewidth=2, label='Buyer moved first'),
-            Line2D([0], [0], color=SIDE_STYLES['seller']['color'],
-                   linewidth=2, label='Seller moved first'),
-        ]
-        ax.legend(handles=role_handles, fontsize=9, loc='best')
-
-    # ---- Panel (b): paired within-sim, full range ----
-    _draw_paired(axes[1])
-    axes[1].set_title('b) Within-simulation: first vs second mover',
-                      fontsize=12, fontweight='bold')
-
-    # ---- Panel (c): same as (b) but clipped to [0, 10] ----
-    _draw_paired(axes[2], ylim=(0, 10))
-    axes[2].set_ylim(0, 10)
-
-    # Count how many sims have at least one endpoint outside the window.
-    n_clipped = ((pivot['first'] < 0) | (pivot['first'] > 10) |
-                 (pivot['second'] < 0) | (pivot['second'] > 10)).sum()
-    clip_note = (f' (excludes {n_clipped} sim{"s" if n_clipped != 1 else ""}'
-                 f' with outlier values)' if n_clipped else '')
-    axes[2].set_title(f'c) Zoomed: $0–$10{clip_note}',
-                      fontsize=12, fontweight='bold')
-
-    fig.suptitle('First Attempted Rent in Round 1',
-                 fontsize=13, fontweight='bold', y=1.02)
     fig.tight_layout()
     plt.show()
     return fig
@@ -2105,14 +2003,7 @@ def plot_quote_improvements(metrics: ExperimentMetrics,
                              bin_width: float = 0.01,
                              max_improvement: float | None = None,
                              log_y: bool = False) -> plt.Figure | None:
-    """Distribution of per-tick improvements to the standing bid/ask.
-
-    Shows whether agents make fine-grained (e.g. $0.01) vs coarse (e.g. $0.10)
-    price improvements. Three panels:
-      a) Histogram of improvement sizes by side
-      b) ECDF by side — clearest view of where the mass sits
-      c) Improvement size by round (mean ± SEM)
-    """
+    """ECDF of per-tick improvements to the standing bid/ask, by side."""
     imp = metrics.quote_improvements
     if len(imp) == 0:
         print("No improvement events found.")
@@ -2121,53 +2012,9 @@ def plot_quote_improvements(metrics: ExperimentMetrics,
     if max_improvement is not None:
         imp = imp[imp['improvement'] <= max_improvement]
 
-    fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
-
-    ax = axes[0]
     upper = float(imp['improvement'].max())
-    # upper = imp['improvement'].quantile(0.99)
-    # # Widen if the 99th is at a single quantum and there's a longer tail
-    # if upper <= bin_width and imp['improvement'].max() > upper:
-    #     upper = imp['improvement'].max()
 
-    if bin_width is None:
-        target = upper / 25
-        nice = np.array([0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5])
-        bin_width = float(nice[np.argmin(np.abs(nice - target))])
-
-    bin_edges = np.arange(0, upper + bin_width, bin_width)
-    bc = (bin_edges[:-1] + bin_edges[1:]) / 2
-    width = bin_width
-    half = width / 2
-    sims = sorted(imp['sim'].unique())
-
-    for side, st, offset in [
-        ('buyer',  SIDE_STYLES['buyer'],  -half / 2),
-        ('seller', SIDE_STYLES['seller'],  half / 2),
-    ]:
-        counts = np.zeros((len(sims), len(bc)))
-        for i, s in enumerate(sims):
-            v = imp[(imp['side'] == side) & (imp['sim'] == s)]['improvement']
-            counts[i], _ = np.histogram(v, bins=bin_edges)
-        m = counts.mean(0)
-        sem = counts.std(0, ddof=1) / np.sqrt(len(sims)) if len(sims) > 1 else np.zeros_like(m)
-        n_total = int(counts.sum())
-        ax.bar(bc + offset, m, width=half, color=st['color'],
-               edgecolor='white', linewidth=0.4,
-               label=f"{st['label']} (n={n_total})")
-        ax.errorbar(bc + offset, m, yerr=sem, fmt='none',
-                    ecolor='black', capsize=1.5, lw=0.8)
-
-    ax.set_xlim(0, upper)
-    ax.set_xlabel(f'Improvement size ($, bin width={bin_width:g})')
-    ax.set_ylabel('Mean count per simulation')
-    ax.set_title('a) Distribution of improvement sizes')
-    if log_y:
-        ax.set_yscale('log')
-    ax.legend()
-    ax.grid(axis='y', linestyle=':', alpha=0.4)
-
-    ax = axes[1]
+    fig, ax = plt.subplots(figsize=(6, 4.5))
     for side, st in SIDE_STYLES.items():
         sub = np.sort(imp[imp['side'] == side]['improvement'].values)
         if len(sub) == 0:
@@ -2179,30 +2026,15 @@ def plot_quote_improvements(metrics: ExperimentMetrics,
         if ref > upper:
             continue
         ax.axvline(ref, color='grey', ls=':', lw=0.7, alpha=0.5)
-        ax.text(ref, 1.01, f'${ref:g}', ha='center', fontsize=8,
-                color='grey', transform=ax.get_xaxis_transform())
     ax.set_xlabel('Improvement size ($)')
     ax.set_ylabel('Cumulative fraction')
-    ax.set_title('b) ECDF of improvement sizes')
     ax.set_xlim(0, upper)
     ax.set_ylim(0, 1.05)
     ax.legend(loc='lower right')
     ax.grid(linestyle=':', alpha=0.4)
 
-    ax = axes[2]
-    _errorbar_by_round_by_side(ax, imp, 'improvement')
-    ax.set_xlabel('Round')
-    ax.set_ylabel('Mean improvement ($)')
-    ax.set_title('c) Mean improvement by round')
-    ax.set_xticks(sorted(imp['round'].unique()))
-    ax.legend()
-    ax.grid(linestyle=':', alpha=0.4)
-
-    fig.suptitle('Per-Tick Improvements to Standing Bid / Ask',
-                 fontsize=13, fontweight='bold', y=1.02)
-    plt.show()
+    plt.tight_layout(); plt.show()
     return fig
-
 
 def plot_pre_crossing_spread_by_round(metrics, figsize: tuple = (7, 4)) -> plt.Figure:
     """Mean pre-crossing spread by round, split by initiator role.
@@ -2262,8 +2094,8 @@ def plot_pre_crossing_spread_by_round(metrics, figsize: tuple = (7, 4)) -> plt.F
     ax.set_xticks(x)
     ax.set_xticklabels([f'Round {r}' for r in rounds])
     ax.set_ylabel('Mean pre-crossing spread ($)', fontsize=11)
-    ax.set_title('Bid-Ask Spread Faced by Crossing Initiator',
-                 fontsize=13, fontweight='bold')
+    # ax.set_title('Bid-Ask Spread Faced by Crossing Initiator',
+    #              fontsize=13, fontweight='bold')
     ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
     ax.legend(fontsize=9)
     ax.grid(axis='y', linestyle=':', alpha=0.5)
@@ -2338,8 +2170,8 @@ def plot_pre_crossing_spread(metrics, figsize: tuple = (7, 4),
     ax.set_xticklabels([SIDE_STYLES[side]['label'] for _, side in roles])
     ax.set_xlim(0.5, len(roles) + 0.5)
     ax.set_ylabel('Pre-crossing spread ($)', fontsize=11)
-    ax.set_title('Bid-Ask Spread Faced by Crossing Initiator',
-                 fontsize=13, fontweight='bold', pad=18)
+    # ax.set_title('Bid-Ask Spread Faced by Crossing Initiator',
+    #              fontsize=13, fontweight='bold', pad=18)
     ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('$%.2f'))
     if log_y:
         ax.set_yscale('log')
