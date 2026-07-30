@@ -30,7 +30,9 @@ services:
       NEXTAUTH_URL: http://localhost:3100
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
       SALT: mysalt
-      ENCRYPTION_KEY: 5bcc6c1774fa0cb1ecf9dc0891cc08d3bd4b39cbf129837b3ee290021d092b71
+      # Local-dev default; override for an existing volume or generate a new
+      # value with: openssl rand -hex 32
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
       TELEMETRY_ENABLED: "false"
       LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
       CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
