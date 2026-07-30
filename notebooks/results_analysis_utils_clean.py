@@ -1,33 +1,15 @@
 """
 Market Experiment Analysis — Supplementary Material
 ===================================================
-Trimmed version of the full analysis pipeline, containing only the figures and
-table that appear in the paper:
+This code produces the figures and the table that appear in the paper 
+and the supplementary material:
 
-  1. Supply & demand equilibrium chart       (produced during data loading)
-  2. Market summary table (Smith 1962 style)
-  3. Per-simulation order-flow charts        (all submitted bids/asks)
+  1. Supply & demand equilibrium chart
+  2. Market summary table
+  3. Per-simulation order-flow charts
   4. Fill rate vs reservation price
   5. Cumulative fraction of quote-improvement sizes (ECDF)
   6. First attempted rent: first vs second mover
-
-Loads three data sources per simulation:
-  - iteration_history_{sim}.csv : full order flow (all submitted bids/asks)
-  - transactions_{sim}.csv      : completed transactions with execution prices
-  - agent_histories_{sim}.csv   : per-agent action log with reservation prices
-
-NOTE: iteration_history.price is the SUBMITTED limit price; transactions.price
-is the EXECUTION price. The summary table uses execution prices; the order-flow
-and rent charts use submitted prices.
-
-A simulation is loaded whenever its iteration_history and agent_histories files
-are present; transactions are optional. Sims with no trades (no transactions
-file) still contribute all their submitted orders to the order-flow and rent
-figures. The summary table is built from whichever sims did trade, and is
-skipped entirely if none did.
-
-Public API:
-    data, metrics, figs = run_full_analysis(results_path, n_sims)
 """
 
 from __future__ import annotations
