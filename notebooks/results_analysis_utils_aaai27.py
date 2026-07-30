@@ -14,6 +14,7 @@ and the supplementary material:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -417,7 +418,9 @@ def build_market_summary_table(round_metrics: pd.DataFrame, eq: Equilibrium,
     ).round(3)
     summary.insert(0, 'eq_quantity', eq.quantity)
     summary.insert(2, 'eq_price', eq.price)
-    smith_key = experiment_id.split('_')[0] if experiment_id else None
+    # Robust to path-style ids like "final/results_configs_final/smith1_..."
+    match = re.search(r'smith\d+[ab]?', experiment_id) if experiment_id else None
+    smith_key = match.group(0) if match else None
     if smith_key and smith_key in SMITH_ALPHA:
         summary['smith_alpha'] = summary.index.map(SMITH_ALPHA[smith_key])
 
