@@ -1,6 +1,6 @@
-# Market Simulation
+# Competitive Market Simulation
 
-LangGraph-based market simulation for LLM agents. This project studies how LLM-based agents behave when placed in competitive market environments including double auctions, sealed-bid auctions, English, Dutch, and other mechanisms.
+Competitive Market Simulation is a LangGraph-based framework for studying how LLM-based agents behave when placed in competitive market environments including double auctions, sealed-bid auctions, English, Dutch, and other mechanisms.
 
 ## Features
 
@@ -342,7 +342,7 @@ LANGFUSE_HOST=https://cloud.langfuse.com
 ## Project Structure
 
 ```
-master-thesis/
+competitive-market-simulation/
 ├── src/market_simulation/
 │   ├── __init__.py
 │   ├── main.py              # CLI entry point (Typer)

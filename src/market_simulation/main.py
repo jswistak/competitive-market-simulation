@@ -26,7 +26,7 @@ from .tools.sandbox import SandboxManager
 
 app = typer.Typer(
     name="market-simulation",
-    help="LangGraph-based market equilibrium simulation for LLM agents",
+    help="Competitive Market Simulation - LangGraph-based market equilibrium simulation for LLM agents",
 )
 console = Console()
 
@@ -75,7 +75,7 @@ def run(
     setup_logging(verbose)
     logger = logging.getLogger(__name__)
 
-    console.print("[bold green]Market Simulation[/]")
+    console.print("[bold green]Competitive Market Simulation[/]")
     console.print(f"Loading config: {config}")
 
     # Load configuration

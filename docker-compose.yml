@@ -70,9 +70,9 @@ services:
       NEXTAUTH_SECRET: mysecret
       # Auto-initialize org, project, and user so it works out of the box
       LANGFUSE_INIT_ORG_ID: my-org
-      LANGFUSE_INIT_ORG_NAME: "Master Thesis"
+      LANGFUSE_INIT_ORG_NAME: "Competitive Market Simulation"
       LANGFUSE_INIT_PROJECT_ID: my-project
-      LANGFUSE_INIT_PROJECT_NAME: "Market Simulation"
+      LANGFUSE_INIT_PROJECT_NAME: "Competitive Market Simulation"
       LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-local-public-key
       LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-local-secret-key
       LANGFUSE_INIT_USER_EMAIL: admin@langfuse.local

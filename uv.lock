@@ -107,7 +107,7 @@ name = "cffi"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
+    { name = "pycparser" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/eb/56/b1ba7935a17738ae8453301356628e8147c79dbb825bcbc73dc7401f9846/cffi-2.0.0.tar.gz", hash = "sha256:44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529", size = 523588, upload-time = "2025-09-08T23:24:04.541Z" }
 wheels = [
@@ -273,6 +273,65 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/4c/13/7d740c5849255756bc17888787313b61fd38a0a8304fc4f073dfc46122aa/comm-0.2.3.tar.gz", hash = "sha256:2dc8048c10962d55d7ad693be1e7045d891b7ce8d999c97963a5e3e99c055971", size = 6319, upload-time = "2025-07-25T14:02:04.452Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/60/97/891a0971e1e4a8c5d2b20bbe0e524dc04548d2307fee33cdeba148fd4fc7/comm-0.2.3-py3-none-any.whl", hash = "sha256:c615d91d75f7f04f095b30d1c1711babd43bdc6419c1be9886a85f2f4e489417", size = 7294, upload-time = "2025-07-25T14:02:02.896Z" },
+]
+
+[[package]]
+name = "competitive-market-simulation"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "anthropic" },
+    { name = "e2b-code-interpreter" },
+    { name = "ipykernel" },
+    { name = "langchain" },
+    { name = "langchain-anthropic" },
+    { name = "langchain-core" },
+    { name = "langchain-google-genai" },
+    { name = "langchain-openai" },
+    { name = "langfuse" },
+    { name = "langgraph" },
+    { name = "matplotlib" },
+    { name = "mypy" },
+    { name = "numpy" },
+    { name = "openai" },
+    { name = "pandas" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pytest" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "ruff" },
+    { name = "seaborn" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anthropic", specifier = ">=0.30.0" },
+    { name = "e2b-code-interpreter", specifier = ">=1.0.0" },
+    { name = "ipykernel", specifier = ">=7.2.0" },
+    { name = "langchain", specifier = ">=0.3.0" },
+    { name = "langchain-anthropic", specifier = ">=0.2.0" },
+    { name = "langchain-core", specifier = ">=0.3.0" },
+    { name = "langchain-google-genai", specifier = ">=2.0.0" },
+    { name = "langchain-openai", specifier = ">=0.2.0" },
+    { name = "langfuse", specifier = ">=2.50.0" },
+    { name = "langgraph", specifier = ">=0.2.0" },
+    { name = "matplotlib", specifier = ">=3.10.8" },
+    { name = "mypy", specifier = ">=1.19.1" },
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "openai", specifier = ">=1.50.0" },
+    { name = "pandas", specifier = ">=2.0" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "pydantic-settings", specifier = ">=2.0" },
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "python-dotenv", specifier = ">=1.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "rich", specifier = ">=13.0" },
+    { name = "ruff", specifier = ">=0.14.13" },
+    { name = "seaborn", specifier = ">=0.13.2" },
+    { name = "typer", specifier = ">=0.12" },
 ]
 
 [[package]]
@@ -1187,65 +1246,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5b/f5/4ec618ed16cc4f8fb3b701563655a69816155e79e24a17b651541804721d/markdown_it_py-4.0.0.tar.gz", hash = "sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3", size = 73070, upload-time = "2025-08-11T12:57:52.854Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/94/54/e7d793b573f298e1c9013b8c4dade17d481164aa517d1d7148619c2cedbf/markdown_it_py-4.0.0-py3-none-any.whl", hash = "sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147", size = 87321, upload-time = "2025-08-11T12:57:51.923Z" },
-]
-
-[[package]]
-name = "market-simulation"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "anthropic" },
-    { name = "e2b-code-interpreter" },
-    { name = "ipykernel" },
-    { name = "langchain" },
-    { name = "langchain-anthropic" },
-    { name = "langchain-core" },
-    { name = "langchain-google-genai" },
-    { name = "langchain-openai" },
-    { name = "langfuse" },
-    { name = "langgraph" },
-    { name = "matplotlib" },
-    { name = "mypy" },
-    { name = "numpy" },
-    { name = "openai" },
-    { name = "pandas" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pytest" },
-    { name = "python-dotenv" },
-    { name = "pyyaml" },
-    { name = "rich" },
-    { name = "ruff" },
-    { name = "seaborn" },
-    { name = "typer" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "anthropic", specifier = ">=0.30.0" },
-    { name = "e2b-code-interpreter", specifier = ">=1.0.0" },
-    { name = "ipykernel", specifier = ">=7.2.0" },
-    { name = "langchain", specifier = ">=0.3.0" },
-    { name = "langchain-anthropic", specifier = ">=0.2.0" },
-    { name = "langchain-core", specifier = ">=0.3.0" },
-    { name = "langchain-google-genai", specifier = ">=2.0.0" },
-    { name = "langchain-openai", specifier = ">=0.2.0" },
-    { name = "langfuse", specifier = ">=2.50.0" },
-    { name = "langgraph", specifier = ">=0.2.0" },
-    { name = "matplotlib", specifier = ">=3.10.8" },
-    { name = "mypy", specifier = ">=1.19.1" },
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "openai", specifier = ">=1.50.0" },
-    { name = "pandas", specifier = ">=2.0" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "pydantic-settings", specifier = ">=2.0" },
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "python-dotenv", specifier = ">=1.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "rich", specifier = ">=13.0" },
-    { name = "ruff", specifier = ">=0.14.13" },
-    { name = "seaborn", specifier = ">=0.13.2" },
-    { name = "typer", specifier = ">=0.12" },
 ]
 
 [[package]]

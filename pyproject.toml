@@ -1,7 +1,7 @@
 [project]
-name = "market-simulation"
+name = "competitive-market-simulation"
 version = "0.1.0"
-description = "LangGraph-based market equilibrium simulation for LLM agents"
+description = "Competitive Market Simulation - LangGraph-based market equilibrium simulation for LLM agents"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
